@@ -281,10 +281,10 @@ class Anim:
         if all_bones:
             first = int(min(kp.co.x for fc in fcurves(act) for kp in fc.keyframe_points))
             last = int(max(kp.co.x for fc in fcurves(act) for kp in fc.keyframe_points))
-            keyed = {fc.data_path.split('"')[1] for fc in fcurves(act) if '"' in fc.data_path}
+            keyed = {fc.data_path for fc in fcurves(act)}
             for pb in self.pb:
-                if pb.name not in keyed:
-                    for prop, v in (("location", (0, 0, 0)), ("rotation_euler", (0, 0, 0)), ("scale", (1, 1, 1))):
+                for prop, v in (("location", (0, 0, 0)), ("rotation_euler", (0, 0, 0)), ("scale", (1, 1, 1))):
+                    if f'pose.bones["{pb.name}"].{prop}' not in keyed:  # per channel, so no channel leaks between clips
                         setattr(pb, prop, v)
                         pb.keyframe_insert(prop, frame=first)
                         pb.keyframe_insert(prop, frame=last)
