@@ -97,7 +97,7 @@ function Crowd() {
       }
     return out
   }, [scene])
-  return batches.map((b) => <Batch key={b.key} {...b} />)
+  return batches.map(({ key, ...b }) => <Batch key={key} {...b} />)
 }
 
 // desk props: laptops and coffee cups on the desk 0.5 m in front of the student (desk top at seat floor + 0.95)
@@ -107,7 +107,7 @@ const SLEEVE = new THREE.CylinderGeometry(0.0415, 0.037, 0.045, 14)
 const LID = new THREE.CylinderGeometry(0.043, 0.043, 0.012, 14)
 const PROP_MATS = {
   base: new THREE.MeshStandardMaterial({ color: '#b9bcc2', metalness: 0.6, roughness: 0.35 }),
-  screen: new THREE.MeshStandardMaterial({ color: '#1b1d22', metalness: 0.3, roughness: 0.4 }),
+  screen: new THREE.MeshStandardMaterial({ color: '#c9ccd2', metalness: 0.7, roughness: 0.3 }),
   cup: new THREE.MeshStandardMaterial({ color: '#f5f2ea', roughness: 0.6 }),
   sleeve: new THREE.MeshStandardMaterial({ color: '#8a5a36', roughness: 0.9 }),
   lid: new THREE.MeshStandardMaterial({ color: '#2b2b2e', roughness: 0.5 }),
@@ -123,7 +123,11 @@ function DeskProps() {
       const at = (fwd, side, y) => [s.x + f[0] * fwd + rgt[0] * side, y, s.z + f[1] * fwd + rgt[1] * side]
       if (s.prop === 'laptop') {
         out.base.push(compose(at(0.5, 0, top + 0.01), s.rot, [0.3, 0.018, 0.21]))
-        const m = compose(at(0.6, 0, top + 0.105), s.rot).multiply(new THREE.Matrix4().makeRotationX(-0.25)).multiply(new THREE.Matrix4().makeScale(0.3, 0.2, 0.012))
+        // lid hinged at the far edge, tilted back toward the front of the room, low enough not to hide the face
+        const m = compose(at(0.6, 0, top + 0.02), s.rot)
+          .multiply(new THREE.Matrix4().makeRotationX(0.45))
+          .multiply(new THREE.Matrix4().makeTranslation(0, 0.07, 0))
+          .multiply(new THREE.Matrix4().makeScale(0.3, 0.14, 0.01))
         out.screen.push(m)
       } else {
         const side = 0.14 * s.side
