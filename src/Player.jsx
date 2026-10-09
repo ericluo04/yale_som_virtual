@@ -6,6 +6,7 @@ import { EYE, MAX_STEP, SPAWN, collide, floorAt, locate } from './layout.js'
 import { DEBUG_CAM, NOLOCK } from './render/debugCam.js'
 import { ui } from './interact/store.js'
 import { sound } from './interact/sound.js'
+import { pushOut } from './interact/registry.js'
 
 const CROUCH_EYE = 1.05
 const JUMP_SPEED = 4.2
@@ -130,6 +131,7 @@ export default function Player({ lockRef, mapRef, touchRef, onLock, onWhere }) {
       const speed = crouching ? 2.4 : sprint ? 9.5 : 5.5 // m/s; brisk walk, sprint is a jog
       const pos = { x: camera.position.x + mx * speed * dt, z: camera.position.z + mz * speed * dt }
       collide(pos)
+      pushOut(pos) // solid interactables (signs, NPCs)
       // risers: walk up one step at a time; anything taller acts like a wall
       const cur = floorAt(camera.position.x, camera.position.z)
       if (floorAt(pos.x, pos.z) - cur <= MAX_STEP) {

@@ -57,7 +57,7 @@ export default function DemoSign() {
     [],
   )
   return (
-    <Interactable position={POS} radius={2.6} label="the demo sign" verb="Read" marker="interact" onInteract={() => openDialogue(SCRIPT)}>
+    <Interactable position={POS} radius={2.6} solid={0.3} label="the demo sign" verb="Read" marker="interact" onInteract={() => openDialogue(SCRIPT)}>
       <mesh material={mats.post} position={[0, 0.6, 0]}>
         <cylinderGeometry args={[0.03, 0.03, 1.2, 10]} />
       </mesh>

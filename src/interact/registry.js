@@ -41,6 +41,26 @@ export function register(opts, fixedId) {
 
 export const allInteractables = () => entries.values()
 
+// Keep the player outside any interactable with `solid` set (a radius in meters), so you
+// cannot walk through a sign or an NPC. Player.jsx calls this right after the wall collision.
+export function pushOut(pos, rPlayer = 0.35) {
+  for (const e of entries.values()) {
+    const o = e.ref.current
+    if (!o.solid) continue
+    const p = resolvePos(o.position)
+    if (!p) continue
+    const dx = pos.x - p.x
+    const dz = pos.z - p.z
+    const d = Math.hypot(dx, dz)
+    const min = o.solid + rPlayer
+    if (d < min && d > 1e-6) {
+      pos.x = p.x + (dx / d) * min
+      pos.z = p.z + (dz / d) * min
+    }
+  }
+  return pos
+}
+
 // Run the active interactable's onInteract (E key, click, phone action button).
 export function interact() {
   const a = interactState.get().active
@@ -95,7 +115,7 @@ export function scan(camera) {
 
 // Register a scene object as interactable for the life of the component.
 // opts: { position, radius = 2, label, verb = 'Interact', onInteract, onEnter, onLeave,
-//         enabled = true, marker = 'interact' | 'npc' | 'egg' | false, id }
+//         enabled = true, marker = 'interact' | 'npc' | 'egg' | false, solid = 0 (m), id }
 // Callbacks are read fresh every frame, so inline arrow functions are fine.
 // Returns true while this is the active interactable.
 export function useInteractable(opts) {
@@ -104,7 +124,7 @@ export function useInteractable(opts) {
   const idRef = useRef(null)
   useEffect(() => {
     const live = {}
-    for (const k of ['position', 'radius', 'label', 'verb', 'onInteract', 'onEnter', 'onLeave', 'enabled', 'marker'])
+    for (const k of ['position', 'radius', 'label', 'verb', 'onInteract', 'onEnter', 'onLeave', 'enabled', 'marker', 'solid'])
       Object.defineProperty(live, k, { get: () => optsRef.current[k] })
     const { id, off } = register(live, opts.id)
     idRef.current = id
