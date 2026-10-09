@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
+import * as THREE from 'three'
 import World from './World.jsx'
 import Player from './Player.jsx'
 import Minimap from './Minimap.jsx'
@@ -35,7 +36,14 @@ export default function App() {
     <>
       <Canvas
         camera={{ fov: 72, near: 0.05, far: 800, position: [SPAWN.x, EYE, SPAWN.z] }}
-        dpr={QUALITY === 'low' ? 1 : [1, 1.75]}
+        dpr={QUALITY === 'low' ? 1 : [1, 2]}
+        shadows={QUALITY === 'low' ? false : 'soft'}
+        gl={{ antialias: QUALITY === 'low', powerPreference: 'high-performance' }}
+        onCreated={({ gl }) => {
+          gl.toneMapping = THREE.ACESFilmicToneMapping
+          gl.toneMappingExposure = 1.0
+          gl.outputColorSpace = THREE.SRGBColorSpace
+        }}
       >
         <World />
         <Player lockRef={lockRef} mapRef={mapRef} touchRef={touchRef} onLock={onLock} onWhere={onWhere} />
