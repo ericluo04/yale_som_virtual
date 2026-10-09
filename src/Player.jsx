@@ -3,6 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js'
 import { EYE, MAX_STEP, SPAWN, collide, floorAt, locate } from './layout.js'
+import { DEBUG_CAM } from './render/debugCam.js'
 
 const CROUCH_EYE = 1.05
 const JUMP_SPEED = 4.2
@@ -27,6 +28,11 @@ export default function Player({ lockRef, mapRef, touchRef, onLock, onWhere }) {
   useEffect(() => {
     camera.position.set(SPAWN.x, EYE, SPAWN.z)
     camera.rotation.set(0, 0, 0)
+    if (DEBUG_CAM) {
+      camera.position.set(DEBUG_CAM.x, DEBUG_CAM.y, DEBUG_CAM.z)
+      camera.rotation.set(DEBUG_CAM.pitch, DEBUG_CAM.yaw, 0, 'YXZ')
+      devY.current = DEBUG_CAM.y
+    }
     lockRef.current = () => controls.lock()
     const on = () => onLock(true)
     const off = () => {

@@ -5,6 +5,7 @@ import Player from './Player.jsx'
 import Minimap from './Minimap.jsx'
 import TouchControls from './TouchControls.jsx'
 import { EYE, SPAWN } from './layout.js'
+import { NOLOCK, QUALITY } from './render/debugCam.js'
 
 export default function App() {
   const [locked, setLocked] = useState(false)
@@ -34,7 +35,7 @@ export default function App() {
     <>
       <Canvas
         camera={{ fov: 72, near: 0.05, far: 800, position: [SPAWN.x, EYE, SPAWN.z] }}
-        dpr={[1, 1.75]}
+        dpr={QUALITY === 'low' ? 1 : [1, 1.75]}
       >
         <World />
         <Player lockRef={lockRef} mapRef={mapRef} touchRef={touchRef} onLock={onLock} onWhere={onWhere} />
@@ -53,7 +54,7 @@ export default function App() {
       {playing && <div className="crosshair" />}
       {touchOn && <TouchControls touchRef={touchRef} onPause={() => setTouch(false)} />}
 
-      {!playing && (
+      {!playing && !NOLOCK && (
         <div className="overlay" onClick={() => (isTouch ? setTouch(true) : lockRef.current?.())}>
           <div className="card">
             <div className="kicker">Yale SOM · Evans Hall</div>
