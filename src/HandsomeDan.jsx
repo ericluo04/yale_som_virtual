@@ -1,6 +1,6 @@
-import { useMemo, useRef } from 'react'
+import { Suspense, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import * as THREE from 'three'
+import { preloadModel, useClipPlayer, useRigInstance } from './characters/rig.js'
 import { DRUMS, ellPt } from './layout.js'
 
 // Handsome Dan, Yale's bulldog. He tours a loop of 1000 randomly chosen classrooms:
@@ -76,59 +76,22 @@ function legPath(from, to) {
   return [A.inside, A.inner, A.outer, ...ringPath(A.ring, Bb.ring), Bb.outer, Bb.inner, Bb.inside]
 }
 
-function bandanaTex() {
-  const c = document.createElement('canvas')
-  c.width = 256
-  c.height = 256
-  const g = c.getContext('2d')
-  g.fillStyle = '#00356b'
-  g.fillRect(0, 0, 256, 256)
-  g.fillStyle = '#ffffff'
-  g.font = 'bold 120px Georgia, serif'
-  g.textAlign = 'center'
-  g.fillText('Y', 128, 175)
-  const t = new THREE.CanvasTexture(c)
-  t.colorSpace = THREE.SRGBColorSpace
-  return t
-}
+preloadModel('handsome_dan')
 
-const SPH = new THREE.SphereGeometry(1, 24, 16)
-const CYL = new THREE.CylinderGeometry(1, 1, 1, 14)
-const mat = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.75, ...o })
+const STRIDE = 0.55 // meters covered per Walk cycle at timeScale 1 (the clip is 0.8 s)
 
-export default function HandsomeDan() {
+function DanModel() {
   const root = useRef()
-  const legs = useRef([])
-  const tail = useRef()
-  const head = useRef()
-  const M = useMemo(
-    () => ({
-      white: mat('#f4f1ea'),
-      brown: mat('#b07a4a'),
-      dark: mat('#2a1d16'),
-      pink: mat('#d98c8c'),
-      tooth: mat('#ffffff', { roughness: 0.3 }),
-      eye: mat('#120c08', { roughness: 0.2 }),
-      bandana: new THREE.MeshStandardMaterial({ map: bandanaTex(), roughness: 0.9, side: THREE.DoubleSide }),
-      tag: mat('#c9a44a', { metalness: 0.8, roughness: 0.3 }),
-    }),
-    [],
-  )
-  const bandanaGeo = useMemo(() => {
-    const g = new THREE.BufferGeometry()
-    // triangle hanging from the neck, point down
-    g.setAttribute('position', new THREE.Float32BufferAttribute([-0.17, 0.08, 0, 0.17, 0.08, 0, 0, -0.17, 0.02], 3))
-    g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 1, 1, 1, 0.5, 0], 2))
-    g.computeVertexNormals()
-    return g
-  }, [])
+  const { object, actions } = useRigInstance('handsome_dan')
+  const play = useClipPlayer(actions, 0.25)
+  const walkScale = SPEED / STRIDE / (1 / 0.8)
 
   const state = useMemo(() => {
     const order = tour(1701) // Yale founded 1701
     return { order, leg: 0, path: legPath(order[0], order[1]), seg: 0, u: 0, pause: 0 }
   }, [])
 
-  useFrame(({ clock }, rawDt) => {
+  useFrame((_, rawDt) => {
     const dt = Math.min(rawDt, 0.05)
     const st = state
     let moving = true
@@ -175,62 +138,21 @@ export default function HandsomeDan() {
     DAN.x = x
     DAN.z = z
     if (import.meta.env.DEV) document.body.dataset.dan = `${x.toFixed(2)},${z.toFixed(2)},${st.order[st.leg]},${st.order[(st.leg + 1) % st.order.length]}`
-    const t = clock.elapsedTime
-    legs.current.forEach((l, i) => {
-      if (l) l.rotation.x = moving ? Math.sin(t * 12 + (i % 2 ? Math.PI : 0) + (i > 1 ? Math.PI : 0)) * 0.5 : 0
-    })
-    tail.current.rotation.z = Math.sin(t * (moving ? 10 : 18)) * 0.6
-    head.current.rotation.y = moving ? Math.sin(t * 2) * 0.1 : Math.sin(t * 1.3) * 0.5
-    root.current.children[0].position.y = moving ? Math.abs(Math.sin(t * 12)) * 0.02 : 0
+    // Walk while touring, Idle (pant, look around) while he pauses at the front of a room
+    play(moving ? 'Walk' : 'Idle', { timeScale: moving ? walkScale : 1 })
   })
 
-  const B = ({ p, s, m, r = [0, 0, 0], g = SPH }) => <mesh geometry={g} material={m} position={p} scale={s} rotation={r} />
   return (
     <group ref={root}>
-      <group>
-        {/* stocky body with brown patches */}
-        <B p={[0, 0.36, 0]} s={[0.21, 0.19, 0.33]} m={M.white} />
-        <B p={[0.1, 0.42, -0.12]} s={[0.12, 0.1, 0.15]} m={M.brown} />
-        <B p={[-0.12, 0.33, -0.2]} s={[0.1, 0.1, 0.1]} m={M.brown} />
-        <B p={[0, 0.4, 0.2]} s={[0.24, 0.2, 0.18]} m={M.white} />
-        {/* legs: front pair wide-set like a bulldog */}
-        {[
-          [-0.15, 0.22],
-          [0.15, 0.22],
-          [-0.13, -0.22],
-          [0.13, -0.22],
-        ].map(([lx, lz], i) => (
-          <group key={i} ref={(el) => (legs.current[i] = el)} position={[lx, 0.3, lz]}>
-            <B g={CYL} p={[0, -0.13, 0]} s={[0.055, 0.26, 0.055]} m={M.white} />
-            <B p={[0, -0.27, 0.03]} s={[0.06, 0.03, 0.08]} m={M.white} />
-          </group>
-        ))}
-        <group ref={tail} position={[0, 0.45, -0.33]}>
-          <B p={[0, 0.03, -0.02]} s={[0.035, 0.05, 0.035]} m={M.white} />
-        </group>
-        {/* bandana + tag */}
-        <mesh geometry={bandanaGeo} material={M.bandana} position={[0, 0.47, 0.35]} rotation={[-0.25, 0, 0]} />
-        <B g={CYL} p={[0, 0.55, 0.3]} s={[0.2, 0.05, 0.12]} m={M.bandana} />
-        {/* big bulldog head */}
-        <group ref={head} position={[0, 0.6, 0.36]}>
-          <B p={[0, 0, 0]} s={[0.2, 0.17, 0.16]} m={M.white} />
-          <B p={[0.08, 0.05, 0.06]} s={[0.09, 0.09, 0.1]} m={M.brown} />
-          {[-1, 1].map((sx) => (
-            <group key={sx}>
-              <B p={[0.16 * sx, 0.11, -0.02]} r={[0, 0, 0.6 * sx]} s={[0.07, 0.04, 0.05]} m={M.dark} />
-              <B p={[0.07 * sx, 0.05, 0.13]} s={[0.032, 0.03, 0.02]} m={M.eye} />
-              <B p={[0.075 * sx, -0.05, 0.12]} s={[0.075, 0.07, 0.07]} m={M.white} />
-            </group>
-          ))}
-          <B p={[0, 0.0, 0.17]} s={[0.05, 0.035, 0.03]} m={M.eye} />
-          {/* underbite: wide jaw, little teeth poking up */}
-          <B p={[0, -0.1, 0.11]} s={[0.13, 0.05, 0.08]} m={M.pink} />
-          {[-1, 1].map((sx) => (
-            <B key={sx} p={[0.06 * sx, -0.06, 0.17]} s={[0.012, 0.022, 0.01]} m={M.tooth} />
-          ))}
-          <B p={[0, -0.03, 0.16]} s={[0.12, 0.02, 0.03]} m={M.dark} />
-        </group>
-      </group>
+      <primitive object={object} />
     </group>
+  )
+}
+
+export default function HandsomeDan() {
+  return (
+    <Suspense fallback={null}>
+      <DanModel />
+    </Suspense>
   )
 }
