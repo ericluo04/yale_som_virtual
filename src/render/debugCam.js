@@ -4,6 +4,7 @@
 //   ?nolock=1             skip the start overlay without moving the camera
 //   ?quality=low|high     rendering quality (default high)
 //   ?stats=1              fps panel
+//   ?hud=0                hide the location pill and minimap for clean screenshots
 const params = new URLSearchParams(typeof location === 'undefined' ? '' : location.search)
 
 function parseCam(s) {
@@ -18,3 +19,4 @@ export const DEBUG_CAM = parseCam(params.get('cam'))
 export const NOLOCK = !!DEBUG_CAM || params.get('nolock') === '1'
 export const QUALITY = params.get('quality') === 'low' ? 'low' : 'high'
 export const STATS = params.get('stats') === '1'
+export const HUD = params.get('hud') !== '0'

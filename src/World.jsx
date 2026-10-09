@@ -13,6 +13,7 @@ import Faculty from './Faculty.jsx'
 import HandsomeDan from './HandsomeDan.jsx'
 import { COURSE_KEYS, slideTex } from './slides.js'
 import { rng } from './textures.js'
+import Lighting from './render/Lighting.jsx'
 
 const TAU = Math.PI * 2
 
@@ -166,13 +167,7 @@ function Atmosphere() {
       pm.dispose()
     }
   }, [gl, scene])
-  return (
-    <>
-      <hemisphereLight args={['#e3ebff', '#8a7a66', 0.75]} />
-      <ambientLight intensity={0.2} />
-      <directionalLight position={[20, 40, 10]} intensity={0.6} />
-    </>
-  )
+  return <Lighting />
 }
 
 // ---------- floor + ceiling with the courtyard hole
@@ -238,7 +233,9 @@ function Courtyard({ M }) {
         geometry={SPHERE}
       />
       <Instanced items={cafeTables} material={M.board} geometry={BOX} />
-      <LabubuParty />
+      <group userData={{ dynamic: true }}>
+        <LabubuParty />
+      </group>
     </>
   )
 }
@@ -504,33 +501,20 @@ function MeetingRooms({ M }) {
           material={slideMat(COURSE_KEYS[i % COURSE_KEYS.length], i % 2 ? 'content' : 'chart')}
         />
       ))}
-      {MEETING.map((m, i) => (
-        <GlassDoor key={i} door={m.door} M={M} />
-      ))}
-      <MeetingLabubus />
+      <group userData={{ dynamic: true }}>
+        {MEETING.map((m, i) => (
+          <GlassDoor key={i} door={m.door} M={M} />
+        ))}
+        <MeetingLabubus />
+      </group>
     </>
   )
 }
 
-// ---------- pot lights, plants
+// ---------- plants (ceiling lights live in render/Lighting.jsx)
 function Details({ M }) {
-  const lights = useMemo(() => {
-    const out = []
-    const { xMin, xMax, zMin, zMax } = BOUNDS
-    for (let x = xMin + 1.2; x < xMax; x += 2.4)
-      for (let z = zMin + 1.2; z < zMax; z += 2.4) if (!inPoly(x, z, COURTYARD)) out.push({ p: [x, H - 0.01, z] })
-    for (let x = EAST + 1; x < EAST + 9.5; x += 2.4)
-      for (let z = -9; z < 9.5; z += 2.4) if (Math.hypot(x - EAST, z) < 9.3) out.push({ p: [x, H - 0.01, z] })
-    return out
-  }, [])
-  const lampGeo = useMemo(() => {
-    const g = new THREE.CircleGeometry(0.09, 12)
-    g.rotateX(Math.PI / 2)
-    return g
-  }, [])
   return (
     <>
-      <Instanced items={lights} material={M.lamp} geometry={lampGeo} />
       <Instanced items={PLANTS.map(([x, z]) => ({ p: [x, 0.3, z], s: [0.3, 0.6, 0.3] }))} material={M.pot} geometry={BOX} />
       <Instanced items={PLANTS.map(([x, z]) => ({ p: [x, 1.1, z], s: [0.5, 0.65, 0.5] }))} material={M.leaf} geometry={SPHERE} />
       <MeetingRooms M={M} />
@@ -553,9 +537,11 @@ export default function World() {
       <Beinecke M={M} />
       <Stairs M={M} />
       <Details M={M} />
-      <LabubuCrowd />
-      <Faculty />
-      <HandsomeDan />
+      <group userData={{ dynamic: true }}>
+        <LabubuCrowd />
+        <Faculty />
+        <HandsomeDan />
+      </group>
     </>
   )
 }
