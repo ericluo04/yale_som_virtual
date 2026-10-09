@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
-import { useStore } from '../interact/store.js'
+import { ui, useStore } from '../interact/store.js'
 import { sound } from '../interact/sound.js'
 import { advanceDialogue, closeDialogue, dialogueState } from './dialogueStore.jsx'
 
@@ -12,6 +12,7 @@ function rich(text) {
 
 export default function Dialogue() {
   const { script, index } = useStore(dialogueState)
+  const touch = useStore(ui, (s) => s.touch)
   const line = script?.[index]
   const [shown, setShown] = useState(0)
   const full = line?.text ?? ''
@@ -104,7 +105,7 @@ export default function Dialogue() {
             ))}
           </div>
         )}
-        {done && !line.choices?.length && <div className="dlg-next">space ▸</div>}
+        {done && !line.choices?.length && <div className="dlg-next">{touch ? 'tap' : 'space'} ▸</div>}
       </div>
     </div>
   )

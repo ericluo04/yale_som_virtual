@@ -91,6 +91,8 @@ export default function App() {
                 <span><b>Space</b> jump</span>
                 <span><b>C</b> crouch</span>
                 <span><b>M</b> map</span>
+                <span><b>E</b> interact</span>
+                <span><b>N</b> sound</span>
                 <span><b>Esc</b> pause</span>
               </div>
             )}
