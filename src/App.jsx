@@ -2,11 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import * as THREE from 'three'
 import World from './World.jsx'
+import Effects from './render/Effects.jsx'
 import Player from './Player.jsx'
 import Minimap from './Minimap.jsx'
 import TouchControls from './TouchControls.jsx'
 import { EYE, SPAWN } from './layout.js'
-import { NOLOCK, QUALITY } from './render/debugCam.js'
+import { HUD, NOLOCK, QUALITY } from './render/debugCam.js'
 
 export default function App() {
   const [locked, setLocked] = useState(false)
@@ -47,18 +48,19 @@ export default function App() {
       >
         <World />
         <Player lockRef={lockRef} mapRef={mapRef} touchRef={touchRef} onLock={onLock} onWhere={onWhere} />
+        <Effects />
       </Canvas>
 
-      <div className="where">
+      {HUD && <div className="where">
         <span className="dot" />
         {where}
-      </div>
-      <div className={showMap ? 'mapwrap' : 'mapwrap hidden'}>
+      </div>}
+      <div className={showMap && HUD ? 'mapwrap' : 'mapwrap hidden'}>
         <Minimap drawRef={mapRef} />
       </div>
-      <button className="maptoggle" onClick={() => setShowMap((s) => !s)}>
+      {HUD && <button className="maptoggle" onClick={() => setShowMap((s) => !s)}>
         {showMap ? 'hide map' : 'map'}
-      </button>
+      </button>}
       {playing && <div className="crosshair" />}
       {touchOn && <TouchControls touchRef={touchRef} onPause={() => setTouch(false)} />}
 
