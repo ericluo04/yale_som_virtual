@@ -2,7 +2,7 @@ import { useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { H, EAST, BOUNDS, COURTYARD, DRUMS, LIBRARY, inPoly } from '../layout.js'
-import { QUALITY } from './debugCam.js'
+import { OFF, QUALITY } from './debugCam.js'
 
 // Sun elevation matches the HDRI (Kloofendal 48d), azimuth from the south-west so light
 // rakes across the courtyard glass into the east and north cloisters.
@@ -145,7 +145,7 @@ export default function Lighting() {
       <hemisphereLight args={['#eef2ff', '#9a8a74', 0.4]} />
       <ambientLight intensity={0.12} />
       <Sun />
-      <RoomLights />
+      {!OFF.has('lights') && <RoomLights />}
       <CeilingPanels />
       {QUALITY !== 'low' && <ShadowSetup />}
     </>

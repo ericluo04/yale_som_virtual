@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
+import { PerformanceMonitor, Stats } from '@react-three/drei'
 import * as THREE from 'three'
 import World from './World.jsx'
 import Effects from './render/Effects.jsx'
@@ -7,12 +8,15 @@ import Player from './Player.jsx'
 import Minimap from './Minimap.jsx'
 import TouchControls from './TouchControls.jsx'
 import { EYE, SPAWN } from './layout.js'
-import { HUD, NOLOCK, QUALITY } from './render/debugCam.js'
+import { DPR, HUD, NOLOCK, OFF, QUALITY, STATS } from './render/debugCam.js'
 
 export default function App() {
   const [locked, setLocked] = useState(false)
   const [where, setWhere] = useState('')
   const [showMap, setShowMap] = useState(true)
+  // high quality starts at dpr 1 and climbs toward 2 while the frame rate holds at the
+  // display rate; post-processing at dpr 2 is about 30 fps on an M1 at 1440x900
+  const [dpr, setDpr] = useState(DPR ?? 1)
   const lockRef = useRef()
   const mapRef = useRef()
   const onLock = useCallback((v) => setLocked(v), [])
@@ -37,8 +41,8 @@ export default function App() {
     <>
       <Canvas
         camera={{ fov: 72, near: 0.05, far: 800, position: [SPAWN.x, EYE, SPAWN.z] }}
-        dpr={QUALITY === 'low' ? 1 : [1, 2]}
-        shadows={QUALITY === 'low' ? false : 'soft'}
+        dpr={dpr}
+        shadows={QUALITY === 'low' || OFF.has('shadow') ? false : 'soft'}
         gl={{ antialias: QUALITY === 'low', powerPreference: 'high-performance' }}
         onCreated={({ gl }) => {
           gl.toneMapping = THREE.ACESFilmicToneMapping
@@ -49,6 +53,10 @@ export default function App() {
         <World />
         <Player lockRef={lockRef} mapRef={mapRef} touchRef={touchRef} onLock={onLock} onWhere={onWhere} />
         <Effects />
+        {QUALITY !== 'low' && !DPR && (
+          <PerformanceMonitor factor={0} step={0.25} bounds={() => [50, 59]} onChange={({ factor }) => setDpr(1 + factor)} />
+        )}
+        {STATS && <Stats />}
       </Canvas>
 
       {HUD && <div className="where">
