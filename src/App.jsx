@@ -52,7 +52,8 @@ export default function App() {
       >
         <World />
         <Player lockRef={lockRef} mapRef={mapRef} touchRef={touchRef} onLock={onLock} onWhere={onWhere} />
-        <Effects />
+        {/* N8AO keeps stale half-res buffers across a pixel-ratio change, so the chain remounts */}
+        <Effects key={dpr} />
         {QUALITY !== 'low' && !DPR && (
           <PerformanceMonitor factor={0} step={0.25} bounds={() => [50, 59]} onChange={({ factor }) => setDpr(1 + factor)} />
         )}

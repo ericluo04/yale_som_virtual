@@ -14,6 +14,7 @@ import HandsomeDan from './HandsomeDan.jsx'
 import { COURSE_KEYS, slideTex } from './slides.js'
 import { rng } from './textures.js'
 import Lighting from './render/Lighting.jsx'
+import { pbr, worldUV } from './render/pbr.js'
 
 const TAU = Math.PI * 2
 
@@ -101,11 +102,18 @@ function Plane({ p, rot = 0, w, h, material }) {
 function useMaterials() {
   return useMemo(() => {
     const std = (o) => new THREE.MeshStandardMaterial(o)
+    // thin glass: physical material so the panes pick up environment reflections and a
+    // Fresnel edge; plain alpha blending keeps glass-behind-glass visible
     const glass = (color, opacity) =>
-      std({ color, transparent: true, opacity, roughness: 0.05, metalness: 0.2, side: THREE.DoubleSide, depthWrite: false })
+      new THREE.MeshPhysicalMaterial({
+        color, transparent: true, opacity, roughness: 0.05, metalness: 0, ior: 1.5, specularIntensity: 1,
+        envMapIntensity: 1.4, side: THREE.DoubleSide, depthWrite: false,
+      })
+    const plaster = pbr('plaster', { color: false })
+    const wood = pbr('wood')
     return {
-      white: std({ color: '#f2f0ec', roughness: 0.9 }),
-      sage: std({ map: T.sageTex(), roughness: 0.9 }),
+      white: worldUV(std({ color: '#f2f0ec', roughness: 1, ...plaster, normalScale: new THREE.Vector2(0.35, 0.35) }), 0.5),
+      sage: worldUV(std({ map: T.sageTex(), roughness: 1, normalMap: plaster.normalMap, roughnessMap: plaster.roughnessMap, normalScale: new THREE.Vector2(0.35, 0.35) }), 0.5),
       exterior: glass('#2a3a55', 0.35),
       glass: glass('#d7ecf2', 0.14),
       libGlass: glass('#d7ecf2', 0.12),
@@ -113,7 +121,7 @@ function useMaterials() {
       meetGlass: glass('#c9d6e6', 0.22),
       rail: glass('#9fb3c8', 0.3),
       slats: std({ map: T.slatsTex(), roughness: 0.7 }),
-      desk: std({ map: T.teakTex(), roughness: 0.55 }),
+      desk: worldUV(std({ ...wood, color: '#e8c9a8', roughness: 0.9 }), 0.8),
       shelf: std({ map: T.booksTex(), roughness: 0.8 }),
       leather: std({ color: '#9a4f22', roughness: 0.45 }),
       orange: std({ color: '#d4552a', roughness: 0.8 }),
@@ -121,11 +129,11 @@ function useMaterials() {
       drum: std({ map: T.drumTex(), roughness: 0.08, metalness: 0.65, envMapIntensity: 1.6 }),
       drumIn: std({ map: T.sageTex(), roughness: 0.9, side: THREE.BackSide }),
       frosted: std({ color: '#e9eef2', transparent: true, opacity: 0.75, roughness: 0.3 }),
-      carpet: std({ map: T.carpetTex(), color: '#d9cdb8', roughness: 1 }),
-      roomCarpet: std({ map: T.carpetTex([3, 3], '#c3bcae'), roughness: 1 }),
-      tierCarpet: std({ map: T.carpetTex([0.4, 0.4], '#c3bcae'), roughness: 1 }),
+      carpet: std({ ...pbr('carpet', { repeat: [0.6, 0.6] }), color: '#f3ece0', roughness: 1 }),
+      roomCarpet: std({ ...pbr('carpet', { repeat: [7, 7] }), color: '#cfc8bc', roughness: 1 }),
+      tierCarpet: std({ ...pbr('carpet', { repeat: [0.6, 0.6] }), color: '#cfc8bc', roughness: 1 }),
       stepEdge: std({ color: '#d9822b', roughness: 0.7 }),
-      beinCarpet: std({ map: T.carpetTex([4, 4]), roughness: 1 }),
+      beinCarpet: std({ ...pbr('carpet', { repeat: [12, 12] }), color: '#f3ece0', roughness: 1 }),
       stone: std({ map: T.stoneTex([2, 2]), roughness: 0.95 }),
       ceiling: std({ color: '#f7f5f0', roughness: 1, side: THREE.DoubleSide }),
       lawn: std({ map: T.lawnTex(), roughness: 1 }),
