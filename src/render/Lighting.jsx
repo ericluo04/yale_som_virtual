@@ -1,13 +1,13 @@
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
-import { H, EAST, BOUNDS, COURTYARD, DRUMS, LIBRARY, inPoly } from '../layout.js'
+import { H, ROOF, EAST, BEIN, BOUNDS, COURTYARD, DRUMS, LIBRARY, inPoly } from '../layout.js'
 import { OFF, QUALITY } from './debugCam.js'
 
-// Sun elevation matches the HDRI (Kloofendal 48d), azimuth from the south-west so light
-// rakes across the courtyard glass into the east and north cloisters.
-const SUN_DIR = new THREE.Vector3(-0.45, 0.74, 0.5).normalize()
-const CENTER = new THREE.Vector3((BOUNDS.xMin + EAST + 14) / 2, 0, 0)
+// Sun about 60 degrees up from the south-west: high enough that the 7.2 m soffit keeps most
+// of the concourse in shade, so the sunlit strips along the glass read as strips.
+const SUN_DIR = new THREE.Vector3(-0.42, 1.05, 0.45).normalize()
+const CENTER = new THREE.Vector3((BOUNDS.xMin + EAST + BEIN.terrace) / 2, 0, (BOUNDS.zMin + BOUNDS.zMax) / 2)
 
 // Fit the orthographic shadow camera to the building box in light space, so the 2048 map
 // covers only the floor plate (about 5 cm per texel) and not empty sky.
@@ -15,9 +15,9 @@ function fitShadow(light) {
   const cam = light.shadow.camera
   const view = new THREE.Matrix4().lookAt(light.position, light.target.position, new THREE.Vector3(0, 1, 0))
   const inv = view.clone().invert()
-  const xs = [BOUNDS.xMin, EAST + 14]
+  const xs = [BOUNDS.xMin, EAST + BEIN.terrace]
   const zs = [BOUNDS.zMin, BOUNDS.zMax]
-  const ys = [-5, H + 9]
+  const ys = [-5, ROOF + 0.5]
   const box = new THREE.Box3()
   const v = new THREE.Vector3()
   for (const x of xs) for (const y of ys) for (const z of zs) box.expandByPoint(v.set(x, y, z).sub(light.position).applyMatrix4(inv))
@@ -82,7 +82,7 @@ function Sun() {
       <directionalLight
         ref={ref}
         color="#fff4e2"
-        intensity={6}
+        intensity={3.2}
         castShadow={QUALITY !== 'low'}
         shadow-mapSize={[2048, 2048]}
         shadow-bias={-0.0004}
@@ -93,19 +93,20 @@ function Sun() {
   )
 }
 
-// Recessed linear LED panels on a 2.4 m x 3.6 m grid. Values above 1 feed the bloom pass.
-const PANEL = new THREE.PlaneGeometry(1.2, 0.3).rotateX(Math.PI / 2)
-const panelMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.97, 0.92).multiplyScalar(3.2), toneMapped: false })
-const trimMat = new THREE.MeshStandardMaterial({ color: '#d9d9d6', roughness: 0.5, metalness: 0.3 })
-const TRIM = new THREE.PlaneGeometry(1.28, 0.38).rotateX(Math.PI / 2)
+// Small round recessed downlights in a loose 2.4 m grid; the photos show no linear fixtures
+// in the concourse. Values above 1 feed the bloom pass.
+const PANEL = new THREE.CircleGeometry(0.08, 16).rotateX(Math.PI / 2)
+const panelMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.96, 0.9).multiplyScalar(4), toneMapped: false })
+const trimMat = new THREE.MeshStandardMaterial({ color: '#cfd0d0', roughness: 0.4, metalness: 0.5 })
+const TRIM = new THREE.CircleGeometry(0.12, 16).rotateX(Math.PI / 2)
 function CeilingPanels() {
   const spots = useMemo(() => {
     const out = []
     const { xMin, xMax, zMin, zMax } = BOUNDS
-    for (let x = xMin + 1.8; x < xMax; x += 2.4)
-      for (let z = zMin + 1.8; z < zMax; z += 3.6) if (!inPoly(x, z, COURTYARD) && !inPoly(x, z + 1.5, COURTYARD)) out.push([x, z])
-    for (let x = EAST + 1.4; x < EAST + 9.5; x += 2.4)
-      for (let z = -8; z < 8.5; z += 3.6) if (Math.hypot(x - EAST, z) < 9) out.push([x, z])
+    for (let x = xMin + 1.2; x < xMax; x += 2.4)
+      for (let z = zMin + 1.2; z < zMax; z += 2.4) if (!inPoly(x, z, COURTYARD)) out.push([x + ((Math.round(z / 2.4) % 2) * 0.6), z])
+    for (let x = EAST + 1.2; x < EAST + BEIN.r; x += 2.4)
+      for (let z = -BEIN.r; z < BEIN.r; z += 2.4) if (Math.hypot(x - EAST, z) < BEIN.r - 0.8) out.push([x, z])
     return out
   }, [])
   const refs = [useRef(), useRef()]
@@ -131,9 +132,9 @@ function CeilingPanels() {
 // Shadowless, so each costs one light loop iteration per fragment.
 function RoomLights() {
   const spots = useMemo(() => {
-    const out = DRUMS.map((d) => ({ p: [d.c[0] - d.dir[0] * 1.5, H - 0.7, d.c[1] - d.dir[1] * 1.5], i: 7, d: Math.max(d.rx, d.rz) * 2.2 }))
+    const out = DRUMS.map((d) => ({ p: [d.c[0] - d.dir[0] * 1.5, H - 0.7, d.c[1] - d.dir[1] * 1.5], i: 16, d: Math.max(d.rx, d.rz) * 2.2 }))
     const lx = (LIBRARY.x0 + LIBRARY.x1) / 2
-    out.push({ p: [lx, H - 0.7, -6], i: 9, d: 14 }, { p: [lx, H - 0.7, 6], i: 9, d: 14 })
+    out.push({ p: [lx, H - 0.7, -6], i: 18, d: 16 }, { p: [lx, H - 0.7, 6], i: 18, d: 16 })
     return out
   }, [])
   return spots.map((s, i) => <pointLight key={i} position={s.p} intensity={s.i} distance={s.d} decay={1.6} color="#ffe9cf" />)
@@ -142,8 +143,8 @@ function RoomLights() {
 export default function Lighting() {
   return (
     <>
-      <hemisphereLight args={['#eef2ff', '#9a8a74', 0.4]} />
-      <ambientLight intensity={0.12} />
+      <hemisphereLight args={['#eef2ff', '#9a8a74', 0.22]} />
+      <ambientLight intensity={0.05} />
       <Sun />
       {!OFF.has('lights') && <RoomLights />}
       <CeilingPanels />

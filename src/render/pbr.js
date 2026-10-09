@@ -21,13 +21,14 @@ function tiled(file, srgb, repeat) {
   return t
 }
 
-// returns { map, normalMap, roughnessMap } for spreading into a material
+// returns { map, normalMap, roughnessMap } for spreading into a material; `color` may name
+// another colour map to pair with this set's normal and roughness
 export function pbr(name, { repeat = [1, 1], color = true } = {}) {
   const set = {
     normalMap: tiled(`${name}_normal.jpg`, false, repeat),
     roughnessMap: tiled(`${name}_rough.jpg`, false, repeat),
   }
-  if (color) set.map = tiled(`${name}_color.jpg`, true, repeat)
+  if (color) set.map = tiled(`${typeof color === 'string' ? color : name}_color.jpg`, true, repeat)
   return set
 }
 
