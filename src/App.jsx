@@ -6,6 +6,9 @@ import Minimap from './Minimap.jsx'
 import TouchControls from './TouchControls.jsx'
 import { EYE, SPAWN } from './layout.js'
 import { NOLOCK, QUALITY } from './render/debugCam.js'
+import { InteractScene, ui } from './interact/index.jsx'
+import { useStore } from './interact/store.js'
+import InteractUI from './ui/InteractUI.jsx'
 
 export default function App() {
   const [locked, setLocked] = useState(false)
@@ -24,7 +27,8 @@ export default function App() {
     touchRef.current.move = [0, 0]
     setTouchOn(on)
   }
-  const playing = locked || touchOn
+  const frozen = useStore(ui, (s) => s.frozen) // a dialogue is open: keep the start overlay away
+  const playing = locked || touchOn || frozen
   useEffect(() => {
     const k = (e) => e.code === 'KeyM' && setShowMap((v) => !v)
     window.addEventListener('keydown', k)
@@ -39,6 +43,7 @@ export default function App() {
       >
         <World />
         <Player lockRef={lockRef} mapRef={mapRef} touchRef={touchRef} onLock={onLock} onWhere={onWhere} />
+        <InteractScene />
       </Canvas>
 
       <div className="where">
@@ -52,6 +57,7 @@ export default function App() {
         {showMap ? 'hide map' : 'map'}
       </button>
       {playing && <div className="crosshair" />}
+      <InteractUI />
       {touchOn && <TouchControls touchRef={touchRef} onPause={() => setTouch(false)} />}
 
       {!playing && !NOLOCK && (

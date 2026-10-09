@@ -3,7 +3,9 @@ import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js'
 import { EYE, MAX_STEP, SPAWN, collide, floorAt, locate } from './layout.js'
-import { DEBUG_CAM } from './render/debugCam.js'
+import { DEBUG_CAM, NOLOCK } from './render/debugCam.js'
+import { ui } from './interact/store.js'
+import { sound } from './interact/sound.js'
 
 const CROUCH_EYE = 1.05
 const JUMP_SPEED = 4.2
@@ -34,6 +36,16 @@ export default function Player({ lockRef, mapRef, touchRef, onLock, onWhere }) {
       devY.current = DEBUG_CAM.y
     }
     lockRef.current = () => controls.lock()
+    // the dialogue closes with a click or key press, which is a user gesture, so lock can come back
+    ui.set({
+      relock: () => {
+        try {
+          gl.domElement.requestPointerLock()?.catch?.(() => {})
+        } catch {
+          // browser refused (cooldown after Esc); the start overlay takes over
+        }
+      },
+    })
     const on = () => onLock(true)
     const off = () => {
       keys.current = {} // keys held during Esc never get a keyup
@@ -58,7 +70,7 @@ export default function Player({ lockRef, mapRef, touchRef, onLock, onWhere }) {
       window.removeEventListener('keyup', up)
       window.removeEventListener('blur', blur)
     }
-  }, [camera, controls, lockRef, onLock])
+  }, [camera, controls, gl, lockRef, onLock])
 
   useFrame((_, rawDt) => {
     const dt = Math.min(rawDt, 0.05)
@@ -72,10 +84,14 @@ export default function Player({ lockRef, mapRef, touchRef, onLock, onWhere }) {
       floorY.current = floorAt(x, z)
     }
     const touch = touchRef.current
-    const active = controls.isLocked || touch.active
+    // a dialogue (ui.frozen) stops movement and look; ?nolock walks without pointer lock
+    const frozen = ui.get().frozen
+    const playing = controls.isLocked || touch.active || NOLOCK
+    const active = playing && !frozen
+    if (playing !== ui.get().playing || touch.active !== ui.get().touch) ui.set({ playing, touch: touch.active })
 
     // touch look: drag on the right side of the screen
-    if (touch.active && (touch.look[0] || touch.look[1])) {
+    if (active && touch.active && (touch.look[0] || touch.look[1])) {
       euler.setFromQuaternion(camera.quaternion)
       euler.y -= touch.look[0] * LOOK_SPEED
       euler.x = Math.max(-1.45, Math.min(1.45, euler.x - touch.look[1] * LOOK_SPEED))
@@ -97,7 +113,7 @@ export default function Player({ lockRef, mapRef, touchRef, onLock, onWhere }) {
       s = (k.KeyD || k.ArrowRight ? 1 : 0) - (k.KeyA || k.ArrowLeft ? 1 : 0)
       sprint = k.ShiftLeft || k.ShiftRight
     }
-    if (touch.active && (touch.move[0] || touch.move[1])) {
+    if (active && touch.active && (touch.move[0] || touch.move[1])) {
       f = -touch.move[1]
       s = touch.move[0]
       sprint = Math.hypot(f, s) > 0.95 // push the stick all the way to hurry
@@ -145,6 +161,7 @@ export default function Player({ lockRef, mapRef, touchRef, onLock, onWhere }) {
     if (w !== where.current) {
       where.current = w
       onWhere(w)
+      sound.setPlace(w)
     }
   })
   return null
