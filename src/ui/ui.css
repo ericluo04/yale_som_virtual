@@ -255,6 +255,17 @@ div.hud-ask kbd {
   font: 10px var(--ui-sans);
   max-width: 200px;
 }
+.map-legend i.dia {
+  border-radius: 1px;
+  transform: rotate(45deg) scale(0.85);
+}
+/* the map is drawn at 2x; a little wider than before so room numbers are legible */
+.mapwrap .minimap {
+  width: 240px;
+}
+.mapwrap .map-legend {
+  max-width: 240px;
+}
 .map-legend i {
   display: inline-block;
   width: 8px;
@@ -306,7 +317,8 @@ div.hud-ask kbd {
   .hud-slot.hud-prompt { bottom: 200px; }
   .hud-pill { font-size: 11px; padding: 4px 9px; }
   .toasts { top: 60px; }
-  .map-legend { max-width: 120px; font-size: 9px; }
+  .mapwrap .minimap { width: 120px; }
+  .mapwrap .map-legend { max-width: 120px; font-size: 9px; }
   .dlg-scrim { padding-bottom: 16px; }
   .dlg-text { font-size: 15px; }
 }
