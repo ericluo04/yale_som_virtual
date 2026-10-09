@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
+import { Environment } from '@react-three/drei'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import {
   H, EAST, BOUNDS, COURTYARD, DRUMS, DRUM_WALL, WALLS, CHAIRS, SCREENS, BOARDS, LECTERNS,
@@ -169,13 +170,20 @@ function Atmosphere() {
     const env = pm.fromScene(new RoomEnvironment(), 0.04).texture
     scene.environment = env
     scene.environmentIntensity = 0.55
-    scene.background = T.skyTex()
     return () => {
       env.dispose()
       pm.dispose()
     }
   }, [gl, scene])
-  return <Lighting />
+  // The HDRI is the sky seen through the courtyard and exterior glass. Interior reflections
+  // keep the RoomEnvironment above: an outdoor sky as the only environment tints every
+  // indoor surface blue.
+  return (
+    <>
+      <Environment files={`${import.meta.env.BASE_URL}hdri/kloofendal_48d_partly_cloudy_puresky_1k.hdr`} background="only" backgroundIntensity={1} />
+      <Lighting />
+    </>
+  )
 }
 
 // ---------- floor + ceiling with the courtyard hole
