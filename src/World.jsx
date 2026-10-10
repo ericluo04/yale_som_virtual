@@ -154,7 +154,6 @@ function useMaterials() {
       ceiling: std({ color: '#f7f5f0', roughness: 1, side: THREE.DoubleSide }),
       lawn: std({ map: T.lawnTex(), roughness: 1 }),
       ground: std({ color: '#2b3a26', roughness: 1 }),
-      cafe: std({ map: T.cafeTex(), emissive: '#ffffff', emissiveMap: T.cafeTex(), emissiveIntensity: 0.35, roughness: 0.3, side: THREE.DoubleSide }),
       silver: std({ color: '#9aa3a8', metalness: 0.8, roughness: 0.3 }),
       canopy: std({ color: '#f1f0ec', roughness: 0.9, side: THREE.DoubleSide }),
       paving: std({ map: T.stoneTex([0.5, 0.5]), color: '#e4e0d8', roughness: 0.95 }),
@@ -249,7 +248,6 @@ function FloorAndCeiling({ M }) {
 function Courtyard({ M }) {
   // clear glass from the concourse floor to the roof; level 4 behind it is real geometry
   const glass = useMemo(() => ribbon(COURTYARD, 0, ROOF), [])
-  const cafe = useMemo(() => ribbon(COURTYARD, -5, 0, 1 / 15), [])
   const mullions = useMemo(
     // silver mullions about 1.6 m apart from the lawn to the roof
     () => COURTYARD.filter((_, i) => i % 2 === 0).map(([x, z]) => ({ p: [x, (ROOF - 5) / 2, z], s: [0.06, ROOF + 5, 0.06] })),
@@ -267,7 +265,7 @@ function Courtyard({ M }) {
   return (
     <>
       <mesh geometry={glass} material={M.glass} />
-      <mesh geometry={cafe} material={M.cafe} />
+      <Cafe M={M} />
       <Level4 M={M} />
       {PROC && <Instanced items={mullions} material={M.mullion} geometry={BOX} />}
       {/* the lawn trees are scanned models now (render/Scenery.jsx) */}
@@ -294,6 +292,114 @@ function offsetLoop(pts, d) {
     if (nx * p[0] + nz * p[1] < 0) [nx, nz] = [-nx, -nz]
     return [p[0] + nx * d, p[1] + nz * d]
   })
+}
+
+// Level 1 café behind the ground-floor glazing (photo 07): dark-tinted glass from the lawn to the
+// concourse slab, and behind it a lit room 7 m deep with a long counter on the north side, small
+// wood tables with black chairs, a pale floor and warm downlights. Unbaked boxes; seen only from
+// the courtyard.
+const CAFE = { y0: -5, y1: -0.9, depth: 7 }
+function Cafe({ M }) {
+  const geos = useMemo(() => {
+    const back = offsetLoop(COURTYARD, CAFE.depth)
+    const ring = (flip) => {
+      const f = (x, z) => new THREE.Vector2(x, flip ? -z : z)
+      const sh = new THREE.Shape(back.map(([x, z]) => f(x, z)))
+      sh.holes.push(new THREE.Path(COURTYARD.map(([x, z]) => f(x, z))))
+      const g = new THREE.ShapeGeometry(sh)
+      g.rotateX(flip ? -Math.PI / 2 : Math.PI / 2)
+      return g
+    }
+    const lamp = new THREE.CircleGeometry(0.09, 12)
+    lamp.rotateX(Math.PI / 2)
+    return {
+      glass: ribbon(COURTYARD, CAFE.y0, CAFE.y1),
+      // the level 2 slab edge between the café glazing and the concourse glass
+      spandrel: ribbon(COURTYARD, CAFE.y1, 0.02),
+      floor: ring(true),
+      ceil: ring(false),
+      wall: ribbon(back, CAFE.y0, CAFE.y1, 1 / 12),
+      lamp,
+    }
+  }, [])
+  const items = useMemo(() => {
+    const y = CAFE.y0
+    // points every `step` metres along a loop at distance d behind the glass
+    const along = (d, step) => {
+      const loop = offsetLoop(COURTYARD, d)
+      const out = []
+      let acc = 0
+      for (let i = 0; i < loop.length; i++) {
+        const a = loop[i]
+        const b = loop[(i + 1) % loop.length]
+        const l = Math.hypot(b[0] - a[0], b[1] - a[1])
+        while (acc <= l) {
+          const t = acc / l
+          out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, Math.atan2(b[0] - a[0], b[1] - a[1])])
+          acc += step
+        }
+        acc -= l
+      }
+      return out
+    }
+    const counter = { x0: -5, x1: 5, z: -26.2 }
+    const nearCounter = ([x, z]) => z < -22 && x > counter.x0 - 1.5 && x < counter.x1 + 1.5
+    const tables = along(3.2, 3.4).filter((p) => !nearCounter(p) && !COLUMNS.some((c) => Math.hypot(c.x - p[0], c.z - p[1]) < 1.2))
+    const tops = tables.map(([x, z]) => ({ p: [x, y + 0.74, z], s: [0.75, 0.04, 0.75] }))
+    const legs = tables.flatMap(([x, z]) => [{ p: [x, y + 0.37, z], s: [0.06, 0.72, 0.06] }, { p: [x, y + 0.015, z], s: [0.45, 0.03, 0.45] }])
+    const seats = []
+    const backs = []
+    tables.forEach(([x, z, r]) => {
+      for (const sd of [-1, 1]) {
+        const ox = Math.sin(r) * 0.62 * sd
+        const oz = Math.cos(r) * 0.62 * sd
+        seats.push({ p: [x + ox, y + 0.45, z + oz], r, s: [0.44, 0.05, 0.42] })
+        backs.push({ p: [x + ox * 1.36, y + 0.72, z + oz * 1.36], r, s: [0.44, 0.5, 0.04] })
+      }
+    })
+    const cx = (counter.x0 + counter.x1) / 2
+    const cw = counter.x1 - counter.x0
+    const counterBody = [{ p: [cx, y + 0.52, counter.z], s: [cw, 1.04, 0.7] }]
+    const counterTop = [{ p: [cx, y + 1.06, counter.z], s: [cw + 0.1, 0.04, 0.8] }]
+    const lamps = [...along(2, 2.6), ...along(4.8, 2.6)].map(([x, z]) => ({ p: [x, CAFE.y1 - 0.005, z] }))
+    return { tops, legs, seats, backs, counterBody, counterTop, lamps }
+  }, [])
+  const mats = useMemo(() => {
+    const std = (o) => new THREE.MeshStandardMaterial(o)
+    return {
+      // darker than the concourse glass: the café reads through it as a lit interior
+      glass: new THREE.MeshPhysicalMaterial({
+        color: '#36444b', transparent: true, opacity: 0.42, roughness: 0.04, ior: 1.5, envMapIntensity: 1.6, side: THREE.DoubleSide, depthWrite: false,
+      }),
+      floor: std({ color: '#d8d2c6', roughness: 0.55, emissive: '#3a2e20', emissiveIntensity: 0.25 }),
+      ceil: std({ color: '#f3efe6', roughness: 1, emissive: '#fff1dc', emissiveIntensity: 0.45 }),
+      wall: (() => {
+        const map = T.cafeTex()
+        return std({ map, emissive: '#ffe2b8', emissiveMap: map, emissiveIntensity: 0.45, roughness: 0.8, side: THREE.DoubleSide })
+      })(),
+      spandrel: std({ color: '#b9bec2', roughness: 0.5, metalness: 0.4, side: THREE.DoubleSide }),
+      wood: std({ color: '#9a6236', roughness: 0.55 }),
+      black: std({ color: '#141416', roughness: 0.5, metalness: 0.3 }),
+      counterTop: std({ color: '#f4f2ee', roughness: 0.3 }),
+      lamp: new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.86, 0.62).multiplyScalar(2.5), toneMapped: false }),
+    }
+  }, [])
+  return (
+    <group>
+      <mesh geometry={geos.glass} material={mats.glass} />
+      <mesh geometry={geos.spandrel} material={mats.spandrel} />
+      <mesh geometry={geos.floor} material={mats.floor} position={[0, CAFE.y0 + 0.01, 0]} />
+      <mesh geometry={geos.ceil} material={mats.ceil} position={[0, CAFE.y1, 0]} />
+      <mesh geometry={geos.wall} material={mats.wall} />
+      <Instanced items={items.tops} material={mats.wood} geometry={BOX} />
+      <Instanced items={items.legs} material={mats.black} geometry={BOX} />
+      <Instanced items={items.seats} material={mats.black} geometry={BOX} />
+      <Instanced items={items.backs} material={mats.black} geometry={BOX} />
+      <Instanced items={items.counterBody} material={mats.wood} geometry={BOX} />
+      <Instanced items={items.counterTop} material={mats.counterTop} geometry={BOX} />
+      <Instanced items={items.lamps} material={mats.lamp} geometry={geos.lamp} />
+    </group>
+  )
 }
 
 // Level 4 as seen across the courtyard (photo 06): the classroom drums of the floor above, stacked

@@ -63,22 +63,37 @@ export function drumTex() {
   return tex(c, [10, 1])
 }
 
-// level 1 café glazing below the concourse: warm-lit interior behind clear glass, silver mullions
+// level 1 café back wall (photo 07), one 12 m x 4.1 m tile: warm wood panelling to 2.4 m,
+// cream wall above with two striped colour-field paintings
 export function cafeTex() {
-  const [c, g] = canvas(1024, 256)
-  const grd = g.createLinearGradient(0, 0, 0, 256)
-  grd.addColorStop(0, '#f1e3c4')
-  grd.addColorStop(0.35, '#8a7a62')
-  grd.addColorStop(1, '#3b3631')
-  g.fillStyle = grd
-  g.fillRect(0, 0, 1024, 256)
+  const PX = 128 // pixels per metre
+  const [c, g] = canvas(12 * PX, 524)
+  g.fillStyle = '#efe4cf'
+  g.fillRect(0, 0, c.width, c.height)
+  const woodTop = c.height - 2.4 * PX
   const r = rng(41)
-  g.fillStyle = 'rgba(40,36,32,0.8)'
-  for (let i = 0; i < 26; i++) g.fillRect(r() * 1024, 150 + r() * 40, 30 + r() * 30, 6)
-  g.fillStyle = '#eceae6'
-  g.fillRect(0, 0, 1024, 18)
-  g.fillStyle = '#a7b0b5'
-  for (let x = 0; x < 1024; x += 1024 / 9) g.fillRect(x, 18, 5, 238)
+  for (let x = 0; x < c.width; x += 1.2 * PX) {
+    g.fillStyle = `hsl(${24 + r() * 5}, ${48 + r() * 8}%, ${36 + r() * 6}%)`
+    g.fillRect(x, woodTop, 1.2 * PX, c.height - woodTop)
+    g.fillStyle = 'rgba(30,15,5,0.55)'
+    g.fillRect(x, woodTop, 2, c.height - woodTop)
+  }
+  g.fillStyle = 'rgba(30,15,5,0.4)'
+  g.fillRect(0, woodTop, c.width, 3)
+  const stripes = ['#e2392f', '#f2b51d', '#2f6fbe', '#3aa35a', '#e86a9a', '#f07a1f', '#7a4fb0']
+  for (const [x0, k] of [[1.4, 0], [7.2, 3]]) {
+    const x = x0 * PX
+    const y = 0.4 * PX
+    const w = 2.4 * PX
+    const h = 1.15 * PX
+    for (let i = 0; i < 14; i++) {
+      g.fillStyle = stripes[(i + k) % stripes.length]
+      g.fillRect(x + (i * w) / 14, y, w / 14 + 1, h)
+    }
+    g.strokeStyle = '#2a2420'
+    g.lineWidth = 3
+    g.strokeRect(x, y, w, h)
+  }
   return tex(c, [1, 1])
 }
 
