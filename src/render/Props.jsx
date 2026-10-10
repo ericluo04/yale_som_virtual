@@ -127,6 +127,7 @@ function plateTex(w, h, draw, bg = '#2f3237') {
   return t
 }
 const plateEdge = new THREE.MeshStandardMaterial({ color: '#aeb3b8', metalness: 0.8, roughness: 0.35 })
+const plateBack = new THREE.MeshStandardMaterial({ color: '#d9dcdf', metalness: 0.6, roughness: 0.45, side: THREE.FrontSide })
 const plateGeos = new Map()
 function plateGeo(w, h) {
   const k = `${w}x${h}`
@@ -144,6 +145,17 @@ function plateGeo(w, h) {
     sh.quadraticCurveTo(0, 0, r, 0)
     const g = new THREE.ExtrudeGeometry(sh, { depth: 0.01, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.004, bevelSegments: 2, curveSegments: 6 })
     g.translate(-w / 2, -h / 2, 0)
+    // The extruded lids share group 0, so the back lid drew the face texture mirrored (read from
+    // behind, the hanging signs showed their text backwards). The back lid, the first half of
+    // that group, becomes group 2: a plain panel.
+    const lids = g.groups[0]
+    const half = lids.count / 2
+    const z0 = g.attributes.position.getZ(lids.start)
+    const backFirst = z0 < 0.005
+    g.clearGroups()
+    g.addGroup(lids.start, half, backFirst ? 2 : 0)
+    g.addGroup(lids.start + half, half, backFirst ? 0 : 2)
+    g.addGroup(lids.start + lids.count, g.attributes.position.count - lids.count, 1)
     plateGeos.set(k, g)
   }
   return plateGeos.get(k)
@@ -151,9 +163,9 @@ function plateGeo(w, h) {
 function Plate({ p, rot, w, h, draw, bg }) {
   const mat = useMemo(() => {
     const t = plateTex(w, h, draw, bg) // UVs were generated before the geometry was centred
-    return new THREE.MeshStandardMaterial({ map: t, roughness: 0.5, metalness: 0.1 })
+    return new THREE.MeshStandardMaterial({ map: t, roughness: 0.5, metalness: 0.1, side: THREE.FrontSide })
   }, [w, h, draw, bg])
-  return <mesh geometry={plateGeo(w, h)} material={[mat, plateEdge]} position={p} rotation={[0, rot, 0]} castShadow />
+  return <mesh geometry={plateGeo(w, h)} material={[mat, plateEdge, plateBack]} position={p} rotation={[0, rot, 0]} castShadow />
 }
 
 // room-number plates beside every meeting-room door, on the corridor side
