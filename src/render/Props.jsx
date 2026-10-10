@@ -1,12 +1,14 @@
 import { Suspense, useLayoutEffect, useMemo } from 'react'
 import { useThree } from '@react-three/fiber'
 import * as THREE from 'three'
+import * as T from '../textures.js'
 import { COUNTERS, RECEPTION, SIGNAGE, DRUMS, MEETING, LIBRARY, STAIRS, BEIN, BEIN_CURTAIN, H, EAST, ellPt } from '../layout.js'
 import { slideTex, COURSE_KEYS } from '../slides.js'
 import Scenery, { METAL } from './Scenery.jsx'
 import Backdrop from './Backdrop.jsx'
 import Fixtures from './Fixtures.jsx'
 import { OFF } from './debugCam.js'
+import { unbakedFill } from './Baked.jsx'
 import { pbr, worldUV } from './pbr.js'
 
 // Procedural props: high counters, a reception desk, signage screens and exit signs over drum
@@ -125,6 +127,7 @@ function plateTex(w, h, draw, bg = '#2f3237') {
   return t
 }
 const plateEdge = new THREE.MeshStandardMaterial({ color: '#aeb3b8', metalness: 0.8, roughness: 0.35 })
+const plateBack = new THREE.MeshStandardMaterial({ color: '#d9dcdf', metalness: 0.6, roughness: 0.45, side: THREE.FrontSide })
 const plateGeos = new Map()
 function plateGeo(w, h) {
   const k = `${w}x${h}`
@@ -142,6 +145,17 @@ function plateGeo(w, h) {
     sh.quadraticCurveTo(0, 0, r, 0)
     const g = new THREE.ExtrudeGeometry(sh, { depth: 0.01, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.004, bevelSegments: 2, curveSegments: 6 })
     g.translate(-w / 2, -h / 2, 0)
+    // The extruded lids share group 0, so the back lid drew the face texture mirrored (read from
+    // behind, the hanging signs showed their text backwards). The back lid, the first half of
+    // that group, becomes group 2: a plain panel.
+    const lids = g.groups[0]
+    const half = lids.count / 2
+    const z0 = g.attributes.position.getZ(lids.start)
+    const backFirst = z0 < 0.005
+    g.clearGroups()
+    g.addGroup(lids.start, half, backFirst ? 2 : 0)
+    g.addGroup(lids.start + half, half, backFirst ? 0 : 2)
+    g.addGroup(lids.start + lids.count, g.attributes.position.count - lids.count, 1)
     plateGeos.set(k, g)
   }
   return plateGeos.get(k)
@@ -149,9 +163,9 @@ function plateGeo(w, h) {
 function Plate({ p, rot, w, h, draw, bg }) {
   const mat = useMemo(() => {
     const t = plateTex(w, h, draw, bg) // UVs were generated before the geometry was centred
-    return new THREE.MeshStandardMaterial({ map: t, roughness: 0.5, metalness: 0.1 })
+    return new THREE.MeshStandardMaterial({ map: t, roughness: 0.5, metalness: 0.1, side: THREE.FrontSide })
   }, [w, h, draw, bg])
-  return <mesh geometry={plateGeo(w, h)} material={[mat, plateEdge]} position={p} rotation={[0, rot, 0]} castShadow />
+  return <mesh geometry={plateGeo(w, h)} material={[mat, plateEdge, plateBack]} position={p} rotation={[0, rot, 0]} castShadow />
 }
 
 // room-number plates beside every meeting-room door, on the corridor side
@@ -310,10 +324,44 @@ const fabricTex = (file, rx, ry) => {
   return t
 }
 // ambientCG Fabric 030 weave; the folds are in the geometry
-const curtainMat = new THREE.MeshStandardMaterial({
-  color: '#232a40', roughness: 1, side: THREE.DoubleSide,
+// Navy, lifted like the other unbaked furniture (it read black from inside the room), and washed
+// from the cove above: an warm emissive term that rises over the top 1.8 m of the curtain.
+const curtainMat = unbakedFill(new THREE.MeshStandardMaterial({
+  color: '#16263d', roughness: 1, side: THREE.DoubleSide,
   normalMap: fabricTex('fabric_normal.jpg', 1, 1), roughnessMap: fabricTex('fabric_rough.jpg', 1, 1), normalScale: new THREE.Vector2(0.6, 0.6),
-})
+}), 3)
+{
+  const prev = curtainMat.onBeforeCompile
+  const key = curtainMat.customProgramCacheKey()
+  curtainMat.onBeforeCompile = (sh, r) => {
+    prev(sh, r)
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying float vWashY;')
+      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWashY = ( modelMatrix * vec4( transformed, 1.0 ) ).y;')
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vWashY;')
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        totalEmissiveRadiance += vec3( 0.13, 0.12, 0.13 ) * pow( smoothstep( ${(H - 2.4).toFixed(2)}, ${(H - 0.6).toFixed(2)}, vWashY ), 2.0 );`)
+  }
+  curtainMat.customProgramCacheKey = () => `${key}|wash`
+}
+// the cove over the curtain: a white fascia ring, a warm lit underside and a thin brass band
+const COVE = { gap: 0.32, y: H - 0.6 }
+function coveGeos() {
+  const { r, half } = BEIN_CURTAIN
+  const a0 = Math.PI / 2 - half
+  const span = 2 * half
+  const ro = r + COVE.gap
+  const fascia = new THREE.CylinderGeometry(ro, ro, H - COVE.y, 64, 1, true, a0, span).translate(0, (H + COVE.y) / 2, 0)
+  const brass = new THREE.CylinderGeometry(ro + 0.006, ro + 0.006, 0.05, 64, 1, true, a0, span).translate(0, COVE.y + 0.04, 0)
+  const lit = new THREE.RingGeometry(r + 0.02, ro, 64, 1, Math.PI / 2 - (a0 + span), span).rotateX(Math.PI / 2).translate(0, COVE.y + 0.005, 0)
+  return { fascia, brass, lit }
+}
+const coveMats = {
+  fascia: new THREE.MeshStandardMaterial({ color: '#f2f0ec', roughness: 0.9, side: THREE.DoubleSide }),
+  brass: new THREE.MeshStandardMaterial({ color: '#b8893a', metalness: 0.9, roughness: 0.3, side: THREE.DoubleSide }),
+  lit: new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.86, 0.68).multiplyScalar(2.2), toneMapped: false, side: THREE.DoubleSide }),
+}
 function curtainGeo() {
   const { r, half } = BEIN_CURTAIN
   const a0 = Math.PI / 2 - half
@@ -396,9 +444,15 @@ function Boxes({ items, material }) {
 function Beinecke() {
   const curtain = useMemo(curtainGeo, [])
   const mullions = useMemo(beinMullions, [])
+  const cove = useMemo(coveGeos, [])
   return (
     <>
       <mesh geometry={curtain} material={curtainMat} receiveShadow />
+      <group position={[BEIN.c[0], 0, BEIN.c[1]]}>
+        <mesh geometry={cove.fascia} material={coveMats.fascia} />
+        <mesh geometry={cove.brass} material={coveMats.brass} />
+        <mesh geometry={cove.lit} material={coveMats.lit} />
+      </group>
       <Boxes items={mullions} material={mullionMat} />
     </>
   )
@@ -454,12 +508,73 @@ const libLegs = [-8, -4, 4, 8].flatMap((z) => [
   ...[-1, 1].flatMap((sx) => [-1, 0, 1].map((k) => ({ p: [LIB_DESK_X + sx * 0.41, 0.36, z + k * 1.06], r: 0, s: [0.04, 0.72, 0.04] }))),
   ...[-1, 1].map((sx) => ({ p: [LIB_DESK_X + sx * 0.41, 0.69, z], r: 0, s: [0.03, 0.06, 2.1] })), // aprons
 ])
+// Upper library wall: a mezzanine ledge over the 2.4 m shelf run (white slab edge, glass
+// balustrade, steel handrail) and three framed prints on the plaster above it (textures.js
+// libraryPrintTex). Reading lamps on the study tables: a steel stem and a dark shade over a
+// warm emissive disc, no real light.
+const MEZ = { y: 3.3, depth: 1.0, z0: LIBRARY.z0 + 0.4, z1: LIBRARY.z1 - 0.4 }
+const mezLen = MEZ.z1 - MEZ.z0
+const mezZ = (MEZ.z0 + MEZ.z1) / 2
+const mezSlab = [{ p: [LIBRARY.x0 + 0.1 + MEZ.depth / 2, MEZ.y, mezZ], r: 0, s: [MEZ.depth, 0.28, mezLen] }]
+const mezRail = [{ p: [LIBRARY.x0 + 0.1 + MEZ.depth - 0.05, MEZ.y + 0.14 + 0.5, mezZ], r: 0, s: [0.02, 1.0, mezLen] }]
+const mezHand = [
+  { p: [LIBRARY.x0 + 0.1 + MEZ.depth - 0.05, MEZ.y + 1.17, mezZ], r: 0, s: [0.06, 0.05, mezLen] },
+  ...Array.from({ length: 12 }, (_, i) => ({ p: [LIBRARY.x0 + 0.1 + MEZ.depth - 0.05, MEZ.y + 0.66, MEZ.z0 + (mezLen * i) / 11], r: 0, s: [0.04, 1.04, 0.04] })),
+]
+const mezGlass = new THREE.MeshStandardMaterial({ color: '#d7ecf2', transparent: true, opacity: 0.16, roughness: 0.05, metalness: 0.2, depthWrite: false })
+const steelMat = new THREE.MeshStandardMaterial({ color: '#c9ced6', metalness: 0.9, roughness: 0.25 })
+const frameMat = new THREE.MeshStandardMaterial({ color: '#1e1f22', roughness: 0.5 })
+const PRINTS = [-8.4, 0, 8.4].map((z, k) => ({ z, k, w: k === 1 ? 3.0 : 3.4, h: k === 1 ? 2.12 : 2.4 }))
+const PRINT_Y = 5.75
+const printFrames = PRINTS.map((pr) => ({ p: [LIBRARY.x0 + 0.13, PRINT_Y, pr.z], r: 0, s: [0.05, pr.h + 0.12, pr.w + 0.12] }))
+function Prints() {
+  const mats = useMemo(() => PRINTS.map((pr) => new THREE.MeshStandardMaterial({ map: T.libraryPrintTex(pr.k), roughness: 0.6 })), [])
+  return PRINTS.map((pr, i) => (
+    <mesh key={i} position={[LIBRARY.x0 + 0.16, PRINT_Y, pr.z]} rotation={[0, Math.PI / 2, 0]} material={mats[i]}>
+      <planeGeometry args={[pr.w, pr.h]} />
+    </mesh>
+  ))
+}
+const LAMPS = [-8, -4, 4, 8].flatMap((z) => [-0.95, 0.95].map((dz) => [LIB_DESK_X, z + dz]))
+const lampGeos = {
+  base: new THREE.CylinderGeometry(0.07, 0.08, 0.02, 20).translate(0, 0.01, 0),
+  stem: new THREE.CylinderGeometry(0.008, 0.008, 0.36, 8).translate(0, 0.19, 0),
+  shade: new THREE.CylinderGeometry(0.035, 0.12, 0.13, 24, 1, true).translate(0, 0.42, 0),
+  bulb: new THREE.CircleGeometry(0.105, 24).rotateX(Math.PI / 2).translate(0, 0.365, 0),
+}
+const lampMats = {
+  shade: new THREE.MeshStandardMaterial({ color: '#244a36', roughness: 0.35, metalness: 0.3, side: THREE.DoubleSide }),
+  bulb: new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.82, 0.55).multiplyScalar(2.4), toneMapped: false }),
+}
+function Lamps() {
+  const set = (geo) => (mesh) => {
+    if (!mesh) return
+    const m = new THREE.Matrix4()
+    LAMPS.forEach(([x, z], i) => mesh.setMatrixAt(i, m.makeTranslation(x, 0.762, z)))
+    mesh.instanceMatrix.needsUpdate = true
+    mesh.computeBoundingSphere()
+  }
+  return (
+    <>
+      <instancedMesh ref={set()} args={[lampGeos.base, steelMat, LAMPS.length]} />
+      <instancedMesh ref={set()} args={[lampGeos.stem, steelMat, LAMPS.length]} />
+      <instancedMesh ref={set()} args={[lampGeos.shade, lampMats.shade, LAMPS.length]} castShadow />
+      <instancedMesh ref={set()} args={[lampGeos.bulb, lampMats.bulb, LAMPS.length]} />
+    </>
+  )
+}
 function Library() {
   return (
     <>
       <Boxes items={libWall} material={libWallMat} />
       <Boxes items={libTops} material={tableMats.top} />
       <Boxes items={libLegs} material={tableMats.top} />
+      <Boxes items={mezSlab} material={libWallMat} />
+      <Boxes items={mezRail} material={mezGlass} />
+      <Boxes items={mezHand} material={steelMat} />
+      <Boxes items={printFrames} material={frameMat} />
+      <Prints />
+      <Lamps />
     </>
   )
 }

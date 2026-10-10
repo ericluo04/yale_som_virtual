@@ -179,11 +179,14 @@ function useMaterials() {
     const std = (o) => new THREE.MeshStandardMaterial(o)
     // thin glass: physical material so the panes pick up environment reflections and a
     // Fresnel edge; plain alpha blending keeps glass-behind-glass visible
-    const glass = (color, opacity) =>
-      new THREE.MeshPhysicalMaterial({
+    const glass = (color, opacity) => {
+      const m = new THREE.MeshPhysicalMaterial({
         color, transparent: true, opacity, roughness: 0.05, metalness: 0, ior: 1.5, specularIntensity: 1,
         envMapIntensity: 1.4, side: THREE.DoubleSide, depthWrite: false,
       })
+      m.userData.glassEnv = true // GlassEnv below gives it a reflection room without light panels
+      return m
+    }
     const plaster = pbr('plaster', { color: false })
     const wood = pbr('wood')
     const M = {
@@ -292,6 +295,42 @@ function useMaterials() {
       }
       m.customProgramCacheKey = () => `${key}|plasterDetail`
     }
+    // Carpet moire: the concourse colour map carries strong cross stripes (row means vary by 9
+    // levels of 255), which aliased into bands across the cloister floor. The normal map drops to
+    // 0.35, and the colour fades toward the map's mean as a texel shrinks under a pixel, with a
+    // fine +-6% value noise in its place, so the stripes stay underfoot and go flat at distance.
+    for (const m of [M.carpet, M.roomCarpet, M.tierCarpet]) {
+      m.normalScale = new THREE.Vector2(0.35, 0.35)
+      const prev = m.onBeforeCompile
+      const key = m.customProgramCacheKey()
+      m.onBeforeCompile = (sh, r) => {
+        prev?.(sh, r)
+        sh.fragmentShader = sh.fragmentShader
+          .replace(
+            '#include <common>',
+            `#include <common>
+            float cpHash( vec2 p ) { return fract( sin( dot( p, vec2( 127.1, 311.7 ) ) ) * 43758.5453 ); }
+            float cpNoise( vec2 p ) {
+              vec2 i = floor( p ), f = fract( p );
+              f = f * f * ( 3.0 - 2.0 * f );
+              return mix( mix( cpHash( i ), cpHash( i + vec2( 1.0, 0.0 ) ), f.x ), mix( cpHash( i + vec2( 0.0, 1.0 ) ), cpHash( i + 1.0 ), f.x ), f.y );
+            }`,
+          )
+          .replace(
+            '#include <map_fragment>',
+            `#ifdef USE_MAP
+              vec4 sampledDiffuseColor = texture2D( map, vMapUv );
+              vec3 cpMean = textureLod( map, vMapUv, 10.0 ).rgb;
+              float cpTexels = length( fwidth( vMapUv ) ) * 1024.0; // map texels under one pixel
+              float cpFade = smoothstep( 1.5, 6.0, cpTexels );
+              float cpN = cpNoise( vMapUv * 160.0 ) * 0.6 + cpNoise( vMapUv * 410.0 ) * 0.4;
+              sampledDiffuseColor.rgb = mix( sampledDiffuseColor.rgb, cpMean * ( 0.94 + 0.12 * cpN ), cpFade * 0.8 );
+              diffuseColor *= sampledDiffuseColor;
+            #endif`,
+          )
+      }
+      m.customProgramCacheKey = () => `${key}|carpetFade`
+    }
     // the bake exporter (render/exportGLB.js) and the baked loader find materials by key
     for (const [k, m] of Object.entries(M)) (Array.isArray(m) ? m : [m]).forEach((x, i) => (x.userData.key = Array.isArray(m) ? `${k}${i}` : k))
     M.ceiling.userData.oneSided = true // only the underside is ever seen; bake that face alone
@@ -324,6 +363,35 @@ function Atmosphere() {
       <Lighting />
     </>
   )
+}
+
+// The glass panes mirrored the RoomEnvironment's emissive light panels: a soft grey rectangle
+// hung in the sky behind every north window (and the two bright spots near it), at the same
+// direction from every pane. The glass gets its own environment, the same room with the panels
+// removed, so it keeps a faint Fresnel sheen and loses the rectangles. A material's own envMap
+// ignores scene.environmentIntensity, so its intensity carries that factor.
+function GlassEnv({ M }) {
+  const { gl } = useThree()
+  useLayoutEffect(() => {
+    const room = new RoomEnvironment()
+    const panels = []
+    room.traverse((o) => o.isMesh && o.material.isMeshBasicMaterial && panels.push(o))
+    for (const o of panels) o.removeFromParent()
+    const pm = new THREE.PMREMGenerator(gl)
+    const env = pm.fromScene(room, 0.04).texture
+    const mats = Object.values(M).flat().filter((m) => m.userData.glassEnv)
+    for (const m of mats) {
+      m.envMap = env
+      m.envMapIntensity = 1.4 * ENV_INTENSITY
+      m.needsUpdate = true
+    }
+    return () => {
+      for (const m of mats) m.envMap = null
+      env.dispose()
+      pm.dispose()
+    }
+  }, [gl, M])
+  return null
 }
 
 // ---------- floor + ceiling with the courtyard hole
@@ -541,6 +609,7 @@ function Level4({ M }) {
       fascia: ribbon(edge, H - 0.05, L4.floor + 0.02),
       rail: ribbon(offsetLoop(COURTYARD, L4.slot - 0.03), L4.floor, L4.floor + 1.05),
       handrail: ribbon(offsetLoop(COURTYARD, L4.slot - 0.03), L4.floor + 1.03, L4.floor + 1.08),
+      shoe: ribbon(offsetLoop(COURTYARD, L4.slot - 0.05), L4.floor - 0.02, L4.floor + 0.09),
       drum,
       walls: ribbon([[xMin, zMin], [xMax, zMin], [xMax, zMax], [xMin, zMax]], H, L4.top, 0.1),
     }
@@ -553,6 +622,7 @@ function Level4({ M }) {
       ceil: std({ color: '#f2f1ed', emissive: '#fff6e8', emissiveIntensity: 0.35, roughness: 1 }),
       fascia: std({ color: '#efeeea', roughness: 0.8, side: THREE.DoubleSide }),
       walls: std({ color: '#d9d8d3', roughness: 1, side: THREE.DoubleSide }),
+      shoe: std({ color: '#33363b', roughness: 0.6, metalness: 0.4, side: THREE.DoubleSide }),
     }
   }, [])
   return (
@@ -563,11 +633,89 @@ function Level4({ M }) {
       <mesh geometry={geos.fascia} material={mats.fascia} />
       <mesh geometry={geos.rail} material={M.rail} />
       <mesh geometry={geos.handrail} material={M.silver} />
+      {/* shadow line: a dark base channel under the glass balustrade */}
+      <mesh geometry={geos.shoe} material={mats.shoe} />
+      <Level4Offices M={M} />
       <mesh geometry={geos.walls} material={mats.walls} />
       {DRUMS.map((d) => (
         <mesh key={d.id} geometry={geos.drum} material={M.drum} position={[d.c[0], (L4.floor + L4.top) / 2, d.c[1]]} scale={[d.rx, 1, d.rz]} />
       ))}
     </group>
+  )
+}
+
+// Level 4 offices: what fills the band between the upper drums across the courtyard. Four runs
+// of glazed office fronts (east and west across the courtyard, north and south behind the drum
+// rows), two tiers high, with slim silver mullions every 1.6 m like the level 2 glass and a slab
+// band between the tiers. Behind the glass, 3.2 m offices with white partitions, a desk, a
+// monitor and a chair in dark silhouette, and a warm lit back wall and ceiling strip in about
+// two of three of them. Unbaked and shadowless; only the courtyard view reaches it.
+const OFFICE = { module: 3.2, depth: 2.0, tier: 3.45 }
+const OFFICE_RUNS = [
+  { a: [26.6, -14.4], b: [26.6, 14.4], out: [1, 0] },
+  { a: [-26.6, -14.4], b: [-26.6, 14.4], out: [-1, 0] },
+  { a: [-24, -38.6], b: [24, -38.6], out: [0, -1] },
+  { a: [-24, 44.6], b: [24, 44.6], out: [0, 1] },
+]
+function Level4Offices({ M }) {
+  const parts = useMemo(() => {
+    const r = rng(41)
+    const P = { glass: [], mull: [], band: [], part: [], lit: [], dim: [], strip: [], desk: [], dark: [], chair: [] }
+    for (const run of OFFICE_RUNS) {
+      const [ax, az] = run.a
+      const [bx, bz] = run.b
+      const L = Math.hypot(bx - ax, bz - az)
+      const t = [(bx - ax) / L, (bz - az) / L]
+      const o = run.out
+      const rot = -Math.atan2(t[1], t[0]) // box local x along the run
+      const at = (s, d, y) => [ax + t[0] * s + o[0] * d, y, az + t[1] * s + o[1] * d]
+      const h = L4.top - L4.floor
+      P.glass.push({ p: at(L / 2, 0, L4.floor + h / 2), r: rot, s: [L, h, 0.02] })
+      const nm = Math.round(L / 1.6)
+      for (let i = 0; i <= nm; i++) P.mull.push({ p: at((L * i) / nm, -0.03, L4.floor + h / 2), r: rot, s: [0.07, h, 0.1] })
+      for (let k = 0; k < 2; k++) {
+        const y0 = L4.floor + k * OFFICE.tier
+        P.band.push({ p: at(L / 2, -0.06, y0 + 3.1), r: rot, s: [L, 0.05, 0.08] }) // transom
+        if (k) P.band.push({ p: at(L / 2, 0.02, y0 - 0.2), r: rot, s: [L, 0.4, 0.06] }) // slab edge between tiers
+        const n = Math.floor(L / OFFICE.module)
+        for (let j = 0; j <= n; j++) {
+          const sj = (L - n * OFFICE.module) / 2 + j * OFFICE.module
+          P.part.push({ p: at(sj, OFFICE.depth / 2, y0 + 1.6), r: rot + Math.PI / 2, s: [OFFICE.depth, 3.2, 0.1] })
+          if (j === n) continue
+          const sm = sj + OFFICE.module / 2
+          const lit = r() < 0.65
+          ;(lit ? P.lit : P.dim).push({ p: at(sm, OFFICE.depth - 0.02, y0 + 1.6), r: rot, s: [OFFICE.module - 0.1, 3.2, 0.02] })
+          if (lit) P.strip.push({ p: at(sm, OFFICE.depth * 0.55, y0 + 3.18), r: rot, s: [OFFICE.module * 0.6, 0.02, 0.25] })
+          const dx = (r() - 0.5) * 0.8
+          P.desk.push({ p: at(sm + dx, OFFICE.depth * 0.62, y0 + 0.37), r: rot, s: [1.5, 0.74, 0.7] })
+          P.dark.push({ p: at(sm + dx + (r() - 0.5) * 0.5, OFFICE.depth * 0.72, y0 + 0.98), r: rot, s: [0.55, 0.36, 0.04] }) // monitor
+          P.chair.push({ p: at(sm + dx + (r() - 0.5) * 0.6, OFFICE.depth * 0.38, y0 + 0.45), r: rot, s: [0.45, 0.9, 0.45] }) // chair
+        }
+      }
+    }
+    return P
+  }, [])
+  const mats = useMemo(() => ({
+    part: new THREE.MeshStandardMaterial({ color: '#e9e7e2', roughness: 0.9 }),
+    lit: new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.78, 0.52).multiplyScalar(1.25) }),
+    dim: new THREE.MeshStandardMaterial({ color: '#9a9893', roughness: 1 }),
+    strip: new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.95, 0.85).multiplyScalar(1.6), toneMapped: false }),
+    dark: new THREE.MeshStandardMaterial({ color: '#2a2b2f', roughness: 0.7 }),
+    chair: new THREE.MeshStandardMaterial({ color: '#4a4c52', roughness: 0.8 }),
+  }), [])
+  return (
+    <>
+      <Instanced items={parts.part} material={mats.part} geometry={BOX} noCast />
+      <Instanced items={parts.lit} material={mats.lit} geometry={BOX} noCast />
+      <Instanced items={parts.dim} material={mats.dim} geometry={BOX} noCast />
+      <Instanced items={parts.strip} material={mats.strip} geometry={BOX} noCast />
+      <Instanced items={parts.desk} material={mats.dark} geometry={BOX} noCast />
+      <Instanced items={parts.dark} material={mats.dark} geometry={BOX} noCast />
+      <Instanced items={parts.chair} material={mats.chair} geometry={BOX} noCast />
+      <Instanced items={parts.mull} material={M.courtMullion} geometry={BOX} noCast />
+      <Instanced items={parts.band} material={M.courtMullion} geometry={BOX} noCast />
+      <Instanced items={parts.glass} material={M.glass} geometry={BOX} noCast />
+    </>
   )
 }
 
@@ -897,6 +1045,55 @@ function Drums({ M }) {
   })
 }
 
+// Whiteboards: an aluminium frame, a glossy face with the course's marker notes (textures.js
+// whiteboardTex), and a tray with three markers and an eraser along the bottom edge.
+const MARKER_INK = ['#1d2129', '#1f4fa8', '#c0392b']
+function Whiteboards({ M }) {
+  const parts = useMemo(() => {
+    const faces = BOARDS.map((b, i) => {
+      const mat = new THREE.MeshStandardMaterial({ map: T.whiteboardTex(DRUMS[i].course, b.w, 1.0), roughness: 0.12, metalness: 0, envMapIntensity: 1.2 })
+      return { b, mat }
+    })
+    const tray = []
+    const eraser = []
+    const markers = [[], [], []]
+    BOARDS.forEach((b, i) => {
+      const back = DRUMS[i].front.back
+      const t = [-back[1], back[0]]
+      const at = (along, out, y) => [b.x + t[0] * along + back[0] * out, y, b.z + t[1] * along + back[1] * out]
+      tray.push({ p: at(0, 0.06, 0.93), r: b.rot, s: [Math.min(b.w * 0.5, 2.4), 0.025, 0.09] })
+      eraser.push({ p: at(-0.5, 0.07, 0.965), r: b.rot, s: [0.15, 0.04, 0.055] })
+      for (let k = 0; k < 3; k++) markers[k].push({ p: at(0.1 + k * 0.17, 0.07, 0.957), r: b.rot })
+    })
+    return { faces, tray, eraser, markers }
+  }, [])
+  const mats = useMemo(() => ({
+    eraser: new THREE.MeshStandardMaterial({ color: '#2b2f36', roughness: 0.8 }),
+    markers: MARKER_INK.map((color) => new THREE.MeshStandardMaterial({ color, roughness: 0.4 })),
+  }), [])
+  // a marker lies along the tray: a 12 cm cylinder, axis along the board
+  const markerGeo = useMemo(() => new THREE.CylinderGeometry(0.009, 0.009, 0.12, 10).rotateZ(Math.PI / 2), [])
+  return (
+    <>
+      {parts.faces.map(({ b, mat }, i) => (
+        <group key={i} position={[b.x, 1.45, b.z]} rotation={[0, b.rot, 0]}>
+          <mesh material={M.silver}>
+            <boxGeometry args={[b.w + 0.05, 1.05, 0.035]} />
+          </mesh>
+          <mesh material={mat} position={[0, 0, 0.019]}>
+            <planeGeometry args={[b.w, 1.0]} />
+          </mesh>
+        </group>
+      ))}
+      <Instanced items={parts.tray} material={M.silver} geometry={BOX} noCast />
+      <Instanced items={parts.eraser} material={mats.eraser} geometry={BOX} noCast />
+      {parts.markers.map((items, k) => (
+        <Instanced key={k} items={items} material={mats.markers[k]} geometry={markerGeo} noCast />
+      ))}
+    </>
+  )
+}
+
 function ClassroomStuff({ M }) {
   const chairs = useMemo(() => CHAIRS.map((c) => ({ p: [c.x, c.y || 0, c.z], r: c.rot })), [])
   return (
@@ -908,11 +1105,7 @@ function ClassroomStuff({ M }) {
       {SCREENS.map((s, i) => (
         <Plane key={i} p={[s.x, 2.95, s.z]} rot={s.rot} w={2.1} h={1.18} material={slideMat(s.course, s.kind)} />
       ))}
-      {BOARDS.map((b, i) => (
-        <mesh key={i} position={[b.x, 1.45, b.z]} rotation={[0, b.rot, 0]} material={M.board}>
-          <boxGeometry args={[b.w, 1.0, 0.04]} />
-        </mesh>
-      ))}
+      <Whiteboards M={M} />
       {LECTERNS.map((l, i) => (
         <mesh key={i} position={[l.x, 0.55, l.z]} rotation={[0, l.rot, 0]} material={M.dark}>
           <boxGeometry args={[0.7, 1.1, 0.5]} />
@@ -1005,6 +1198,42 @@ function Stairs({ M }) {
   })
 }
 
+// Perimeter curtain wall: the exterior glass (layout.js 'exterior' walls, which are also the
+// colliders) carried slim silver mullions every 1.6 m floor to ceiling, a transom at 3.1 m and a
+// steel floor track. Without them the 20% glass read as open air wherever a corridor ran out to
+// the perimeter. The Beinecke room's curved glass has its own mullions (render/Props.jsx).
+const GLAZE = { step: 1.6, transom: 3.1, mw: 0.07, md: 0.26 }
+function PerimeterGlazing({ M }) {
+  const items = useMemo(() => {
+    const mull = []
+    const bars = []
+    const track = []
+    const runs = WALLS.filter((w) => w.mat === 'exterior').map((w) => [w.a, w.b])
+    for (const [a, b] of runs) {
+      const dx = b[0] - a[0]
+      const dz = b[1] - a[1]
+      const L = Math.hypot(dx, dz)
+      const r = -Math.atan2(dz, dx)
+      const n = Math.round(L / GLAZE.step)
+      for (let i = 0; i <= n; i++) {
+        const t = i / n
+        mull.push({ p: [a[0] + dx * t, H / 2, a[1] + dz * t], r, s: [GLAZE.mw, H, GLAZE.md] })
+      }
+      const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
+      bars.push({ p: [mid[0], GLAZE.transom, mid[1]], r, s: [L, 0.06, GLAZE.md - 0.02] })
+      track.push({ p: [mid[0], 0.035, mid[1]], r, s: [L, 0.07, GLAZE.md + 0.04] })
+    }
+    return { mull, bars, track }
+  }, [])
+  return (
+    <>
+      <Instanced items={items.mull} material={M.courtMullion} geometry={BOX} />
+      <Instanced items={items.bars} material={M.courtMullion} geometry={BOX} noCast />
+      <Instanced items={items.track} material={M.steel} geometry={BOX} noCast />
+    </>
+  )
+}
+
 // glass door on a hinge with a long metal bar handle; swings open when you walk up to it
 function GlassDoor({ door, M }) {
   const ref = useRef()
@@ -1091,6 +1320,7 @@ export default function World() {
   return (
     <>
       <Atmosphere />
+      <GlassEnv M={M} />
       {EXPORT && <BakeExport />}
       {BAKED && (
         <Suspense fallback={null}>
@@ -1106,6 +1336,7 @@ export default function World() {
       <ClassroomStuff M={M} />
       <Beinecke M={M} />
       <Stairs M={M} />
+      <PerimeterGlazing M={M} />
       <Details M={M} />
       <Banquettes M={M} />
       <group userData={{ dynamic: true }}>

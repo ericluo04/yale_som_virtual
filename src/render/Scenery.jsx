@@ -2,7 +2,8 @@ import { useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import { OFF } from './debugCam.js'
-import { rng } from '../textures.js'
+import { rng, bookTileTex } from '../textures.js'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { unbakedFill } from './Baked.jsx'
 import * as THREE from 'three'
 import {
@@ -227,25 +228,54 @@ const loungeTables = LOUNGES.map((l) => ({ p: [l.x, 0, l.z], r: 0, s: [0.75, 0.9
 // shelving: the west wall run (front faces east) and two back-to-back freestanding runs
 const SHELF_W = 1.0
 const shelves = []
-for (let z = -11.8; z <= 11.81; z += SHELF_W) shelves.push({ p: [x0 + 0.27, 0, z], r: Math.PI / 2, s: [1, 1.2, 1] })
+// the wall run stands 2.4 m (the scan is 2.08 m tall); the freestanding runs stay low
+const WALL_SY = 2.4 / 2.08
+for (let z = -11.8; z <= 11.81; z += SHELF_W) shelves.push({ p: [x0 + 0.27, 0, z], r: Math.PI / 2, s: [1, WALL_SY, 1] })
 for (const [za, zb] of [[-10, -3], [3, 10]]) {
   for (let z = za + 0.5; z < zb; z += SHELF_W) {
     shelves.push({ p: [x0 + 3.5 + 0.13, 0, z], r: Math.PI / 2, s: [1, 0.86, 1] })
     shelves.push({ p: [x0 + 3.5 - 0.13, 0, z], r: -Math.PI / 2, s: [1, 0.86, 1] })
   }
 }
-// one row of books per shelf board (board heights measured off the Shelf_01 scan)
-const BOARDS = [0.08, 0.43, 0.78, 1.13, 1.48]
-const books = []
-shelves.forEach((sh, i) => {
-  const sy = sh.s[1]
-  const front = [Math.sin(sh.r), Math.cos(sh.r)]
-  BOARDS.forEach((b, j) => {
-    if (b * sy > 2.2) return
-    books.push({ p: [sh.p[0] + front[0] * 0.13, b * sy + 0.02, sh.p[2] + front[1] * 0.13], r: sh.r, s: [1.65, 1, 1] })
+// one row of books per shelf board (board heights measured off the Shelf_01 scan): a plane
+// 5 cm behind the shelf front, textured with one of three canvas book tiles (textures.js
+// bookTileTex) at a random offset, merged into one mesh per tile. The single scanned book row
+// repeated every metre read as wallpaper.
+const BOARDS = [0.08, 0.43, 0.78, 1.13, 1.48, 1.83]
+const TILE_W = 2 // metres of shelf one tile covers
+const bookRows = (() => {
+  const r = rng(23)
+  const lists = [[], [], []]
+  shelves.forEach((sh) => {
+    const sy = sh.s[1]
+    const front = [Math.sin(sh.r), Math.cos(sh.r)]
+    BOARDS.forEach((b, j) => {
+      const next = j + 1 < BOARDS.length ? BOARDS[j + 1] : 2.06
+      const h = (next - b) * sy - 0.05
+      if ((b + 0.25) * sy > 2.45 || h < 0.15) return
+      const g = new THREE.PlaneGeometry(0.96, h)
+      const u0 = r()
+      const uv = g.attributes.uv
+      for (let i = 0; i < uv.count; i++) {
+        uv.setX(i, u0 + uv.getX(i) * (0.96 / TILE_W))
+        uv.setY(i, uv.getY(i) * Math.min(1, h / 0.37)) // shorter rows crop the top of the tile
+      }
+      g.rotateY(sh.r)
+      g.translate(sh.p[0] + front[0] * 0.2, b * sy + 0.025 + h / 2, sh.p[2] + front[1] * 0.2)
+      lists[Math.floor(r() * 3)].push(g)
+    })
   })
-})
-const clocks = [{ p: [(x0 + x1) / 2 + 2.5, 2.7, LIBRARY.z1 - 0.12], r: Math.PI, s: 1.3 }]
+  return lists.map((l) => mergeGeometries(l))
+})()
+function BookRows() {
+  const mats = useMemo(() => [0, 1, 2].map((k) => unbakedFill(new THREE.MeshStandardMaterial({ map: bookTileTex(k), roughness: 0.8 }), 2)), [])
+  if (OFF.has('books')) return null
+  return bookRows.map((g, k) => <mesh key={k} geometry={g} material={mats[k]} receiveShadow />)
+}
+const clocks = [
+  { p: [(x0 + x1) / 2 + 2.5, 2.7, LIBRARY.z1 - 0.12], r: Math.PI, s: 1.3 },
+  { p: [(x0 + x1) / 2 + 1.5, 4.4, LIBRARY.z0 + 0.12], r: 0, s: 2.6 }, // high on the north wall
+]
 const extinguishers = [{ p: [x1 - 0.5, 0, LIBRARY.z1 - 0.35], r: Math.PI, s: 1 }, { p: [-27.9, 0, -24.9], r: Math.PI / 2, s: 1 }]
 
 // Beinecke Terrace Room: oak round tables, six black chairs each (photo 16)
@@ -507,7 +537,7 @@ export default function Scenery() {
       <Model name="lounge_chair" items={loungeChairs} />
       <Model name="side_table" items={loungeTables} />
       <Model name="shelf" items={shelves} material={whiteShelf} />
-      <Model name="books" items={books} />
+      <BookRows />
       <Model name="wall_clock" items={clocks} />
       <Model name="extinguisher" items={extinguishers} />
       <Model name="round_table" items={beinTables} material={oakTable} />
