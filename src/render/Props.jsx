@@ -1,20 +1,21 @@
-import { useMemo } from 'react'
+import { Suspense, useMemo } from 'react'
 import * as THREE from 'three'
-import { COUNTERS, RECEPTION, SIGNAGE, PLANTS, DRUMS, ellPt } from '../layout.js'
+import { COUNTERS, RECEPTION, SIGNAGE, DRUMS, ellPt } from '../layout.js'
 import { slideTex, COURSE_KEYS } from '../slides.js'
+import Scenery, { METAL } from './Scenery.jsx'
+import Backdrop from './Backdrop.jsx'
+import { OFF } from './debugCam.js'
 
-// Procedural props, all primitives (no downloaded models): high counters, a reception desk,
-// signage screens, potted plants with a few leaf clusters, and exit signs over drum doors.
+// Procedural props: high counters, a reception desk, signage screens and exit signs over drum
+// doors. Scanned models (plants, furniture, trees) live in Scenery.jsx, the view out in Backdrop.jsx.
 const box = new THREE.BoxGeometry(1, 1, 1)
 const cyl = new THREE.CylinderGeometry(1, 0.8, 1, 20)
-const leafGeo = new THREE.IcosahedronGeometry(1, 1)
 const mats = {
   top: new THREE.MeshStandardMaterial({ color: '#f4f3ef', roughness: 0.35 }),
   base: new THREE.MeshStandardMaterial({ color: '#2b2b2b', roughness: 0.6 }),
   steel: new THREE.MeshStandardMaterial({ color: '#b8bec4', metalness: 0.85, roughness: 0.3 }),
-  pot: new THREE.MeshStandardMaterial({ color: '#d9d6cf', roughness: 0.55 }),
-  soil: new THREE.MeshStandardMaterial({ color: '#2a2018', roughness: 1 }),
-  leaf: new THREE.MeshStandardMaterial({ color: '#3f7a35', roughness: 0.8, flatShading: true }),
+  // counter frames: dark painted steel (ambientCG Metal 027 normal and roughness)
+  frame: new THREE.MeshStandardMaterial({ color: '#2e3033', metalness: 0.55, roughness: 1, ...METAL }),
   bezel: new THREE.MeshStandardMaterial({ color: '#111214', roughness: 0.4 }),
 }
 const exitMat = (() => {
@@ -33,11 +34,20 @@ const exitMat = (() => {
   return new THREE.MeshBasicMaterial({ map: t, color: new THREE.Color(1.8, 1.8, 1.8), toneMapped: false })
 })()
 
+// slim white high counter on a dark steel frame (photo 01): top, two end frames, a footrest
 function Counter({ k }) {
+  const legX = k.w / 2 - 0.08
   return (
     <group position={[k.x, 0, k.z]}>
-      <mesh geometry={box} material={mats.base} position={[0, 0.5, 0]} scale={[k.w - 0.1, 1, k.d - 0.15]} />
-      <mesh geometry={box} material={mats.top} position={[0, 1.04, 0]} scale={[k.w, 0.05, k.d]} />
+      <mesh geometry={box} material={mats.top} position={[0, 1.04, 0]} scale={[k.w, 0.05, k.d]} castShadow receiveShadow />
+      {[-legX, legX].map((x) => (
+        <group key={x}>
+          <mesh geometry={box} material={mats.frame} position={[x, 0.51, 0]} scale={[0.05, 1.02, k.d - 0.12]} castShadow receiveShadow />
+          <mesh geometry={box} material={mats.frame} position={[x, 0.02, 0]} scale={[0.07, 0.04, k.d - 0.04]} castShadow receiveShadow />
+        </group>
+      ))}
+      <mesh geometry={box} material={mats.frame} position={[0, 0.98, 0]} scale={[k.w - 0.16, 0.06, 0.04]} castShadow />
+      <mesh geometry={box} material={mats.steel} position={[0, 0.25, -Math.sign(k.z) * 0.12]} scale={[k.w - 0.2, 0.03, 0.03]} castShadow />
     </group>
   )
 }
@@ -61,18 +71,6 @@ function Signage() {
       <mesh material={slideMats[i]} position={[0, 0, 0.03]}>
         <planeGeometry args={[1.28, 0.72]} />
       </mesh>
-    </group>
-  ))
-}
-
-function Plants() {
-  return PLANTS.map(([x, z], i) => (
-    <group key={i} position={[x, 0, z]}>
-      <mesh geometry={cyl} material={mats.pot} position={[0, 0.3, 0]} scale={[0.32, 0.6, 0.32]} />
-      <mesh geometry={cyl} material={mats.soil} position={[0, 0.6, 0]} scale={[0.29, 0.02, 0.29]} />
-      {[[0, 1.05, 0, 0.42], [0.22, 0.9, 0.1, 0.3], [-0.2, 0.95, -0.12, 0.32], [0.05, 1.35, -0.08, 0.3]].map(([a, b, c, r], j) => (
-        <mesh key={j} geometry={leafGeo} material={mats.leaf} position={[a, b, c]} scale={[r, r * 1.1, r]} rotation={[j, i + j, 0]} />
-      ))}
     </group>
   ))
 }
@@ -102,8 +100,11 @@ export default function Props() {
       ))}
       <Reception />
       <Signage />
-      <Plants />
       <ExitSigns />
+      <Suspense fallback={null}>
+        {!OFF.has('scenery') && <Scenery />}
+        {!OFF.has('backdrop') && <Backdrop />}
+      </Suspense>
     </>
   )
 }
