@@ -4,6 +4,7 @@ import { LIFE, LIFE_ON } from './common.js'
 import { FountainLife } from './CourtyardFountain.jsx'
 import CourtyardRange from './CourtyardRange.jsx'
 import CourtyardLumos from './CourtyardLumos.jsx'
+import CourtyardFolk from './CourtyardFolk.jsx'
 
 // The moving parts of the courtyard lawn, mounted from render/Lawn.jsx so they sit with the lawn's furniture.
 // ?off=life drops all of it (like life/index.jsx), leaving the static lawn: the fountain's stone and still water.
@@ -19,6 +20,7 @@ function On() {
         <FountainLife />
         <CourtyardRange />
         <CourtyardLumos />
+        <CourtyardFolk />
       </Suspense>
     </group>
   )

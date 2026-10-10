@@ -80,7 +80,7 @@ export const LUMOS = { who: 'snape', P: [9.6, 15.9], blanket: [9.6, 13.7], stude
 // wizard's chess: an 8 x 8 board of 0.75 m squares (6 m), players on stools at its west and east edges
 export const CHESS = { c: [-9.0, 12.6], sq: 0.75, stools: [[-12.75, 12.6], [-5.25, 12.6]] }
 // Handsome Dan in bronze on a granite plinth beside the path, facing the south cloister; a Labubu poses by him
-export const STATUE = { p: [3.4, 14.2], yaw: -0.35, plinth: [1.5, 0.95, 0.9], poser: [4.75, 14.85], poserYaw: -0.2 }
+export const STATUE = { p: [3.4, 14.2], yaw: -0.45, plinth: [1.5, 0.95, 0.9], poser: [4.75, 14.85], poserYaw: -0.2 }
 // reading nook in the north-west corner: two picnic blankets (centre, yaw), a basket
 export const NOOK = {
   blankets: [{ p: [-15.2, -11.3], r: 0.35 }, { p: [-13.4, -13.5], r: -0.25 }],

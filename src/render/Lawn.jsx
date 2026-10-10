@@ -14,6 +14,7 @@ import { rng } from '../textures.js'
 import { BENCH_RING as BENCH, CHAIRS, PATH as PATH_Z, PICNICS, PLANTERS, POLES } from '../life/courtyardLayout.js'
 import { FountainStone } from '../life/CourtyardFountain.jsx'
 import CourtyardLife from '../life/CourtyardLife.jsx'
+import CourtyardFills from '../life/CourtyardFills.jsx'
 
 const Y = -5 // lawn level
 const TAU = Math.PI * 2
@@ -196,6 +197,7 @@ export default function Lawn() {
       <mesh geometry={BENCH_RING} material={mats.stone} position={[0, Y, 0]} castShadow receiveShadow />
       <Suspense fallback={null}>
         <FountainStone />
+        <CourtyardFills />
       </Suspense>
       <CourtyardLife />
       <Inst geometry={poleGeo} material={mats.pole} items={lights.poles} />

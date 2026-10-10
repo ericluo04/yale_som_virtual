@@ -171,8 +171,8 @@ function Targets({ T }) {
         const u = t - s.hitAt
         const kind = RANGE.targets[k].kind
         if (kind === 'ring') o.position.y = Y + RANGE.targets[k].h + 0.08 * Math.sin(t * 1.1 + k * 2)
-        const glow = u < 2 ? Math.exp(-u * 2.2) : 0
-        for (const m of o.userData.mats) m.emissive.copy(s.color).multiplyScalar(glow * 1.6)
+        const glow = u < 2 ? Math.exp(-u * 3) : 0
+        for (const m of o.userData.mats) m.emissive.copy(s.color).multiplyScalar(glow * 0.9)
         // a hit spins the rings and the scarecrow about the vertical (fast, then slowing) and rocks the armour
         // two full turns with an ease-out over 3.2 s, ending where it started
         const x = Math.min(1, Math.max(0, u) / 3.2)
