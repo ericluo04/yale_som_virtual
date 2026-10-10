@@ -88,14 +88,6 @@ export function Model({ name, items, material, shadows = true, keepOrigin = fals
   ))
 }
 
-// library study tables: white tops, as in the photos of the Ross Library
-const whiteTable = memo((m) => {
-  const c = m.clone()
-  c.map = null
-  c.color.set('#f1f0ec')
-  c.roughness = 0.45
-  return c
-})
 // shelving painted white like the library's columns and walls; the grain stays in the normal map
 const whiteShelf = memo((m) => {
   const c = m.clone()
@@ -213,7 +205,7 @@ const laptops = COUNTERS.flatMap((k, i) => {
 const { x0, x1 } = LIBRARY
 const DESK_X = x1 - 4 // matches the desk colliders in layout.js
 const DESK_Z = [-8, -4, 4, 8]
-const studyTables = DESK_Z.flatMap((z) => [-0.55, 0.55].map((dz) => ({ p: [DESK_X, 0, z + dz], r: Math.PI / 2, s: [0.97, 0.95, 1.29] })))
+// the study tables themselves are procedural now (render/Props.jsx, 4 cm tops)
 const deskChairs = DESK_Z.flatMap((z) =>
   [-1, 1].flatMap((side) => [-0.55, 0.55].map((dz, k) => ({ p: [DESK_X + side * 0.8, 0, z + dz], r: side > 0 ? -Math.PI / 2 + k * 0.2 : Math.PI / 2 - k * 0.2, s: 1.6 }))),
 )
@@ -503,7 +495,6 @@ export default function Scenery() {
       <Model name="plant_b" items={plantB} />
       <Model name="trash_bin" items={bins} material={greyBin} />
       <Model name="laptop" items={[...laptops, ...deskLaptops]} />
-      <Model name="study_table" items={studyTables} material={whiteTable} />
       <Model name="office_chair" items={[...deskChairs, ...meetChairs]} material={blackChair} />
       <Model name="lounge_chair" items={loungeChairs} />
       <Model name="side_table" items={loungeTables} />

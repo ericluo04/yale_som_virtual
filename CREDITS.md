@@ -23,7 +23,7 @@ Downloaded at 1K, then compressed with glTF-Transform (WebP textures at 512 or 1
 | `side_table.glb` | Coffee Table Round 01 by Ulan Cabanilla, Poly Haven, https://polyhaven.com/a/coffee_table_round_01 | CC0 1.0 | |
 | `dining_chair.glb` | Dining Chair 02 by James Ray Cock, Poly Haven, https://polyhaven.com/a/dining_chair_02 | CC0 1.0 | decimated to 12%; recoloured black in code |
 | `round_table.glb` | Round Wooden Table 01 by Ulan Cabanilla, Poly Haven, https://polyhaven.com/a/round_wooden_table_01 | CC0 1.0 | decimated to 40%; recoloured to oak in code |
-| `study_table.glb` | Wooden Table 02 by Serhii Khromov, Poly Haven, https://polyhaven.com/a/wooden_table_02 | CC0 1.0 | top recoloured white in code |
+| `study_table.glb` | Wooden Table 02 by Serhii Khromov, Poly Haven, https://polyhaven.com/a/wooden_table_02 | CC0 1.0 | no longer placed: the library tables are procedural since the 4 cm tops |
 | `shelf.glb` | Shelf 01 by Gabriel Radić, Poly Haven, https://polyhaven.com/a/Shelf_01 | CC0 1.0 | recoloured white in code |
 | `books.glb` | Book Encyclopedia Set 01 by John Malcolm, Poly Haven, https://polyhaven.com/a/book_encyclopedia_set_01 | CC0 1.0 | decimated to 1% |
 | `wall_clock.glb` | Wall Clock by PierreB3D, Poly Haven, https://polyhaven.com/a/wall_clock | CC0 1.0 | |

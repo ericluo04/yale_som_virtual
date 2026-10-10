@@ -6,6 +6,7 @@ import { slideTex, COURSE_KEYS } from '../slides.js'
 import Scenery, { METAL } from './Scenery.jsx'
 import Backdrop from './Backdrop.jsx'
 import { OFF } from './debugCam.js'
+import { pbr, worldUV } from './pbr.js'
 
 // Procedural props: high counters, a reception desk, signage screens and exit signs over drum
 // doors. Scanned models (plants, furniture, trees) live in Scenery.jsx, the view out in Backdrop.jsx.
@@ -440,6 +441,28 @@ function MeetingTables() {
   )
 }
 
+// ---------- library: a plaster wall behind the west shelf run, floor to ceiling, so the 2.5 m
+// shelves stand against a wall and not in front of open sky; and study tables with a 4 cm top on
+// slim legs in place of the scanned Wooden Table 02 (its top read toy-thick)
+const plaster = pbr('plaster', { color: false })
+const libWallMat = worldUV(new THREE.MeshStandardMaterial({ color: '#f2f0ec', roughness: 1, ...plaster, normalScale: new THREE.Vector2(0.35, 0.35) }), 0.5)
+const libWall = [{ p: [LIBRARY.x0 + 0.06, H / 2, (LIBRARY.z0 + LIBRARY.z1) / 2], r: 0, s: [0.08, H, LIBRARY.z1 - LIBRARY.z0] }]
+const LIB_DESK_X = LIBRARY.x1 - 4 // matches the desk colliders in layout.js
+const libTops = [-8, -4, 4, 8].map((z) => ({ p: [LIB_DESK_X, 0.74, z], r: 0, s: [0.9, 0.04, 2.2] }))
+const libLegs = [-8, -4, 4, 8].flatMap((z) => [
+  ...[-1, 1].flatMap((sx) => [-1, 0, 1].map((k) => ({ p: [LIB_DESK_X + sx * 0.41, 0.36, z + k * 1.06], r: 0, s: [0.04, 0.72, 0.04] }))),
+  ...[-1, 1].map((sx) => ({ p: [LIB_DESK_X + sx * 0.41, 0.69, z], r: 0, s: [0.03, 0.06, 2.1] })), // aprons
+])
+function Library() {
+  return (
+    <>
+      <Boxes items={libWall} material={libWallMat} />
+      <Boxes items={libTops} material={tableMats.top} />
+      <Boxes items={libLegs} material={tableMats.top} />
+    </>
+  )
+}
+
 export default function Props() {
   return (
     <>
@@ -454,6 +477,7 @@ export default function Props() {
       <StairDoors />
       <Beinecke />
       <MeetingTables />
+      <Library />
       <Suspense fallback={null}>
         {!OFF.has('scenery') && <Scenery />}
         {!OFF.has('backdrop') && <Backdrop />}
