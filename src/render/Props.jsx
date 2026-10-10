@@ -8,6 +8,7 @@ import Scenery, { METAL } from './Scenery.jsx'
 import Backdrop from './Backdrop.jsx'
 import Fixtures from './Fixtures.jsx'
 import { OFF } from './debugCam.js'
+import { unbakedFill } from './Baked.jsx'
 import { pbr, worldUV } from './pbr.js'
 
 // Procedural props: high counters, a reception desk, signage screens and exit signs over drum
@@ -311,10 +312,44 @@ const fabricTex = (file, rx, ry) => {
   return t
 }
 // ambientCG Fabric 030 weave; the folds are in the geometry
-const curtainMat = new THREE.MeshStandardMaterial({
-  color: '#232a40', roughness: 1, side: THREE.DoubleSide,
+// Navy, lifted like the other unbaked furniture (it read black from inside the room), and washed
+// from the cove above: an warm emissive term that rises over the top 1.8 m of the curtain.
+const curtainMat = unbakedFill(new THREE.MeshStandardMaterial({
+  color: '#16263d', roughness: 1, side: THREE.DoubleSide,
   normalMap: fabricTex('fabric_normal.jpg', 1, 1), roughnessMap: fabricTex('fabric_rough.jpg', 1, 1), normalScale: new THREE.Vector2(0.6, 0.6),
-})
+}), 3)
+{
+  const prev = curtainMat.onBeforeCompile
+  const key = curtainMat.customProgramCacheKey()
+  curtainMat.onBeforeCompile = (sh, r) => {
+    prev(sh, r)
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying float vWashY;')
+      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWashY = ( modelMatrix * vec4( transformed, 1.0 ) ).y;')
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vWashY;')
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        totalEmissiveRadiance += vec3( 0.13, 0.12, 0.13 ) * pow( smoothstep( ${(H - 2.4).toFixed(2)}, ${(H - 0.6).toFixed(2)}, vWashY ), 2.0 );`)
+  }
+  curtainMat.customProgramCacheKey = () => `${key}|wash`
+}
+// the cove over the curtain: a white fascia ring, a warm lit underside and a thin brass band
+const COVE = { gap: 0.32, y: H - 0.6 }
+function coveGeos() {
+  const { r, half } = BEIN_CURTAIN
+  const a0 = Math.PI / 2 - half
+  const span = 2 * half
+  const ro = r + COVE.gap
+  const fascia = new THREE.CylinderGeometry(ro, ro, H - COVE.y, 64, 1, true, a0, span).translate(0, (H + COVE.y) / 2, 0)
+  const brass = new THREE.CylinderGeometry(ro + 0.006, ro + 0.006, 0.05, 64, 1, true, a0, span).translate(0, COVE.y + 0.04, 0)
+  const lit = new THREE.RingGeometry(r + 0.02, ro, 64, 1, Math.PI / 2 - (a0 + span), span).rotateX(Math.PI / 2).translate(0, COVE.y + 0.005, 0)
+  return { fascia, brass, lit }
+}
+const coveMats = {
+  fascia: new THREE.MeshStandardMaterial({ color: '#f2f0ec', roughness: 0.9, side: THREE.DoubleSide }),
+  brass: new THREE.MeshStandardMaterial({ color: '#b8893a', metalness: 0.9, roughness: 0.3, side: THREE.DoubleSide }),
+  lit: new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.86, 0.68).multiplyScalar(2.2), toneMapped: false, side: THREE.DoubleSide }),
+}
 function curtainGeo() {
   const { r, half } = BEIN_CURTAIN
   const a0 = Math.PI / 2 - half
@@ -397,9 +432,15 @@ function Boxes({ items, material }) {
 function Beinecke() {
   const curtain = useMemo(curtainGeo, [])
   const mullions = useMemo(beinMullions, [])
+  const cove = useMemo(coveGeos, [])
   return (
     <>
       <mesh geometry={curtain} material={curtainMat} receiveShadow />
+      <group position={[BEIN.c[0], 0, BEIN.c[1]]}>
+        <mesh geometry={cove.fascia} material={coveMats.fascia} />
+        <mesh geometry={cove.brass} material={coveMats.brass} />
+        <mesh geometry={cove.lit} material={coveMats.lit} />
+      </group>
       <Boxes items={mullions} material={mullionMat} />
     </>
   )
