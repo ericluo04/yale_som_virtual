@@ -6,7 +6,8 @@ import { OFF, QUALITY } from './debugCam.js'
 
 // Sun about 60 degrees up from the south-west: high enough that the 7.2 m soffit keeps most
 // of the concourse in shade, so the sunlit strips along the glass read as strips.
-const SUN_DIR = new THREE.Vector3(-0.42, 1.05, 0.45).normalize()
+export const SUN_DIR = new THREE.Vector3(-0.42, 1.05, 0.45).normalize()
+export const SUN = { color: '#fff4e2', intensity: 3.2 }
 const CENTER = new THREE.Vector3((BOUNDS.xMin + EAST + BEIN.terrace) / 2, 0, (BOUNDS.zMin + BOUNDS.zMax) / 2)
 
 // Fit the orthographic shadow camera to the building box in light space, so the 2048 map
@@ -81,8 +82,8 @@ function Sun() {
       <primitive object={target} />
       <directionalLight
         ref={ref}
-        color="#fff4e2"
-        intensity={3.2}
+        color={SUN.color}
+        intensity={SUN.intensity}
         castShadow={QUALITY !== 'low'}
         shadow-mapSize={[2048, 2048]}
         shadow-bias={-0.0004}
@@ -95,20 +96,23 @@ function Sun() {
 
 // Small round recessed downlights in a loose 2.4 m grid; the photos show no linear fixtures
 // in the concourse. Values above 1 feed the bloom pass.
-const PANEL = new THREE.CircleGeometry(0.08, 16).rotateX(Math.PI / 2)
-const panelMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.96, 0.9).multiplyScalar(4), toneMapped: false })
+export const DOWNLIGHT = { radius: 0.08, color: [1, 0.96, 0.9], strength: 4 }
+const PANEL = new THREE.CircleGeometry(DOWNLIGHT.radius, 16).rotateX(Math.PI / 2)
+const panelMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(...DOWNLIGHT.color).multiplyScalar(DOWNLIGHT.strength), toneMapped: false })
 const trimMat = new THREE.MeshStandardMaterial({ color: '#cfd0d0', roughness: 0.4, metalness: 0.5 })
 const TRIM = new THREE.CircleGeometry(0.12, 16).rotateX(Math.PI / 2)
+// downlight centres [x, z]; the bake exporter (render/exportGLB.js) reads the same list
+export function downlightSpots() {
+  const out = []
+  const { xMin, xMax, zMin, zMax } = BOUNDS
+  for (let x = xMin + 1.2; x < xMax; x += 2.4)
+    for (let z = zMin + 1.2; z < zMax; z += 2.4) if (!inPoly(x, z, COURTYARD)) out.push([x + ((Math.round(z / 2.4) % 2) * 0.6), z])
+  for (let x = EAST + 1.2; x < EAST + BEIN.r; x += 2.4)
+    for (let z = -BEIN.r; z < BEIN.r; z += 2.4) if (Math.hypot(x - EAST, z) < BEIN.r - 0.8) out.push([x, z])
+  return out
+}
 function CeilingPanels() {
-  const spots = useMemo(() => {
-    const out = []
-    const { xMin, xMax, zMin, zMax } = BOUNDS
-    for (let x = xMin + 1.2; x < xMax; x += 2.4)
-      for (let z = zMin + 1.2; z < zMax; z += 2.4) if (!inPoly(x, z, COURTYARD)) out.push([x + ((Math.round(z / 2.4) % 2) * 0.6), z])
-    for (let x = EAST + 1.2; x < EAST + BEIN.r; x += 2.4)
-      for (let z = -BEIN.r; z < BEIN.r; z += 2.4) if (Math.hypot(x - EAST, z) < BEIN.r - 0.8) out.push([x, z])
-    return out
-  }, [])
+  const spots = useMemo(downlightSpots, [])
   const refs = [useRef(), useRef()]
   useLayoutEffect(() => {
     const m = new THREE.Matrix4()
@@ -130,14 +134,16 @@ function CeilingPanels() {
 
 // Ten real point lights: one per classroom drum, two over the library reading tables.
 // Shadowless, so each costs one light loop iteration per fragment.
+export const ROOM_LIGHT = { color: '#ffe9cf', decay: 1.6 }
+export function roomLightSpots() {
+  const out = DRUMS.map((d) => ({ p: [d.c[0] - d.dir[0] * 1.5, H - 0.7, d.c[1] - d.dir[1] * 1.5], i: 16, d: Math.max(d.rx, d.rz) * 2.2 }))
+  const lx = (LIBRARY.x0 + LIBRARY.x1) / 2
+  out.push({ p: [lx, H - 0.7, -6], i: 18, d: 16 }, { p: [lx, H - 0.7, 6], i: 18, d: 16 })
+  return out
+}
 function RoomLights() {
-  const spots = useMemo(() => {
-    const out = DRUMS.map((d) => ({ p: [d.c[0] - d.dir[0] * 1.5, H - 0.7, d.c[1] - d.dir[1] * 1.5], i: 16, d: Math.max(d.rx, d.rz) * 2.2 }))
-    const lx = (LIBRARY.x0 + LIBRARY.x1) / 2
-    out.push({ p: [lx, H - 0.7, -6], i: 18, d: 16 }, { p: [lx, H - 0.7, 6], i: 18, d: 16 })
-    return out
-  }, [])
-  return spots.map((s, i) => <pointLight key={i} position={s.p} intensity={s.i} distance={s.d} decay={1.6} color="#ffe9cf" />)
+  const spots = useMemo(roomLightSpots, [])
+  return spots.map((s, i) => <pointLight key={i} position={s.p} intensity={s.i} distance={s.d} decay={ROOM_LIGHT.decay} color={ROOM_LIGHT.color} />)
 }
 
 export default function Lighting() {
