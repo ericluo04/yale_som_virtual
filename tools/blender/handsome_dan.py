@@ -31,7 +31,7 @@ def materials():
 def build():
     lib.reset()
     M = materials()
-    P = lib.Parts()
+    P = lib.Parts(lod=0.65, subd=1)  # coarse cage + one applied subdivision level
     W, Bn = M["white"], M["brindle"]
     # body: broad chest, barrel, narrower hips
     P.sphere("chest", (0, -0.17, 0.4), (0.235, 0.2, 0.2), W, "spine", seg=16, rings=10, displace=0.006)
@@ -46,7 +46,7 @@ def build():
         front = name.startswith("f")
         up, lo = f"{name}.up", f"{name}.lo"
         P.sphere(f"{name}.thigh", (x, y + (0 if front else 0.01), z - 0.07), (0.075 if front else 0.08, 0.08, 0.11), W, up, seg=12, rings=8)
-        P.cyl(f"{name}.shin", (x * 1.03, y, 0.1), 0.05, 0.056, 0.17, W, lo, verts=10)
+        P.cyl(f"{name}.shin", (x * 1.03, y, 0.1), 0.05, 0.056, 0.17, W, lo, verts=16)
         P.sphere(f"{name}.paw", (x * 1.06, y - 0.035, 0.026), (0.062, 0.08, 0.032), W, lo, seg=12, rings=6)
     # tail: short stub
     P.sphere("tail", (0, 0.37, 0.47), (0.035, 0.05, 0.035), W, "tail", rot=(-0.6, 0, 0), seg=10, rings=6)
@@ -55,7 +55,7 @@ def build():
     # tag hangs in front of the chest; the Y is built flat in the tag's frame and rotated with it
     tag_c = Vector((0, -0.43, 0.3))
     tilt = Matrix.Rotation(-0.3, 4, "X")
-    P.cyl("tag", tag_c, 0.055, 0.055, 0.012, M["collar"], "spine", rot=(math.pi / 2 - 0.3, 0, 0), verts=16)
+    P.cyl("tag", tag_c, 0.055, 0.055, 0.012, M["collar"], "spine", rot=(math.pi / 2 - 0.3, 0, 0), verts=28)
     for i, (dx, dz, ang, ln) in enumerate(((-0.009, 0.01, -0.62, 0.03), (0.009, 0.01, 0.62, 0.03), (0, -0.013, 0, 0.026))):
         off = tilt @ Vector((dx, -0.008, dz))
         P.box(f"Y{i}", tag_c + off, (0.011, 0.004, ln), M["y"], "spine", rot=(-0.3, ang, 0))
@@ -68,7 +68,7 @@ def build():
     for s, side in ((1, "L"), (-1, "R")):
         P.sphere(f"jowl.{side}", (0.075 * s, -0.575, 0.5), (0.075, 0.06, 0.07), W, H, seg=14, rings=8)
         P.sphere(f"eye.{side}", (0.085 * s, -0.55, 0.625), (0.024, 0.016, 0.022), M["eye"], H, seg=10, rings=6)
-        P.sphere(f"glint.{side}", (0.08 * s, -0.565, 0.632), (0.006, 0.003, 0.006), M["glint"], H, seg=6, rings=4)
+        P.sphere(f"glint.{side}", (0.08 * s, -0.565, 0.632), (0.006, 0.003, 0.006), M["glint"], H, seg=6, rings=4, subd=0)
         # rose ears folded back
         P.sphere(f"ear.{side}", (0.155 * s, -0.36, 0.69), (0.06, 0.035, 0.04), M["dark"], H, rot=(0.3, 0.5 * s, 0.4 * s), seg=10, rings=6)
     P.sphere("nose", (0, -0.625, 0.575), (0.045, 0.02, 0.028), M["nose"], H, seg=12, rings=6)

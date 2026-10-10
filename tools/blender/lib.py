@@ -70,9 +70,10 @@ def hexrgb(h):
 class Parts:
     """Collects part objects, each tagged with the bone it is rigidly bound to."""
 
-    def __init__(self, lod=1.0):
+    def __init__(self, lod=1.0, subd=0):
         self.objs = []
         self.lod = lod  # multiplies segment counts (the seated crowd builds at a lower lod)
+        self.subd = subd  # default Catmull-Clark levels for spheres and tori (applied, so the GLB carries it)
 
     def n(self, k, lo=4):
         return max(lo, int(round(k * self.lod)))
@@ -87,7 +88,7 @@ class Parts:
         self.objs.append(o)
         return o
 
-    def sphere(self, name, loc, radii, m, bone, rot=(0, 0, 0), seg=16, rings=10, taper=None, displace=0.0):
+    def sphere(self, name, loc, radii, m, bone, rot=(0, 0, 0), seg=16, rings=10, taper=None, displace=0.0, subd=None):
         bpy.ops.mesh.primitive_uv_sphere_add(segments=self.n(seg, 6), ring_count=self.n(rings, 4), radius=1)
         o = bpy.context.active_object
         if taper:  # pull the top toward a point: taper=(start, amount); start in [-1,1] of local z
@@ -102,6 +103,7 @@ class Parts:
             v.co = Vector((v.co.x * radii[0], v.co.y * radii[1], v.co.z * radii[2]))
         if displace:
             fuzz(o, displace)
+        subdivide(o, self.subd if subd is None else subd)
         o.rotation_euler = rot
         o.location = loc
         apply_tf(o)
@@ -128,11 +130,12 @@ class Parts:
         apply_tf(o)
         return self._finish(o, name, m, bone, smooth=False)
 
-    def torus(self, name, loc, R, r, m, bone, rot=(0, 0, 0), seg=20, minor=8, scale=(1, 1, 1)):
+    def torus(self, name, loc, R, r, m, bone, rot=(0, 0, 0), seg=20, minor=8, scale=(1, 1, 1), subd=None):
         bpy.ops.mesh.primitive_torus_add(major_radius=R, minor_radius=r, major_segments=self.n(seg, 8), minor_segments=self.n(minor, 4))
         o = bpy.context.active_object
         for v in o.data.vertices:
             v.co = Vector((v.co.x * scale[0], v.co.y * scale[1], v.co.z * scale[2]))
+        subdivide(o, self.subd if subd is None else subd)
         o.rotation_euler = rot
         o.location = loc
         apply_tf(o)
@@ -192,6 +195,30 @@ def apply_tf(o):
     o.select_set(True)
     bpy.context.view_layer.objects.active = o
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+
+
+def subdivide(o, levels):
+    """Apply Catmull-Clark, then rescale about the centre so the bounding box matches the cage (subdivision
+    shrinks a coarse sphere by a few percent). Runs before the part gets its single-bone vertex group, so the
+    rigid weight of 1.0 holds for every new vertex."""
+    if not levels:
+        return
+    def box(o):
+        xs = [v.co for v in o.data.vertices]
+        lo = Vector((min(c.x for c in xs), min(c.y for c in xs), min(c.z for c in xs)))
+        hi = Vector((max(c.x for c in xs), max(c.y for c in xs), max(c.z for c in xs)))
+        return lo, hi
+    lo0, hi0 = box(o)
+    m = o.modifiers.new("subd", "SUBSURF")
+    m.levels = m.render_levels = levels
+    bpy.context.view_layer.objects.active = o
+    bpy.ops.object.modifier_apply(modifier=m.name)
+    lo1, hi1 = box(o)
+    c0, c1 = (lo0 + hi0) / 2, (lo1 + hi1) / 2
+    k = [((hi0[i] - lo0[i]) / (hi1[i] - lo1[i])) if hi1[i] - lo1[i] > 1e-9 else 1.0 for i in range(3)]
+    for v in o.data.vertices:
+        d = v.co - c1
+        v.co = Vector((c0.x + d.x * k[0], c0.y + d.y * k[1], c0.z + d.z * k[2]))
 
 
 def fuzz(o, amount, size=0.035):
