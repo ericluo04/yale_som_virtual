@@ -2,12 +2,13 @@ import { useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 
-// Particle bursts for spells and apparating: two pooled THREE.Points (additive sparks, alpha-blended smoke).
+// Particle bursts for the spell school: two pooled THREE.Points (additive sparks, alpha-blended smoke).
 // Each particle keeps its birth time, start position and velocity in attributes and the vertex shader moves it,
 // so a burst costs one partial attribute upload and nothing per frame after that.
 //   fx.sparks([x, y, z], { count = 200, colors, speed = 2.2, life = 0.8, up = 0.6, size = 0.09, dir })
 //   fx.smoke([x, y, z], { count = 60, life = 1.4 })
-const CAP = { sparks: 1200, smoke: 360 }
+// the two ring buffers hold 400 particles in all, so no more than 400 are ever alive at once
+const CAP = { sparks: 260, smoke: 140 }
 const pools = {}
 
 const VERT = /* glsl */ `

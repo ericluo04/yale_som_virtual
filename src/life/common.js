@@ -209,20 +209,4 @@ export const sfx = {
     ping(v, t + 0.07, base * 1.5, 0.8, 0.025)
     ping(v, t, base * 2.76, 0.3, 0.008)
   },
-  // a pop for Handsome Dan apparating
-  pop(x, y, z) {
-    const v = voice(x, y, z)
-    if (!v) return
-    const t = v.ctx.currentTime
-    const o = ping(v, t, 900, 0.12, 0.06, 'triangle')
-    o.frequency.exponentialRampToValueAtTime(220, t + 0.1)
-  },
-  // a disc whoosh
-  whoosh(x, y, z) {
-    const v = voice(x, y, z)
-    if (!v) return
-    const t = v.ctx.currentTime
-    const o = ping(v, t, 500, 0.25, 0.02, 'sawtooth')
-    o.frequency.exponentialRampToValueAtTime(260, t + 0.22)
-  },
 }
