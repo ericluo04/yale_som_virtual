@@ -543,3 +543,62 @@ def clips_preview(rig, name, shots):
         fn = f"{name}_{clip}_f{frame}{suffix}.png"
         shot(os.path.join(PREVIEWS, fn), target, dist, yaw, elev)
     unmute_all(rig)
+
+
+# ---------- props (static, unskinned): lathes with a lobed plan, used by fountain.py
+def lathe(name, profile, mat_, seg=96, lobes=0, depth=0.0, r_min=0.0, warp=None, cap=False):
+    """Revolve a (radius, z) profile about Z into a smooth-shaded mesh. With `lobes`, every radius above `r_min`
+    is scaled by 1 + depth * cos(lobes * angle), which gives a scalloped or quatrefoil plan. `warp(x, y, z)`
+    may move each vertex afterwards. `cap` closes the top or bottom when the profile ends off the axis."""
+    me = bpy.data.meshes.new(name)
+    bm = bmesh.new()
+    rings = []
+    for (r, z) in profile:
+        ring = []
+        for i in range(seg):
+            a = 2 * math.pi * i / seg
+            k = 1 + depth * math.cos(lobes * a) if lobes and r > r_min else 1
+            x, y, zz = r * k * math.cos(a), r * k * math.sin(a), z
+            if warp:
+                x, y, zz = warp(x, y, zz)
+            ring.append(bm.verts.new((x, y, zz)))
+        rings.append(ring)
+    for j in range(len(rings) - 1):
+        a, b = rings[j], rings[j + 1]
+        for i in range(seg):
+            bm.faces.new((a[i], a[(i + 1) % seg], b[(i + 1) % seg], b[i]))
+    if cap:
+        for ring in (rings[0], rings[-1]):
+            if profile[rings.index(ring)][0] > 1e-6:
+                bm.faces.new(ring)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(me)
+    bm.free()
+    o = bpy.data.objects.new(name, me)
+    bpy.context.collection.objects.link(o)
+    me.materials.append(mat_)
+    for p in me.polygons:
+        p.use_smooth = True
+    return o
+
+
+def bevel_sharp(o, width=0.012, segments=2, angle_deg=40):
+    """Bevel the edges sharper than `angle_deg` and apply it (carved stone edges catch the light)."""
+    m = o.modifiers.new("bevel", "BEVEL")
+    m.width = width
+    m.segments = segments
+    m.limit_method = "ANGLE"
+    m.angle_limit = math.radians(angle_deg)
+    bpy.context.view_layer.objects.active = o
+    bpy.ops.object.select_all(action="DESELECT")
+    o.select_set(True)
+    bpy.ops.object.modifier_apply(modifier=m.name)
+
+
+def smooth_by_angle(o, angle_deg=35):
+    """Smooth shading with hard edges past `angle_deg` (Blender 4.1+ operator)."""
+    bpy.ops.object.select_all(action="DESELECT")
+    o.select_set(True)
+    bpy.context.view_layer.objects.active = o
+    bpy.ops.object.shade_smooth_by_angle(angle=math.radians(angle_deg))

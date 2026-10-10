@@ -1,15 +1,19 @@
 // Courtyard lawn furniture (Lan, round 3: "the courtyard also looks pretty empty"): eight
 // Adirondack chairs in Yale blue and white, two picnic tables, four planters with the scanned
-// potted plants, a stone path from the south glass to the centre, a small fountain inside a
-// ring of low stone benches, and a string of lights between two poles over the path.
-// Everything keeps to the path, the edges and the centre: the four lawn quadrants round
-// (+-10, +-10) stay clear for the spell-teaching groups (src/life). No colliders: the player
-// cannot reach the lawn. Lawn level is y = -5. Each kind is one merged or instanced mesh.
-import { useLayoutEffect, useMemo, useRef } from 'react'
+// potted plants, a stone path from the south glass to the centre, the three-tier fountain
+// (life/CourtyardFountain.jsx, round 4) inside a ring of low stone benches, and a string of lights
+// between two poles over the path. Positions live in life/courtyardLayout.js, which also keeps
+// the spell classes and the round 4 fills clear of each other; the moving parts of the lawn
+// mount from here through life/CourtyardLife.jsx. No colliders: the player cannot reach the
+// lawn. Lawn level is y = -5. Each kind is one merged or instanced mesh.
+import { Suspense, useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { Model } from './Scenery.jsx'
 import { rng } from '../textures.js'
+import { BENCH_RING as BENCH, CHAIRS, PATH as PATH_Z, PICNICS, PLANTERS, POLES } from '../life/courtyardLayout.js'
+import { FountainStone } from '../life/CourtyardFountain.jsx'
+import CourtyardLife from '../life/CourtyardLife.jsx'
 
 const Y = -5 // lawn level
 const TAU = Math.PI * 2
@@ -68,17 +72,16 @@ const PICNIC = (() => {
   return mergeGeometries(p.map((g) => g.toNonIndexed()))
 })()
 
-// low stone bench ring at the centre: four curved stone segments round the fountain, with gaps
-// where the path comes in (south) and on the other three axes
+// low stone bench ring round the fountain: four curved stone segments with gaps on the four axes (the stone
+// path comes in from the south, the gravel path leaves from the west, McGonagall's clearing is east)
 const BENCH_RING = (() => {
   const out = []
-  const r0 = 2.85
-  const r1 = 3.3
+  const { r0, r1, gap } = BENCH
   for (let k = 0; k < 4; k++) {
-    const a0 = k * (TAU / 4) + 0.32
-    const a1 = (k + 1) * (TAU / 4) - 0.32
+    const a0 = k * (TAU / 4) + gap
+    const a1 = (k + 1) * (TAU / 4) - gap
     const sh = new THREE.Shape()
-    const n = 16
+    const n = 20
     for (let i = 0; i <= n; i++) {
       const a = a0 + ((a1 - a0) * i) / n
       i ? sh.lineTo(Math.sin(a) * r1, Math.cos(a) * r1) : sh.moveTo(Math.sin(a) * r1, Math.cos(a) * r1)
@@ -95,23 +98,7 @@ const BENCH_RING = (() => {
   return mergeGeometries(out)
 })()
 
-// fountain: a round stone basin, a pedestal and an upper bowl, water surfaces in both
-const FOUNTAIN = (() => {
-  const basin = new THREE.LatheGeometry([[1.25, 0.0], [1.5, 0.0], [1.55, 0.45], [1.45, 0.5], [1.3, 0.5], [1.25, 0.12]].map(([x, y]) => new THREE.Vector2(x, y)), 48)
-  const pedestal = new THREE.CylinderGeometry(0.14, 0.22, 0.95, 20)
-  pedestal.translate(0, 0.5, 0)
-  const bowl = new THREE.LatheGeometry([[0.1, 0.92], [0.55, 0.98], [0.62, 1.08], [0.56, 1.1], [0.1, 1.02]].map(([x, y]) => new THREE.Vector2(x, y)), 36)
-  const stone = mergeGeometries([basin, pedestal, bowl].map((g) => g.toNonIndexed()))
-  const w1 = new THREE.CircleGeometry(1.27, 48)
-  w1.rotateX(-Math.PI / 2)
-  w1.translate(0, 0.38, 0)
-  const w2 = new THREE.CircleGeometry(0.54, 32)
-  w2.rotateX(-Math.PI / 2)
-  w2.translate(0, 1.06, 0)
-  return { stone, water: mergeGeometries([w1, w2]) }
-})()
-
-// stone path from the south glass (z 19) to the bench ring (z 3.4): a 1.4 m running bond of
+// stone path from the south glass (z 19) to the bench ring: a 1.4 m running bond of
 // 0.7 x 0.45 m slabs, laid with 2 cm joints and a little jitter
 const PATH = (() => {
   const r = rng(31)
@@ -119,7 +106,7 @@ const PATH = (() => {
   let row = 0
   // odd rows: two 0.68 m slabs; even rows: a whole slab between two halves
   const ROWS = [[[-0.35, 0.68], [0.35, 0.68]], [[-0.53, 0.335], [0, 0.68], [0.53, 0.335]]]
-  for (let z = 18.8; z > 3.5; z -= 0.47, row++) {
+  for (let z = PATH_Z.z0; z > PATH_Z.z1; z -= 0.47, row++) {
     for (const [x, w] of ROWS[row % 2]) {
       out.push({ p: [x + (r() - 0.5) * 0.02, Y + 0.012, z + (r() - 0.5) * 0.02], s: [w, 0.03, 0.45], r: (r() - 0.5) * 0.02, shade: 0.9 + r() * 0.18 })
     }
@@ -127,21 +114,8 @@ const PATH = (() => {
   return out
 })()
 
-// chairs: two pairs facing the path, two pairs at the east and west edges facing the centre
-const CHAIRS = [
-  { p: [-2.3, 8.2], r: Math.PI / 2 + 0.25, c: 'blue' },
-  { p: [-2.3, 14.4], r: Math.PI / 2 - 0.2, c: 'white' },
-  { p: [2.3, 8.6], r: -Math.PI / 2 - 0.25, c: 'white' },
-  { p: [2.3, 14.0], r: -Math.PI / 2 + 0.2, c: 'blue' },
-  { p: [-16.6, -1.4], r: Math.PI / 2 + 0.3, c: 'blue' },
-  { p: [-16.6, 1.6], r: Math.PI / 2 - 0.3, c: 'white' },
-  { p: [16.6, -1.6], r: -Math.PI / 2 - 0.3, c: 'white' },
-  { p: [16.6, 1.4], r: -Math.PI / 2 + 0.3, c: 'blue' },
-]
-const PICNICS = [{ p: [-4.6, -15.2], r: 0.08 }, { p: [4.6, -15.2], r: -0.08 }]
-const PLANTERS = [[-1.75, 17.9], [1.75, 17.9], [-8.2, -16.6], [8.2, -16.6]]
-// string lights: two black poles beside the path, a sagging cable with warm bulbs
-const POLES = [[-3.6, 12.5], [3.6, 12.5]]
+// chairs, picnic tables, planters and the string-light poles: life/courtyardLayout.js (moved in round 4 off the
+// long-range class's line and the statue's spot)
 const POLE_H = 3.4
 
 function Inst({ geometry, material, items, cast = true }) {
@@ -175,7 +149,6 @@ export default function Lawn() {
       paver: std({ color: '#bdb6a8', roughness: 0.92 }),
       concrete: std({ color: '#a29e96', roughness: 0.9 }),
       soil: std({ color: '#3d2f22', roughness: 1 }),
-      water: std({ color: '#2f6378', roughness: 0.04, metalness: 0.4, envMapIntensity: 1.5 }),
       pole: std({ color: '#1f2226', roughness: 0.5, metalness: 0.5 }),
       bulb: new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.78, 0.48).multiplyScalar(2.6), toneMapped: false }),
     }
@@ -221,8 +194,10 @@ export default function Lawn() {
       <Inst geometry={boxGeo} material={mats.soil} items={planters.soil} cast={false} />
       <Model name="plant_a" items={planters.plants} />
       <mesh geometry={BENCH_RING} material={mats.stone} position={[0, Y, 0]} castShadow receiveShadow />
-      <mesh geometry={FOUNTAIN.stone} material={mats.stone} position={[0, Y, 0]} castShadow receiveShadow />
-      <mesh geometry={FOUNTAIN.water} material={mats.water} position={[0, Y, 0]} />
+      <Suspense fallback={null}>
+        <FountainStone />
+      </Suspense>
+      <CourtyardLife />
       <Inst geometry={poleGeo} material={mats.pole} items={lights.poles} />
       <mesh geometry={lights.cable} material={mats.pole} />
       <Inst geometry={bulbGeo} material={mats.bulb} items={lights.bulbs} cast={false} />
