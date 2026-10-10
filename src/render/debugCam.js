@@ -6,6 +6,7 @@
 //   ?stats=1              fps panel
 //   ?off=ao,bloom,smaa,ssr,dof,grade,vignette,feel,post,lights,shadow   switch single render features off
 //                         to profile them (feel: head bob, sprint FOV and look damping)
+//   ?on=dof,ssr           switch on features that are off by default (dof: the far blur, ssr: reflections)
 //   ?dpr=1.5              override the pixel-ratio cap
 //   ?hud=0                hide the location pill and minimap for clean screenshots
 const params = new URLSearchParams(typeof location === 'undefined' ? '' : location.search)
@@ -24,4 +25,5 @@ export const QUALITY = params.get('quality') === 'low' ? 'low' : 'high'
 export const STATS = params.get('stats') === '1'
 export const HUD = params.get('hud') !== '0'
 export const OFF = new Set((params.get('off') || '').split(',').filter(Boolean))
+export const ON = new Set((params.get('on') || '').split(',').filter(Boolean))
 export const DPR = Number(params.get('dpr')) || null

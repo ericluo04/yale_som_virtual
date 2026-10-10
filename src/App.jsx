@@ -26,7 +26,9 @@ export default function App() {
   // (2, 1.5, 1) when the frame rate sits under 45 fps for 75% of a 3 s window; it steps back
   // up when it holds above 57 fps for 3 s. The bounds are fixed: drei estimates the refresh
   // rate as the highest fps it has seen, so a view slow from the first frame reported its own
-  // slow rate as the display rate and never stepped down. After two up-down flips it settles
+  // slow rate as the display rate and never stepped down. Windows are 500 ms: a 250 ms window
+  // holds 10 to 12 frames at 40 to 48 fps, reads 44 or 48, and a view at 43 fps never stepped
+  // down. After two up-down flips it settles
   // on the lower tier, so a machine that holds 2 keeps 2 and one that cannot stops searching.
   const [tiers] = useState(() => [2, 1.5, 1].filter((t) => t <= Math.max(1, Math.min(2, window.devicePixelRatio || 1))))
   const [tier, setTier] = useState(0)
@@ -97,8 +99,8 @@ export default function App() {
         <Effects key={dpr} />
         {QUALITY !== 'low' && !DPR && loaded && tiers.length > 1 && (
           <PerformanceMonitor
-            ms={250}
-            iterations={12}
+            ms={500}
+            iterations={6}
             flipflops={2}
             bounds={() => [45, 57]}
             onDecline={() =>
