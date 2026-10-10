@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { DRUMS, ellPt } from '../../layout.js'
+import { useCounter } from '../../interact/index.jsx'
 
 // Shared helpers for the egg set B (ticker, merch stand, plaques, attendance).
 
@@ -62,4 +63,11 @@ export function seeded(seed) {
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296
   }
+}
+
+// A top-right counter pill that only exists while mounted; render it conditionally,
+// e.g. {n > 0 && <Pill k="merch" label="merch" value={n} total={4} />}
+export function Pill({ k, label, value, total, order = 20 }) {
+  useCounter(k, label, value, total, order)
+  return null
 }
