@@ -403,8 +403,9 @@ export const BEIN_CURTAIN = { r: BEIN.muralR + 0.3, half: BEIN.muralHalf + 0.12 
 P(arc(BEIN.c, BEIN_CURTAIN.r, BEIN_CURTAIN.r, Math.PI / 2 - BEIN_CURTAIN.half, Math.PI / 2 + BEIN_CURTAIN.half, 20), 'none', { t: 0.15 })
 
 // ---------- scenery (render/Scenery.jsx draws scanned CC0 models; colliders here)
-// more plants in front of the drums, between the counters and the doors
-export const PLANTS_EXTRA = [[-18.6, -25.3], [3.4, -25.3], [11.9, -25.3], [-18.5, 26.2], [3.5, 26.2], [11.5, 26.2], [-27.4, -22.6], [27.9, 22.4]]
+// more plants in front of the drums, between the counters and the doors; the stair B one stands
+// against the south face of that core (z -20.5), west of the bin
+export const PLANTS_EXTRA = [[-18.6, -25.3], [3.4, -25.3], [11.9, -25.3], [-18.5, 26.2], [3.5, 26.2], [11.5, 26.2], [-33.4, -21.0], [27.9, 22.4]]
 for (const p of PLANTS_EXTRA) dot(p)
 // waste bins at the four cloister corners, out of both walkways. The east pair stands against the
 // east wall; the west pair stood in open floor 3 m off the cloister (one beside the spawn point)

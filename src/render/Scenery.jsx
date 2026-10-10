@@ -277,7 +277,7 @@ const clocks = [
   { p: [(x0 + x1) / 2 + 2.5, 2.7, LIBRARY.z1 - 0.12], r: Math.PI, s: 1.3 },
   { p: [(x0 + x1) / 2 + 1.5, 4.4, LIBRARY.z0 + 0.12], r: 0, s: 2.6 }, // high on the north wall
 ]
-const extinguishers = [{ p: [x1 - 0.5, 0, LIBRARY.z1 - 0.35], r: Math.PI, s: 1 }, { p: [-27.9, 0, -24.9], r: Math.PI / 2, s: 1 }]
+const extinguishers = [{ p: [x1 - 0.5, 0, LIBRARY.z1 - 0.35], r: Math.PI, s: 1 }, { p: [-32.2, 0, -20.75], r: Math.PI, s: 1 }] // second: against the south face of stair B's core
 
 // Beinecke Terrace Room: oak round tables, six black chairs each (photo 16)
 const beinTables = BEIN_TABLES.map(([x, z], i) => ({ p: [x, 0, z], r: i, s: [1.16, 0.765, 1.16] }))
