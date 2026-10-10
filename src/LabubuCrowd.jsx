@@ -56,16 +56,36 @@ export const STUDENTS = DRUMS.flatMap((d, di) => {
   })
 })
 
-// classroom life (src/life/Classroom.jsx): 4 students per room become skinned Labubus while the camera is near
-// the room (rooms in LIVE); their static copies draw only while the room is not live. Two laptop users first,
-// so someone is typing. A separate seed keeps everyone's looks as they were.
+// classroom life (src/life/Classroom.jsx): 6 students per room become skinned Labubus while the camera is near
+// the room (rooms in LIVE); their static copies draw only while the room is not live. The extras sit in the two
+// front rows, where both the back-row view and the professor's view see them: students already there are taken
+// first (two laptop users first, so someone is typing), and the rest move from farther back into free front
+// seats. A separate seed keeps everyone's looks as they were.
 export const LIVE = new Set()
 export const TYPING = new Set() // students whose skinned copy is playing Type (their laptop screen flickers)
+export const EXTRAS_PER_ROOM = 6
+const seatKey = (c) => `${c.x.toFixed(2)},${c.z.toFixed(2)}`
 if (LIFE_ON)
   for (const d of DRUMS) {
     const r = lifeRand(7000 + Number(d.id))
+    const chairs = CHAIRS.filter((c) => c.room === d.id)
+    const rows = [...new Set(chairs.map((c) => c.y || 0))].sort((a, b) => a - b)
+    const frontY = rows[Math.min(1, rows.length - 1)]
+    const isFront = (s) => s.seatY <= frontY + 1e-6
     const mine = STUDENTS.filter((s) => s.room === d.id).sort(() => r() - 0.5)
-    const pick = [...mine.filter((s) => s.prop === 'laptop').slice(0, 2), ...mine.filter((s) => s.prop !== 'laptop')].slice(0, 4)
+    const front = mine.filter(isFront)
+    const pick = [...front.filter((s) => s.prop === 'laptop'), ...front.filter((s) => s.prop !== 'laptop')].slice(0, EXTRAS_PER_ROOM)
+    if (pick.length < EXTRAS_PER_ROOM) {
+      const taken = new Set(mine.map(seatKey))
+      const free = chairs.filter((c) => (c.y || 0) <= frontY + 1e-6 && !taken.has(seatKey(c))).sort(() => r() - 0.5)
+      const movers = mine.filter((s) => !isFront(s)).sort((a, b) => (b.prop === 'laptop') - (a.prop === 'laptop'))
+      while (pick.length < EXTRAS_PER_ROOM && free.length && movers.length) {
+        const s = movers.shift()
+        const c = free.shift()
+        Object.assign(s, { x: c.x, z: c.z, seatY: c.y || 0, y: (c.y || 0) + 0.51 - 0.11 * HEIGHT, rot: c.rot + Math.PI })
+        pick.push(s)
+      }
+    }
     for (const s of pick) s.extra = true
   }
 
