@@ -23,8 +23,10 @@ export default function App() {
   const [where, setWhere] = useState('')
   const [showMap, setShowMap] = useState(true)
   // high quality starts at the display's pixel ratio (capped at 2) and steps down a tier
-  // (2, 1.5, 1) when the frame rate sits under the lower bound for 75% of a 3 s window; it
-  // steps back up after a 3 s window at the display rate. After two up-down flips it settles
+  // (2, 1.5, 1) when the frame rate sits under 45 fps for 75% of a 3 s window; it steps back
+  // up when it holds above 57 fps for 3 s. The bounds are fixed: drei estimates the refresh
+  // rate as the highest fps it has seen, so a view slow from the first frame reported its own
+  // slow rate as the display rate and never stepped down. After two up-down flips it settles
   // on the lower tier, so a machine that holds 2 keeps 2 and one that cannot stops searching.
   const [tiers] = useState(() => [2, 1.5, 1].filter((t) => t <= Math.max(1, Math.min(2, window.devicePixelRatio || 1))))
   const [tier, setTier] = useState(0)
@@ -98,7 +100,7 @@ export default function App() {
             ms={250}
             iterations={12}
             flipflops={2}
-            bounds={(hz) => [Math.min(50, hz * 0.83), hz - 3]}
+            bounds={() => [45, 57]}
             onDecline={() =>
               setTier((t) => {
                 const next = Math.min(t + 1, tiers.length - 1)
