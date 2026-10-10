@@ -61,15 +61,21 @@ function buildScript() {
 }
 
 // Lisa's portrait, vector style, after the K-pop idol the TA is named for (a stylized cartoon, drawn
-// from scratch): long straight dark hair with blunt bangs, a slim face, winged eyeliner, a confident
-// half-smile, a small gold hoop, a black top with pink trim, and the pink headset with a mic boom.
+// from scratch with canvas shapes, no photo or tracing): long straight honey-blonde hair with full blunt
+// bangs just above the brows, a small slim face with high cheekbones, cat-like upturned eyes with sharp
+// winged liner and pink shadow, a small defined nose, a peach-pink lip in a half-smile, gold hoops,
+// a black stage top with pink trim and thin pink straps, and the pink headset.
 // Drawn in a 100-unit space centred on her face; (x, y) is the face centre on the canvas, k the scale.
-// The kiosk screen and the dialogue portrait (src/ui/portraits.js, kind 'lisa') both use it.
+// The kiosk screen and the dialogue portrait (src/ui/portraits.js, kind 'lisa') both call it, so it
+// stays vector at every size.
 export function drawLisa(g, x, y, k) {
-  const skin = '#f4d2b6'
-  const shade = '#e3b394'
-  const hair = '#16121b'
-  const sheen = '#3b3447'
+  const skin = '#f7dac6'
+  const shade = '#e7b89c'
+  const hair = '#e2b468'
+  const hairDark = '#b9853c'
+  const hairLight = '#f8dfa4'
+  const hairLine = '#6e4a1e'
+  const ink = '#2a1d18'
   const pink = '#ff4fa3'
   const black = '#111115'
   g.save()
@@ -90,113 +96,208 @@ export function drawLisa(g, x, y, k) {
       g.stroke()
     }
   }
-  // long hair, back layer: from the crown straight down past the shoulders
+  const hairFill = (y0, y1) => {
+    const gr = g.createLinearGradient(0, y0, 0, y1)
+    gr.addColorStop(0, hair)
+    gr.addColorStop(0.55, '#d9a95c')
+    gr.addColorStop(1, hairDark)
+    return gr
+  }
+  // long hair, back layer: from the crown straight down past the shoulders, cut blunt at the ends
   path(() => {
-    g.moveTo(-50, 0)
-    g.bezierCurveTo(-60, -62, -28, -74, 0, -74)
-    g.bezierCurveTo(28, -74, 60, -62, 50, 0)
-    g.lineTo(60, 160)
-    g.lineTo(-60, 160)
+    g.moveTo(-46, -10)
+    g.bezierCurveTo(-56, -64, -26, -76, 0, -76)
+    g.bezierCurveTo(26, -76, 56, -64, 46, -10)
+    g.lineTo(58, 158)
+    g.lineTo(-58, 158)
     g.closePath()
-  }, hair)
-  // neck, then a black top with a pink V neckline and pink piping over the shoulders
-  path(() => g.rect(-10, 24, 20, 48), shade)
+  }, hairFill(-76, 158), hairLine, 1.6)
+  // neck and shoulders, then the black stage top: a straight neckline with pink trim and thin pink straps
   path(() => {
-    g.moveTo(-112, 170)
-    g.bezierCurveTo(-106, 100, -72, 76, -26, 68)
-    g.lineTo(0, 98)
-    g.lineTo(26, 68)
-    g.bezierCurveTo(72, 76, 106, 100, 112, 170)
+    g.moveTo(-8.5, 30)
+    g.quadraticCurveTo(-9, 56, -14, 64)
+    g.bezierCurveTo(-40, 72, -84, 80, -94, 170)
+    g.lineTo(94, 170)
+    g.bezierCurveTo(84, 80, 40, 72, 14, 64)
+    g.quadraticCurveTo(9, 56, 8.5, 30)
     g.closePath()
-  }, black)
+  }, skin, ink, 1.4)
   path(() => {
-    g.moveTo(-26, 68)
-    g.lineTo(0, 98)
-    g.lineTo(26, 68)
-  }, null, pink, 5)
+    g.moveTo(-8.6, 38)
+    g.quadraticCurveTo(0, 54, 8.6, 38)
+    g.closePath()
+  }, shade) // shadow under the chin
   path(() => {
-    g.moveTo(-104, 160)
-    g.quadraticCurveTo(-86, 96, -44, 80)
-    g.moveTo(104, 160)
-    g.quadraticCurveTo(86, 96, 44, 80)
-  }, null, pink, 3.5)
-  // slim face, narrowing to the chin
+    g.moveTo(-92, 170)
+    g.bezierCurveTo(-90, 124, -78, 100, -50, 94)
+    g.quadraticCurveTo(0, 102, 50, 94)
+    g.bezierCurveTo(78, 100, 90, 124, 92, 170)
+    g.closePath()
+  }, black, ink, 1.4)
   path(() => {
-    g.moveTo(-33, -18)
-    g.bezierCurveTo(-34, 14, -22, 38, 0, 47)
-    g.bezierCurveTo(22, 38, 34, 14, 33, -18)
-    g.bezierCurveTo(32, -48, -32, -48, -33, -18)
-  }, skin)
+    g.moveTo(-50, 94)
+    g.quadraticCurveTo(0, 102, 50, 94)
+  }, null, pink, 3)
+  for (const sx of [-1, 1]) {
+    path(() => {
+      g.moveTo(sx * 30, 98)
+      g.lineTo(sx * 40, 72)
+    }, null, pink, 1.8) // thin strap
+    path(() => {
+      g.moveTo(sx * 82, 152)
+      g.quadraticCurveTo(sx * 74, 120, sx * 58, 108)
+    }, null, pink, 2.2) // seam piping
+  }
+  // small slim face: widest at the high cheekbones, tapering to a narrow chin
+  path(() => {
+    g.moveTo(-30, -22)
+    g.bezierCurveTo(-32, -4, -30, 6, -25, 18)
+    g.bezierCurveTo(-19, 32, -8, 42, 0, 43)
+    g.bezierCurveTo(8, 42, 19, 32, 25, 18)
+    g.bezierCurveTo(30, 6, 32, -4, 30, -22)
+    g.bezierCurveTo(28, -48, -28, -48, -30, -22)
+  }, skin, ink, 1.5)
+  // cheekbone contour and a soft pink blush high on the cheeks
+  for (const sx of [-1, 1]) {
+    path(() => {
+      g.moveTo(sx * 28, 6)
+      g.quadraticCurveTo(sx * 24, 16, sx * 18, 22)
+    }, null, 'rgba(205, 140, 110, 0.45)', 1.4)
+    path(() => g.ellipse(sx * 19, 12, 7, 3.4, sx * -0.25, 0, Math.PI * 2), 'rgba(255, 120, 150, 0.28)')
+  }
   // straight front locks framing the face and falling over the shoulders
   for (const sx of [-1, 1]) {
     path(() => {
-      g.moveTo(sx * 31, -20)
-      g.lineTo(sx * 50, -12)
-      g.lineTo(sx * 58, 132)
-      g.lineTo(sx * 40, 126)
-      g.quadraticCurveTo(sx * 36, 60, sx * 30, 26)
+      g.moveTo(sx * 28, -24)
+      g.lineTo(sx * 46, -14)
+      g.lineTo(sx * 54, 134)
+      g.lineTo(sx * 36, 128)
+      g.quadraticCurveTo(sx * 33, 60, sx * 28, 22)
+      g.quadraticCurveTo(sx * 30, 0, sx * 28, -24)
       g.closePath()
-    }, hair)
+    }, hairFill(-24, 134), hairLine, 1.5)
     path(() => {
-      g.moveTo(sx * 44, 0)
-      g.lineTo(sx * 50, 110)
-    }, null, sheen, 2.5)
+      g.moveTo(sx * 40, -4)
+      g.lineTo(sx * 46, 116)
+      g.moveTo(sx * 34, 30)
+      g.lineTo(sx * 40, 120)
+    }, null, hairDark, 1.2)
+    path(() => {
+      g.moveTo(sx * 43, 8)
+      g.lineTo(sx * 47, 70)
+    }, null, hairLight, 2)
   }
-  // blunt bangs cut straight across just above the eyes, with a sheen line
+  // full blunt bangs, cut straight across just above the brows, with strand lines and a light halo
   path(() => {
-    g.moveTo(-40, -10)
-    g.bezierCurveTo(-46, -56, -20, -68, 0, -68)
-    g.bezierCurveTo(20, -68, 46, -56, 40, -10)
-    for (let bx = 40; bx > -40; bx -= 8) g.lineTo(bx - 4, bx % 16 ? -11 : -9) // a faint comb texture
+    g.moveTo(-37, -12)
+    g.bezierCurveTo(-46, -60, -20, -70, 0, -70)
+    g.bezierCurveTo(20, -70, 46, -60, 37, -12)
+    g.quadraticCurveTo(0, -16, -37, -12)
     g.closePath()
-  }, hair)
+  }, hairFill(-70, -12), hairLine, 1.6)
   path(() => {
-    g.moveTo(-26, -52)
-    g.quadraticCurveTo(0, -62, 26, -52)
-  }, null, sheen, 3)
-  // eyes: almond whites, dark irises with a highlight, winged liner flicking up and out
+    for (const bx of [-28, -19, -10, -1, 8, 17, 26]) {
+      g.moveTo(bx + 2, -44)
+      g.lineTo(bx, -15)
+    }
+  }, null, hairDark, 1.1)
+  path(() => {
+    g.moveTo(-30, -48)
+    g.quadraticCurveTo(0, -60, 30, -48)
+  }, null, hairLight, 4)
+  // brows: thin, straight with a slight lift, just below the fringe
   for (const sx of [-1, 1]) {
     path(() => {
-      g.moveTo(sx * 9, 2)
-      g.quadraticCurveTo(sx * 19, -6, sx * 28, 0)
-      g.quadraticCurveTo(sx * 19, 8, sx * 9, 2)
-    }, '#ffffff')
-    path(() => g.arc(sx * 18.5, 1.5, 4.3, 0, Math.PI * 2), '#2b1c18')
-    path(() => g.arc(sx * 18.5 + 1.5, -0.3, 1.4, 0, Math.PI * 2), '#ffffff')
+      g.moveTo(sx * 9, -8.5)
+      g.quadraticCurveTo(sx * 18, -11.5, sx * 27, -10)
+    }, null, '#8a6236', 1.8)
+  }
+  // eyes: pink lid shadow, a cat-like almond tilted up at the outer corner, dark iris, sharp winged liner
+  for (const sx of [-1, 1]) {
     path(() => {
-      g.moveTo(sx * 8, 2)
-      g.quadraticCurveTo(sx * 19, -7.5, sx * 28, -0.5)
-      g.lineTo(sx * 35, -6)
-    }, null, '#0c0a10', 2.8)
-    path(() => g.ellipse(sx * 24, 16, 6.5, 3.5, 0, 0, Math.PI * 2), 'rgba(255, 110, 150, 0.3)')
+      g.moveTo(sx * 8, 1)
+      g.quadraticCurveTo(sx * 18, -11, sx * 31, -6)
+      g.quadraticCurveTo(sx * 19, -4, sx * 8, 1)
+    }, 'rgba(255, 105, 160, 0.4)')
+    const eye = () => {
+      g.moveTo(sx * 8, 3)
+      g.quadraticCurveTo(sx * 17, -6, sx * 29, -4)
+      g.quadraticCurveTo(sx * 20, 7, sx * 8, 3)
+    }
+    path(eye, '#ffffff')
+    g.save()
+    g.beginPath()
+    eye()
+    g.clip()
+    path(() => g.arc(sx * 18.5, 0.5, 4.6, 0, Math.PI * 2), '#3a2416')
+    path(() => g.arc(sx * 18.5, 0.5, 2, 0, Math.PI * 2), '#120c0a')
+    path(() => g.arc(sx * 18.5 + 1.6, -1.2, 1.3, 0, Math.PI * 2), '#ffffff')
+    g.restore()
+    // upper liner thickening to a sharp wing that flicks up past the outer corner
+    path(() => {
+      g.moveTo(sx * 7.5, 3)
+      g.quadraticCurveTo(sx * 17, -7.5, sx * 29, -5)
+      g.lineTo(sx * 38, -12)
+      g.lineTo(sx * 29.5, -2.6)
+      g.quadraticCurveTo(sx * 17, -4.6, sx * 7.5, 3)
+      g.closePath()
+    }, '#0c0a10')
+    path(() => {
+      g.moveTo(sx * 11, 5)
+      g.quadraticCurveTo(sx * 20, 7.2, sx * 28, -2.5)
+    }, null, 'rgba(40, 25, 25, 0.55)', 0.9)
   }
-  // nose, and a confident half-smile that lifts on one side
+  // nose: a short bridge shadow, a defined tip and small nostrils
   path(() => {
-    g.moveTo(1, 7)
-    g.quadraticCurveTo(-2, 14, 2, 15.5)
-  }, null, '#cf9a7c', 1.8)
+    g.moveTo(-2.5, -2)
+    g.quadraticCurveTo(-3.5, 8, -2.6, 13)
+  }, null, 'rgba(190, 130, 100, 0.55)', 1.2)
   path(() => {
-    g.moveTo(-9, 26)
-    g.quadraticCurveTo(1, 33, 11, 22)
-    g.quadraticCurveTo(1, 28.5, -9, 26)
-  }, '#d14d6c')
+    g.moveTo(-4.5, 15.5)
+    g.quadraticCurveTo(0, 18.5, 4.5, 15.5)
+  }, null, '#c88e70', 1.4)
+  path(() => g.ellipse(0.6, 12.8, 1.6, 1.1, 0, 0, Math.PI * 2), 'rgba(255, 255, 255, 0.55)')
+  // bold peach-pink lips with a cupid's bow, the right corner lifted in a confident half-smile
   path(() => {
-    g.moveTo(-9, 26)
-    g.quadraticCurveTo(1, 30.5, 11, 22)
-  }, null, '#a8324f', 1.6)
-  // pink headset: band over the hair, ear cups, mic boom to the corner of her mouth
-  path(() => g.ellipse(0, -8, 59, 66, 0, Math.PI * 1.03, Math.PI * 1.97), null, pink, 7)
-  for (const cx of [-66, 50]) {
-    path(() => g.roundRect(cx, -16, 16, 30, 7), pink)
-    path(() => g.roundRect(cx + 4, -10, 8, 18, 4), '#c22f7a')
+    g.moveTo(-10, 27)
+    g.quadraticCurveTo(-5, 22.5, -1.5, 24)
+    g.quadraticCurveTo(0, 23, 1.5, 23.6)
+    g.quadraticCurveTo(6, 21.5, 11, 23.5)
+    g.quadraticCurveTo(4, 26.5, -10, 27)
+    g.closePath()
+  }, '#e8657f', '#a83a52', 1)
+  path(() => {
+    g.moveTo(-10, 27)
+    g.quadraticCurveTo(4, 26.5, 11, 23.5)
+    g.quadraticCurveTo(7, 30.5, -1, 31)
+    g.quadraticCurveTo(-7, 30.5, -10, 27)
+    g.closePath()
+  }, '#f27f8e', '#a83a52', 1)
+  path(() => {
+    g.moveTo(-10, 27)
+    g.quadraticCurveTo(4, 26.5, 11, 23.5)
+  }, null, '#8f2c44', 1.3)
+  path(() => g.ellipse(1, 28.8, 2.6, 0.9, -0.1, 0, Math.PI * 2), 'rgba(255, 230, 230, 0.6)')
+  path(() => {
+    g.moveTo(11, 23.5)
+    g.quadraticCurveTo(13, 22, 13.5, 20.5)
+  }, null, 'rgba(160, 90, 80, 0.6)', 1) // the dimple of the lifted corner
+  // pink headset: band over the hair, ear cups over the ears, mic boom to the corner of her mouth
+  path(() => g.ellipse(0, -10, 48, 64, 0, Math.PI * 1.04, Math.PI * 1.96), null, pink, 6)
+  for (const cx of [-52, 36]) {
+    path(() => g.roundRect(cx, -18, 16, 30, 7), pink, '#b8246b', 1.2)
+    path(() => g.roundRect(cx + 4, -12, 8, 18, 4), '#c22f7a')
   }
   path(() => {
-    g.moveTo(-58, 12)
-    g.quadraticCurveTo(-52, 38, -20, 34)
-  }, null, pink, 3.5)
-  path(() => g.arc(-18, 34, 4.5, 0, Math.PI * 2), '#ffd6ea')
-  // a small gold hoop under the right ear cup
-  path(() => g.arc(58, 22, 5, 0, Math.PI * 2), null, '#e9c46a', 2.2)
+    g.moveTo(-46, 12)
+    g.quadraticCurveTo(-42, 34, -21, 32)
+  }, null, pink, 3)
+  path(() => g.arc(-19, 32, 3.6, 0, Math.PI * 2), '#ffd6ea', '#b8246b', 1)
+  // gold hoops hanging below the ear cups
+  for (const sx of [-1, 1]) {
+    path(() => g.arc(sx * 41, 22, 6, 0, Math.PI * 2), null, '#c99a2e', 2.6)
+    path(() => g.arc(sx * 41, 22, 6, Math.PI * 1.1, Math.PI * 1.5), null, '#fbe39a', 1.1)
+  }
   g.restore()
 }
 
