@@ -21,6 +21,7 @@ import { pbr, worldUV } from './render/pbr.js'
 import Props from './render/Props.jsx'
 import { EXPORT, BakeExport } from './render/exportGLB.js'
 import BakedBuilding, { BAKED, unbakedFill } from './render/Baked.jsx'
+import { OFF } from './render/debugCam.js'
 
 // procedural architecture is drawn only when the baked building (render/Baked.jsx) is off
 const PROC = !BAKED
@@ -635,7 +636,7 @@ function Level4({ M }) {
       <mesh geometry={geos.handrail} material={M.silver} />
       {/* shadow line: a dark base channel under the glass balustrade */}
       <mesh geometry={geos.shoe} material={mats.shoe} />
-      <Level4Offices M={M} />
+      {!OFF.has('offices') && <Level4Offices M={M} />}
       <mesh geometry={geos.walls} material={mats.walls} />
       {DRUMS.map((d) => (
         <mesh key={d.id} geometry={geos.drum} material={M.drum} position={[d.c[0], (L4.floor + L4.top) / 2, d.c[1]]} scale={[d.rx, 1, d.rz]} />
