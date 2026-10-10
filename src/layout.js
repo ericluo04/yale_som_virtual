@@ -64,22 +64,40 @@ const DOOR_DEPTH = 0.35 // doors sit just behind the front wall
 export const RISE = 0.32 // stadium seating: each row this much higher than the one in front
 export const MAX_STEP = 0.4 // tallest step you can walk up
 const ROW0 = 2.3 // first desk row's distance from the seating focus
+// The seating focus sits FOCUS m behind the front wall. At 1.5 the horseshoe's first row came
+// within 1.64 m of the front wall and blocked the walk between the two doors; Lan asked for 2-3
+// times the room (round 3), so the whole bowl moves back 2.46 m to a 4.1 m clear front (2.5x),
+// row spacing unchanged, and the rows that no longer fit drop out.
+const FOCUS = 3.96
+// clear walkway kept between the furniture (desk ends, chair backs) and the drum's inner wall,
+// along both side aisles and behind the back row
+const WALKWAY = 1.0
 const ROW_STEP = 1.15
 const AISLE_HALF = 0.8
 const TIER_SPAN = 1.42 // radians each side of the center aisle covered by risers
 const bandStart = (i) => ROW0 - 0.35 + i * ROW_STEP
 const SLIDE_ORDER = ['title', 'chart', 'content']
+// Walk-through gaps between neighbouring drums (Lan, round 3): at least 2.2 m clear between the
+// colliders of two drums, door fins included, so a player walks from the cloister to the back
+// corridor between any two classrooms. The plan's ovals touched or nearly touched (1.45 m between
+// the north drums, 0.35 m between their door fins). Each drum of the three-drum runs loses width
+// along the row (x) only: the south ovals 6.5 -> 6.15 m, the north drums 6.85 -> 6.3 m. The wood
+// door fins stand out 0.3 m (was 0.7), since at 0.7 they alone closed half of each gap.
+const RX_S = 6.15
+const RX_N = 6.3
+const FIN = 0.3
 export const DRUMS = [
   // south row: a 16 x 20 m oval in the southwest corner, then three 13 x 19 m ovals (long axis N-S)
   { id: '2400', course: 'mgt409', name: 'MBA Class of 1980 Classroom', c: [-32.3, 34.7], rx: 8, rz: 10, front: [1, 0] },
-  { id: '2410', course: 'mgt404', name: 'Bewkes Classroom', c: [-15, 34.7], rx: 6.5, rz: 9.3, front: [0, -1] },
-  { id: '2420', course: 'mgt403', name: 'Betts Classroom', c: [0, 34.7], rx: 6.5, rz: 9.3, front: [0, -1] },
-  { id: '2430', course: 'mgt887', name: 'Baker Classroom', c: [15, 34.7], rx: 6.5, rz: 9.3, front: [0, -1] },
+  { id: '2410', course: 'mgt404', name: 'Bewkes Classroom', c: [-15, 34.7], rx: RX_S, rz: 9.3, front: [0, -1] },
+  { id: '2420', course: 'mgt403', name: 'Betts Classroom', c: [0, 34.7], rx: RX_S, rz: 9.3, front: [0, -1] },
+  { id: '2430', course: 'mgt887', name: 'Baker Classroom', c: [15, 34.7], rx: RX_S, rz: 9.3, front: [0, -1] },
   // north row: a 15 x 16 m oval in the northwest corner, then three round 13.7 x 12.4 m drums
+  // (both rows' three-drum runs narrowed along x for the walk-through gaps, RX_S and RX_N above)
   { id: '2200', course: 'mgt402', name: 'Blumetti Classroom', c: [-32.9, -32.6], rx: 7.3, rz: 7.9, front: [1, 0] },
-  { id: '2210', course: 'mgt538', name: 'Allison Foundation Classroom', c: [-15.3, -31.1], rx: 6.85, rz: 6.2, front: [0, 1] },
-  { id: '2220', course: 'mgt800', name: 'Jones Classroom', c: [0, -31.1], rx: 6.85, rz: 6.2, front: [0, 1] },
-  { id: '2230', course: 'mgt541', name: 'Nooyi Classroom', c: [15.3, -31.1], rx: 6.85, rz: 6.2, front: [0, 1] },
+  { id: '2210', course: 'mgt538', name: 'Allison Foundation Classroom', c: [-15.3, -31.1], rx: RX_N, rz: 6.2, front: [0, 1] },
+  { id: '2220', course: 'mgt800', name: 'Jones Classroom', c: [0, -31.1], rx: RX_N, rz: 6.2, front: [0, 1] },
+  { id: '2230', course: 'mgt541', name: 'Nooyi Classroom', c: [15.3, -31.1], rx: RX_N, rz: 6.2, front: [0, 1] },
 ].map((d) => {
   const dir = norm(d.front)
   const phi = Math.atan2(dir[0], dir[1])
@@ -138,6 +156,17 @@ export const CHAIRS = []
 export const SCREENS = []
 export const BOARDS = []
 export const LECTERNS = []
+// Desk tops as walkable surfaces (Player's floorAt reads this; render: World.jsx DeskTops draws the
+// same runs). One entry per classroom:
+//   { room, F: [x, z], back: [x, z], rings: [{ r0, r1, top, arcs: [[a0, a1], ...] }] }
+// Each ring is one desk row: a horseshoe band round the seating focus F, r0 to r1 metres from F,
+// whose top is `top` metres above floor zero. A point q is on the desk when r0 <= |q - F| <= r1
+// and its angle a = atan2(v . t, v . back), v = q - F, t = [-back[1], back[0]], falls inside one
+// of the arcs (radians, a0 < a1; negative angles are the other side of the centre aisle).
+// deskTopAt(x, z) below does that test.
+export const DESK_SURFACES = []
+const DESK_DEPTH = 0.254 // half the desk's depth, front lip to back panel (DeskTops' profile)
+const DESK_TOP = 0.962 // the leather writing strip's top above the riser
 for (const d of DRUMS) {
   const { c, rx, rz, gap, dir, doors, arcs } = d
   for (const [a0, a1] of arcs) {
@@ -150,7 +179,7 @@ for (const d of DRUMS) {
       const p = ellPt(c, rx, rz, e)
       const pin = ellPt(c, rx - DRUM_WALL, rz - DRUM_WALL, e)
       const n = norm([p[0] - c[0], p[1] - c[1]])
-      W(pin, [p[0] + n[0] * 0.7, p[1] + n[1] * 0.7], 'slats', { t: 0.14 })
+      W(pin, [p[0] + n[0] * FIN, p[1] + n[1] * FIN], 'slats', { t: 0.14 })
     }
   }
 
@@ -175,26 +204,62 @@ for (const d of DRUMS) {
   W([lp[0] - t[0] * 0.35, lp[1] - t[1] * 0.35], [lp[0] + t[0] * 0.35, lp[1] + t[1] * 0.35], 'none', { t: 0.5 })
 
   // stadium seating: row i sits on a riser i * RISE above the front floor
-  const F = [fc[0] + back[0] * 1.5, fc[1] + back[1] * 1.5]
+  const F = [fc[0] + back[0] * FOCUS, fc[1] + back[1] * FOCUS]
   const doorPts = doors.map((a) => ellPt(c, rx, rz, a))
+  // furniture must stay inside this ellipse: the inner wall pulled in by the walkway
+  const fx = rx - DRUM_WALL - WALKWAY
+  const fz = rz - DRUM_WALL - WALKWAY
+  const inside = (q) => ((q[0] - c[0]) / fx) ** 2 + ((q[1] - c[1]) / fz) ** 2 <= 1
   let i = 0
-  for (let r = ROW0; r < rIn * FRONT_DEPTH + rOut - 1.4; r += ROW_STEP, i++) {
+  const rings = []
+  for (let r = ROW0; r < rIn * FRONT_DEPTH + rOut - FOCUS; r += ROW_STEP) {
     const y = i * RISE
+    let placed = 0
+    const rowTh = []
     // desks march out from both sides of a clear center aisle (the steps)
     const angles = []
     for (let sArc = AISLE_HALF + 0.6; sArc / r <= 1.35; sArc += 1.25) angles.push(sArc / r, -sArc / r)
     for (const th of angles) {
       const ux = [Math.cos(th) * back[0] + Math.sin(th) * t[0], Math.cos(th) * back[1] + Math.sin(th) * t[1]]
       const p = [F[0] + ux[0] * r, F[1] + ux[1] * r]
-      if (((p[0] - c[0]) / (rx - 1.1)) ** 2 + ((p[1] - c[1]) / (rz - 1.1)) ** 2 > 1) continue
-      if (doorPts.some((q) => Math.hypot(p[0] - q[0], p[1] - q[1]) < 2.2)) continue
       const tg = [-Math.sin(th) * back[0] + Math.cos(th) * t[0], -Math.sin(th) * back[1] + Math.cos(th) * t[1]]
+      // the desk's four corners and the two chair backs behind it
+      const foot = [[-0.6, -0.25], [0.6, -0.25], [-0.6, 0.25], [0.6, 0.25], [-0.55, 0.95], [0.55, 0.95]]
+      if (!foot.every(([a, b]) => inside([p[0] + tg[0] * a + ux[0] * b, p[1] + tg[1] * a + ux[1] * b]))) continue
+      if (doorPts.some((q) => Math.hypot(p[0] - q[0], p[1] - q[1]) < 2.2)) continue
       W([p[0] - tg[0] * 0.6, p[1] - tg[1] * 0.6], [p[0] + tg[0] * 0.6, p[1] + tg[1] * 0.6], 'desk', { h: 0.95, t: 0.5, y0: y })
       for (const s of [-0.3, 0.3]) {
         CHAIRS.push({ x: p[0] + ux[0] * 0.65 + tg[0] * s, z: p[1] + ux[1] * 0.65 + tg[1] * s, y, rot: Math.atan2(ux[0], ux[1]), room: d.id })
       }
+      placed++
+      rowTh.push(th)
     }
+    if (!placed) break // the bowl has reached the back walkway
+    // contiguous desks on each side of the aisle make one run; a skipped desk breaks it
+    const arcs = []
+    for (const side of [1, -1]) {
+      const ths = rowTh.filter((th) => th * side > 0).map(Math.abs).sort((a, b) => a - b)
+      let run = null
+      for (const th of ths) {
+        if (run && (th - run[1]) * r > 1.7) {
+          arcs.push(run)
+          run = null
+        }
+        run = run ? [run[0], th] : [th, th]
+      }
+      if (run) arcs.push(run)
+      for (let k = arcs.length - 1; k >= 0 && !arcs[k].side; k--) arcs[k].side = side
+    }
+    const half = 0.6 / r // half a desk's length, as an angle
+    rings.push({
+      r0: r - DESK_DEPTH,
+      r1: r + DESK_DEPTH,
+      top: y + DESK_TOP,
+      arcs: arcs.map((a) => (a.side > 0 ? [a[0] - half, a[1] + half] : [-a[1] - half, -a[0] + half])),
+    })
+    i++
   }
+  DESK_SURFACES.push({ room: d.id, F, back, rings })
   d.tiers = { F, back, rxi: rx - DRUM_WALL, rzi: rz - DRUM_WALL, n: i }
 }
 
@@ -341,8 +406,10 @@ P(arc(BEIN.c, BEIN_CURTAIN.r, BEIN_CURTAIN.r, Math.PI / 2 - BEIN_CURTAIN.half, M
 // more plants in front of the drums, between the counters and the doors
 export const PLANTS_EXTRA = [[-18.6, -25.3], [3.4, -25.3], [11.9, -25.3], [-18.5, 26.2], [3.5, 26.2], [11.5, 26.2], [-27.4, -22.6], [27.9, 22.4]]
 for (const p of PLANTS_EXTRA) dot(p)
-// waste bins at the four cloister corners, out of both walkways
-export const BINS = [[-27.6, -23.9], [27.9, -21.5], [-27.5, 24.0], [27.9, 21.4]]
+// waste bins at the four cloister corners, out of both walkways. The east pair stands against the
+// east wall; the west pair stood in open floor 3 m off the cloister (one beside the spawn point)
+// and now stands against the outer face of the stair A and B cores, facing the drums.
+export const BINS = [[-31.0, 20.85], [27.9, -21.5], [-31.0, -20.85], [27.9, 21.4]]
 for (const p of BINS) W(p, [p[0] + 0.01, p[1]], 'none', { t: 0.5 })
 // library lounge: four leather lounge chairs round a low table, one group each side of the door
 // (two chairs north of the table, two south), clear of the desk chairs and the reception desk
@@ -424,6 +491,21 @@ export function floorAt(x, z) {
     return band < 1 ? 0 : Math.min(band, T.n - 1) * RISE
   }
   return 0
+}
+
+// height of the desk top under a point, or null when no desk is there (DESK_SURFACES)
+export function deskTopAt(x, z) {
+  for (const s of DESK_SURFACES) {
+    const vx = x - s.F[0]
+    const vz = z - s.F[1]
+    const r = Math.hypot(vx, vz)
+    for (const g of s.rings) {
+      if (r < g.r0 || r > g.r1) continue
+      const a = Math.atan2(vx * -s.back[1] + vz * s.back[0], vx * s.back[0] + vz * s.back[1])
+      if (g.arcs.some(([a0, a1]) => a >= a0 && a <= a1)) return g.top
+    }
+  }
+  return null
 }
 
 // outline of riser i (i >= 1): everything at least bandStart(i) from the focus, inside the room

@@ -2,12 +2,13 @@ import { Suspense, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { Environment } from '@react-three/drei'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import {
   H, EAST, BOUNDS, COURTYARD, DRUMS, DRUM_WALL, WALLS, CHAIRS, SCREENS, BOARDS, LECTERNS,
   STAIRS, MEETING, MEET_DOOR, BEIN, BEIN_TABLES, PLANTS, LIBRARY, RISE, inPoly, ellPt, tierOutline,
-  BENCHES, COLUMNS, ROOF,
+  BENCHES, COLUMNS, ROOF, DESK_SURFACES,
 } from './layout.js'
 import * as T from './textures.js'
 import LabubuParty, { MeetingLabubus } from './LabubuParty.jsx'
@@ -30,8 +31,9 @@ const TAU = Math.PI * 2
 
 // ---------- helpers
 // baked meshes that World.jsx redraws unbaked: the courtyard T-section mullions, the 22 cm level 4
-// rail and the transom at 3.1 m read as heavy black bars from across the courtyard
-const HIDDEN_BAKED = ['mullions', 'rail', 'transom']
+// rail and the transom at 3.1 m read as heavy black bars from across the courtyard. The classroom
+// desks and risers are drawn whole by DeskTops and Tiers, so their baked copies go too.
+const HIDDEN_BAKED = ['mullions', 'rail', 'transom', 'desks', ...DRUMS.map((d) => `tiers_${d.id}`)]
 function HideBaked({ roles }) {
   const { scene } = useThree()
   useLayoutEffect(() => {
@@ -175,6 +177,24 @@ function Plane({ p, rot = 0, w, h, material }) {
 }
 
 // ---------- materials
+// No point lights on a material. The classroom lights (Lighting.jsx, one per drum) cast no
+// shadows, so shiny surfaces outside the drums caught them through the walls: the north glass
+// mirrored the 2210 and 2220 lights as two bright discs in the sky (one per face of the 0.2 m
+// pane), and the brightened silver mullions flared under the same lights.
+function noPointLights(m) {
+  const prev = m.onBeforeCompile
+  const key = m.customProgramCacheKey()
+  m.onBeforeCompile = (sh, r) => {
+    prev?.(sh, r)
+    sh.fragmentShader = sh.fragmentShader.replace(
+      '#include <lights_fragment_begin>',
+      THREE.ShaderChunk.lights_fragment_begin.replace('#if ( NUM_POINT_LIGHTS > 0 ) && defined( RE_Direct )', '#if 0'),
+    )
+  }
+  m.customProgramCacheKey = () => `${key}|noPoint`
+  return m
+}
+
 function useMaterials() {
   return useMemo(() => {
     const std = (o) => new THREE.MeshStandardMaterial(o)
@@ -186,10 +206,19 @@ function useMaterials() {
         envMapIntensity: 1.4, side: THREE.DoubleSide, depthWrite: false,
       })
       m.userData.glassEnv = true // GlassEnv below gives it a reflection room without light panels
-      return m
+      return noPointLights(m)
     }
     const plaster = pbr('plaster', { color: false })
     const wood = pbr('wood')
+    // classroom chairs: a woven fabric normal on the shell, brushed metal on the base
+    const sceneryTex = (file, n) => {
+      const t = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}scenery/tex/${file}`)
+      t.wrapS = t.wrapT = THREE.RepeatWrapping
+      t.repeat.set(n, n)
+      return t
+    }
+    const chairFabric = { normalMap: sceneryTex('fabric_normal.jpg', 3), roughnessMap: sceneryTex('fabric_rough.jpg', 3), normalScale: new THREE.Vector2(0.8, 0.8) }
+    const chairMetal = { normalMap: sceneryTex('metal_normal.jpg', 2), normalScale: new THREE.Vector2(0.3, 0.3) }
     const M = {
       white: worldUV(std({ color: '#f2f0ec', roughness: 1, ...plaster, normalScale: new THREE.Vector2(0.35, 0.35) }), 0.5),
       // classroom front wall behind the screens, darker than the plaster so the screens read
@@ -215,8 +244,8 @@ function useMaterials() {
       orange: std({ color: '#d4552a', roughness: 0.8 }),
       // classroom chairs: near-black shell, a slightly lighter seat cushion (vertex colours) and a
       // brushed-metal star base; both lifted by unbakedFill (render/Baked.jsx)
-      chair: unbakedFill(std({ color: '#ffffff', vertexColors: true, roughness: 0.55, metalness: 0.1, envMapIntensity: 0.6 }), 3),
-      chairFrame: unbakedFill(std({ color: '#8e9399', roughness: 0.35, metalness: 0.85, envMapIntensity: 0.6 }), 3),
+      chair: unbakedFill(std({ color: '#ffffff', vertexColors: true, roughness: 0.85, metalness: 0, envMapIntensity: 0.6, ...chairFabric }), 3),
+      chairFrame: unbakedFill(std({ color: '#9ca1a7', roughness: 0.35, metalness: 0.6, envMapIntensity: 0.8, ...chairMetal }), 3),
       // glossy deep-blue glass drums (photos 01-05): clear-coated so they mirror the room
       drum: new THREE.MeshPhysicalMaterial({ map: T.drumTex(), roughness: 0.12, metalness: 0.2, clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensity: 2.4 }),
       // acoustic wall panels change colour from room to room: lavender, sage, gold, beige, grey
@@ -248,9 +277,14 @@ function useMaterials() {
       mural: std({ map: T.muralTex(), roughness: 0.9, side: THREE.DoubleSide }),
       velvet: std({ color: '#0d0b10', roughness: 1 }),
       mullion: std({ color: '#2a2d33', roughness: 0.4, metalness: 0.6 }),
-      // courtyard curtain wall: silver-grey aluminium (NOTES.md); the env boost keeps the metal
-      // reading silver under the dim interior environment
-      courtMullion: std({ color: '#9aa3a8', metalness: 0.9, roughness: 0.35, envMapIntensity: 2.5, side: THREE.DoubleSide }),
+      // courtyard and perimeter curtain wall: silver aluminium (NOTES.md); the env boost keeps the
+      // metal reading silver under the dim interior environment, and a faint emissive lifts the
+      // side facing the room, which read dark grey against the bright sky (round 3)
+      courtMullion: (() => {
+        const m = noPointLights(std({ color: '#c8ccd0', metalness: 0.85, roughness: 0.3, emissive: '#30343a', emissiveIntensity: 0.4, envMapIntensity: 2.5, side: THREE.DoubleSide }))
+        m.userData.panelFreeEnv = true // GlassEnv: the room's light panels flared on the brighter metal
+        return m
+      })(),
       steel: std({ color: '#c9ced6', metalness: 0.9, roughness: 0.25 }),
       tableGlass: std({ color: '#cfe6ee', transparent: true, opacity: 0.45, roughness: 0.05, metalness: 0.3 }),
       screen: new THREE.MeshBasicMaterial({ map: T.screenTex() }),
@@ -380,10 +414,10 @@ function GlassEnv({ M }) {
     for (const o of panels) o.removeFromParent()
     const pm = new THREE.PMREMGenerator(gl)
     const env = pm.fromScene(room, 0.04).texture
-    const mats = Object.values(M).flat().filter((m) => m.userData.glassEnv)
+    const mats = Object.values(M).flat().filter((m) => m.userData.glassEnv || m.userData.panelFreeEnv)
     for (const m of mats) {
       m.envMap = env
-      m.envMapIntensity = 1.4 * ENV_INTENSITY
+      m.envMapIntensity = (m.userData.glassEnv ? 1.4 : 2.5) * ENV_INTENSITY
       m.needsUpdate = true
     }
     return () => {
@@ -911,63 +945,35 @@ function sweep(path, normals, profile) {
   return g
 }
 
-// The baked horseshoe desks (tools/bake/detail.py) redrawn unbaked from the same rows and
-// radii, 4 mm larger so they cover the baked ones: wood with UVs that follow the curve (the
-// baked desks' world UVs smear into stripes), a wood lip at the front and a dark leather
-// writing strip on top.
+// The classroom horseshoe desks, drawn unbaked from layout.js DESK_SURFACES (the same rows and
+// runs the colliders and the seated crowd use): wood with UVs that follow the curve (the baked
+// desks' world UVs smeared into stripes), a wood lip at the front and a dark leather writing
+// strip on top. The baked desks are hidden (HIDDEN_BAKED), so these are the only desks.
 function DeskTops({ M }) {
   const geos = useMemo(() => {
     const wood = []
     const leather = []
     const body = [[-0.254, -0.002], [-0.216, -0.002], [-0.216, 0.906], [0.254, 0.906], [0.254, 0.954], [-0.254, 0.954]]
     const strip = [[-0.17, 0.95], [0.214, 0.95], [0.214, 0.962], [-0.17, 0.962]]
-    for (const d of DRUMS) {
-      const { F, back } = d.tiers
+    for (const { F, back, rings } of DESK_SURFACES) {
       const t = [-back[1], back[0]]
-      const rows = new Map()
-      for (const w of WALLS) {
-        if (w.mat !== 'desk') continue
-        const mx = (w.a[0] + w.b[0]) / 2
-        const mz = (w.a[1] + w.b[1]) / 2
-        if (((mx - d.c[0]) / d.rx) ** 2 + ((mz - d.c[1]) / d.rz) ** 2 >= 1) continue
-        const v = [mx - F[0], mz - F[1]]
-        const r = Math.hypot(v[0], v[1])
-        const th = Math.atan2(v[0] * t[0] + v[1] * t[1], v[0] * back[0] + v[1] * back[1])
-        if (!rows.has(w.y0)) rows.set(w.y0, [])
-        rows.get(w.y0).push({ r, th })
-      }
-      for (const [y0, desks] of rows)
-        for (const side of [1, -1]) {
-          const ds = desks.filter((x) => x.th * side > 0).sort((a, b) => Math.abs(a.th) - Math.abs(b.th))
-          if (!ds.length) continue
-          const r = ds.reduce((s, x) => s + x.r, 0) / ds.length
-          const runs = [[ds[0]]]
-          for (const x of ds.slice(1)) {
-            const cur = runs[runs.length - 1]
-            if ((Math.abs(x.th) - Math.abs(cur[cur.length - 1].th)) * r > 1.7) runs.push([x]) // a skipped desk
-            else cur.push(x)
+      for (const { r0, r1, top, arcs } of rings) {
+        const r = (r0 + r1) / 2
+        const y0 = top - 0.962
+        for (const [a0, a1] of arcs) {
+          const n = Math.max(2, Math.floor((a1 - a0) / 0.06))
+          const path = []
+          const nrm = []
+          for (let k = 0; k <= n; k++) {
+            const th = a0 + ((a1 - a0) * k) / n
+            const u = [Math.cos(th) * back[0] + Math.sin(th) * t[0], Math.cos(th) * back[1] + Math.sin(th) * t[1]]
+            path.push([F[0] + u[0] * r, y0, F[1] + u[1] * r])
+            nrm.push(u)
           }
-          for (const run of runs) {
-            const half = 0.6 / r
-            const t0 = Math.abs(run[0].th) - half
-            const t1 = Math.abs(run[run.length - 1].th) + half
-            const n = Math.max(2, Math.floor((t1 - t0) / 0.06))
-            const path = []
-            const nrm = []
-            for (let k = 0; k <= n; k++) {
-              const th = side * (t0 + ((t1 - t0) * k) / n)
-              const u = [Math.cos(th) * back[0] + Math.sin(th) * t[0], Math.cos(th) * back[1] + Math.sin(th) * t[1]]
-              path.push([F[0] + u[0] * r, y0, F[1] + u[1] * r])
-              nrm.push(u)
-            }
-            if (side < 0) {
-              path.reverse()
-              nrm.reverse()
-            }
-            wood.push(sweep(path, nrm, body))
-            leather.push(sweep(path, nrm, strip))
-          }
+          wood.push(sweep(path, nrm, body))
+          leather.push(sweep(path, nrm, strip))
         }
+      }
     }
     return { wood: mergeGeometries(wood), leather: mergeGeometries(leather) }
   }, [])
@@ -979,30 +985,49 @@ function DeskTops({ M }) {
   )
 }
 
-// office chair: star base, gas column, seat, armrest pads, mesh back leaning 6 degrees, about
-// 80 triangles (946 instances);
-// local +z points away from the desk, the seat top is 0.5 m above the floor. The back stays
-// within 0.24 m of the seat centre: the next row's desk panel stands 0.28 m behind it
-// Two meshes: the shell (seat, arm pads, back; vertex colours give the cushion a lighter fabric)
-// and the metal base (star and gas column)
+// office chair: five-spoke star base on casters, gas column, seat, armrest pads, back leaning 6
+// degrees (328 instances since round 3). Local +z points away from the desk, the seat top is 0.5 m
+// above the floor. The back stays within 0.24 m of the seat centre: the next row's desk panel
+// stands 0.28 m behind it. Two meshes: the shell (seat, arm pads, back as rounded boxes with smooth
+// normals; vertex colours give the cushion a lighter fabric, and the shell material carries a
+// fabric normal map) and the metal base (spokes, casters, gas column). The flat-shaded box chair
+// read as faceted plastic (Lan, round 3).
 const CHAIR = (() => {
   const parts = []
-  const box = (w, h, d, x, y, z, rx, color) => {
-    const g = new THREE.BoxGeometry(w, h, d).toNonIndexed()
-    g.rotateX(rx)
-    g.translate(x, y, z)
+  const add = (g, color) => {
+    g = g.index ? g.toNonIndexed() : g
     const c = new THREE.Color(color)
     g.setAttribute('color', new THREE.Float32BufferAttribute(Array.from({ length: g.attributes.position.count }, () => [c.r, c.g, c.b]).flat(), 3))
     parts.push(g)
   }
-  box(0.5, 0.07, 0.46, 0, 0.465, -0.01, 0, '#2a2a2e')
-  for (const x of [-0.26, 0.26]) box(0.06, 0.03, 0.28, x, 0.7, 0.0, 0, '#1a1a1c')
-  box(0.46, 0.56, 0.035, 0, 0.83, 0.19, 0.1, '#1a1a1c')
-  const base = new THREE.CylinderGeometry(0.3, 0.3, 0.035, 5)
-  base.translate(0, 0.06, 0)
-  const col = new THREE.CylinderGeometry(0.025, 0.03, 0.38, 6, 1, true)
-  col.translate(0, 0.25, 0)
-  return { shell: mergeGeometries(parts), frame: mergeGeometries([base, col].map((g) => g.toNonIndexed())) }
+  const rbox = (w, h, d, r, x, y, z, rx, color) => {
+    const g = new RoundedBoxGeometry(w, h, d, 2, r)
+    g.rotateX(rx)
+    g.translate(x, y, z)
+    add(g, color)
+  }
+  rbox(0.5, 0.08, 0.47, 0.035, 0, 0.465, -0.01, 0, '#34343a') // seat cushion
+  for (const x of [-0.26, 0.26]) rbox(0.06, 0.035, 0.28, 0.015, x, 0.7, 0.0, 0, '#1a1a1c')
+  rbox(0.46, 0.56, 0.045, 0.02, 0, 0.83, 0.19, 0.1, '#1e1e22') // back
+  const frame = []
+  const metal = (g) => frame.push(g.index ? g.toNonIndexed() : g)
+  for (let k = 0; k < 5; k++) {
+    const a = (k / 5) * TAU
+    const spoke = new THREE.BoxGeometry(0.035, 0.03, 0.29)
+    spoke.translate(0, 0.075, 0.145)
+    spoke.rotateY(a)
+    metal(spoke)
+    const caster = new THREE.SphereGeometry(0.025, 10, 6)
+    caster.translate(Math.sin(a) * 0.29, 0.027, Math.cos(a) * 0.29)
+    metal(caster)
+  }
+  const hub = new THREE.CylinderGeometry(0.045, 0.05, 0.05, 16)
+  hub.translate(0, 0.08, 0)
+  metal(hub)
+  const col = new THREE.CylinderGeometry(0.025, 0.03, 0.34, 12, 1, true)
+  col.translate(0, 0.27, 0)
+  metal(col)
+  return { shell: mergeGeometries(parts), frame: mergeGeometries(frame) }
 })()
 
 // ---------- classroom drums
