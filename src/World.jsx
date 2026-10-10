@@ -179,11 +179,14 @@ function useMaterials() {
     const std = (o) => new THREE.MeshStandardMaterial(o)
     // thin glass: physical material so the panes pick up environment reflections and a
     // Fresnel edge; plain alpha blending keeps glass-behind-glass visible
-    const glass = (color, opacity) =>
-      new THREE.MeshPhysicalMaterial({
+    const glass = (color, opacity) => {
+      const m = new THREE.MeshPhysicalMaterial({
         color, transparent: true, opacity, roughness: 0.05, metalness: 0, ior: 1.5, specularIntensity: 1,
         envMapIntensity: 1.4, side: THREE.DoubleSide, depthWrite: false,
       })
+      m.userData.glassEnv = true // GlassEnv below gives it a reflection room without light panels
+      return m
+    }
     const plaster = pbr('plaster', { color: false })
     const wood = pbr('wood')
     const M = {
@@ -324,6 +327,35 @@ function Atmosphere() {
       <Lighting />
     </>
   )
+}
+
+// The glass panes mirrored the RoomEnvironment's emissive light panels: a soft grey rectangle
+// hung in the sky behind every north window (and the two bright spots near it), at the same
+// direction from every pane. The glass gets its own environment, the same room with the panels
+// removed, so it keeps a faint Fresnel sheen and loses the rectangles. A material's own envMap
+// ignores scene.environmentIntensity, so its intensity carries that factor.
+function GlassEnv({ M }) {
+  const { gl } = useThree()
+  useLayoutEffect(() => {
+    const room = new RoomEnvironment()
+    const panels = []
+    room.traverse((o) => o.isMesh && o.material.isMeshBasicMaterial && panels.push(o))
+    for (const o of panels) o.removeFromParent()
+    const pm = new THREE.PMREMGenerator(gl)
+    const env = pm.fromScene(room, 0.04).texture
+    const mats = Object.values(M).flat().filter((m) => m.userData.glassEnv)
+    for (const m of mats) {
+      m.envMap = env
+      m.envMapIntensity = 1.4 * ENV_INTENSITY
+      m.needsUpdate = true
+    }
+    return () => {
+      for (const m of mats) m.envMap = null
+      env.dispose()
+      pm.dispose()
+    }
+  }, [gl, M])
+  return null
 }
 
 // ---------- floor + ceiling with the courtyard hole
@@ -1149,6 +1181,7 @@ export default function World() {
   return (
     <>
       <Atmosphere />
+      <GlassEnv M={M} />
       {EXPORT && <BakeExport />}
       {BAKED && (
         <Suspense fallback={null}>
