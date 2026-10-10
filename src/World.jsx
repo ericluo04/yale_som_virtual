@@ -1005,6 +1005,64 @@ function Stairs({ M }) {
   })
 }
 
+// Perimeter curtain wall: the exterior glass (layout.js 'exterior' walls, which are also the
+// colliders) carried slim silver mullions every 1.6 m floor to ceiling, a transom at 3.1 m and a
+// steel floor track, and the Beinecke room's curved glass the same. Without them the 20% glass
+// read as open air wherever a corridor ran out to the perimeter.
+const GLAZE = { step: 1.6, transom: 3.1, mw: 0.07, md: 0.26 }
+function PerimeterGlazing({ M }) {
+  const items = useMemo(() => {
+    const mull = []
+    const bars = []
+    const track = []
+    const runs = WALLS.filter((w) => w.mat === 'exterior').map((w) => [w.a, w.b])
+    for (const [a, b] of runs) {
+      const dx = b[0] - a[0]
+      const dz = b[1] - a[1]
+      const L = Math.hypot(dx, dz)
+      const r = -Math.atan2(dz, dx)
+      const n = Math.round(L / GLAZE.step)
+      for (let i = 0; i <= n; i++) {
+        const t = i / n
+        mull.push({ p: [a[0] + dx * t, H / 2, a[1] + dz * t], r, s: [GLAZE.mw, H, GLAZE.md] })
+      }
+      const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
+      bars.push({ p: [mid[0], GLAZE.transom, mid[1]], r, s: [L, 0.06, GLAZE.md - 0.02] })
+      track.push({ p: [mid[0], 0.035, mid[1]], r, s: [L, 0.07, GLAZE.md + 0.04] })
+    }
+    // Beinecke curved glass: radial mullions every 1.6 m of arc, transom and track as arc ribbons
+    const { c, r: br, doorGap } = BEIN
+    const arcs = [[0, Math.PI / 2 - doorGap], [Math.PI / 2 + doorGap, Math.PI]]
+    for (const [a0, a1] of arcs) {
+      const n = Math.max(2, Math.round(((a1 - a0) * br) / GLAZE.step))
+      for (let i = 0; i <= n; i++) {
+        const th = a0 + ((a1 - a0) * i) / n
+        const [x, z] = ellPt(c, br, br, th)
+        mull.push({ p: [x, H / 2, z], r: th, s: [GLAZE.mw, H, GLAZE.md] })
+      }
+    }
+    return { mull, bars, track }
+  }, [])
+  const arcs = useMemo(() => {
+    const { r, doorGap } = BEIN
+    const make = (a0, a1, y0, h, rr) => new THREE.CylinderGeometry(rr, rr, h, 48, 1, true, a0, a1 - a0).translate(0, y0 + h / 2, 0)
+    const parts = []
+    for (const [a0, a1] of [[0, Math.PI / 2 - doorGap], [Math.PI / 2 + doorGap, Math.PI]]) {
+      for (const rr of [r - 0.1, r + 0.1]) parts.push(make(a0, a1, GLAZE.transom - 0.03, 0.06, rr))
+      for (const rr of [r - 0.12, r + 0.12]) parts.push(make(a0, a1, 0, 0.07, rr))
+    }
+    return mergeGeometries(parts)
+  }, [])
+  return (
+    <>
+      <Instanced items={items.mull} material={M.courtMullion} geometry={BOX} />
+      <Instanced items={items.bars} material={M.courtMullion} geometry={BOX} noCast />
+      <Instanced items={items.track} material={M.steel} geometry={BOX} noCast />
+      <mesh geometry={arcs} material={M.courtMullion} position={[BEIN.c[0], 0, BEIN.c[1]]} />
+    </>
+  )
+}
+
 // glass door on a hinge with a long metal bar handle; swings open when you walk up to it
 function GlassDoor({ door, M }) {
   const ref = useRef()
@@ -1106,6 +1164,7 @@ export default function World() {
       <ClassroomStuff M={M} />
       <Beinecke M={M} />
       <Stairs M={M} />
+      <PerimeterGlazing M={M} />
       <Details M={M} />
       <Banquettes M={M} />
       <group userData={{ dynamic: true }}>
