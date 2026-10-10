@@ -4,13 +4,18 @@ import * as THREE from 'three'
 import { Interactable, openDialogue, sound, useDiscovery } from '../../interact/index.jsx'
 import { useClipPlayer, useRigInstance } from '../../characters/rig.js'
 import { solidMat } from './util.js'
+import { DRUMS, ellPt } from '../../layout.js'
 
 // Egg: the anti-cheating "dump trap" hidden in every homework page. A grey office trash can in the north
 // cloister, against the outer wall of the Allison Foundation Classroom (2210), by its east door.
-const CAN = [-10.4, 0, -25.4]
-const PROF = [-11.75, 0, -24.45] // where Dumbledore appears, beside the can
 const H = 0.62 // can height
 const R = 0.21
+// placed from the drum ellipse so the can stays against the wall if the layout moves: th 0.8 is on the
+// front arc, about 1.6 m west of the east door fin
+const D2210 = DRUMS.find((d) => d.id === '2210')
+const at = (th, off) => ellPt(D2210.c, D2210.rx + off, D2210.rz + off, th)
+const CAN = ((p) => [p[0], 0, p[1]])(at(0.8, R + 0.06))
+const PROF = ((p) => [p[0], 0, p[1]])(at(0.55, 0.8)) // where Dumbledore appears, beside the can
 
 function Dumbledore({ since }) {
   const root = useRef()

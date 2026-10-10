@@ -2,12 +2,16 @@ import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Interactable, openDialogue, useDiscovery } from '../../interact/index.jsx'
 import { Box, canvasTex, seeded, std } from './common.jsx'
+import { MEETING } from '../../layout.js'
 
-// Egg: "MGT 409 Analyst Desk", a wall screen in north meeting room 2246 (the NW corner room).
+// Egg: "MGT 409 Analyst Desk", a wall screen in north meeting room 2246 (the west end of the north bar).
 // Lecture 4 builds a financial analyst agent over these ten tickers. Quotes are fake: a seeded
 // random walk, one step a second, and the canvas redraws at 2 fps to stay cheap.
-const ROOM_WEST_WALL = -35 // layout.js M_X0: west divider wall of meeting room 2246
-const Z = -45.3 // room center, halfway between the glass front (-42.3) and the north wall (-48.3)
+// read from layout.MEETING so the screen follows the room if the plan moves; the room's own monitor
+// is on the east divider, this one hangs on the west divider (0.15 m thick)
+const ROOM = MEETING.find((m) => m.num === 2246)
+const ROOM_WEST_WALL = ROOM.x - ROOM.w / 2
+const Z = ROOM.z
 const SCREEN = [ROOM_WEST_WALL + 0.11, 2.95, Z] // classroom screens hang at y 2.95, 2.1 x 1.18 m
 const W = 1024
 const H = 576
@@ -162,7 +166,7 @@ export default function Ticker() {
           <planeGeometry args={[2.1, 1.18]} />
         </mesh>
       </group>
-      <Interactable position={[ROOM_WEST_WALL + 1.5, 0, Z]} radius={2.4} label="the analyst desk" verb="Ask" marker="egg" onInteract={ask} />
+      <Interactable position={[ROOM_WEST_WALL + 1.1, 0, Z + 1.1]} radius={2.4} label="the analyst desk" verb="Ask" marker="egg" onInteract={ask} />
     </>
   )
 }
