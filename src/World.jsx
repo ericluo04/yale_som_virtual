@@ -18,11 +18,12 @@ import { rng } from './textures.js'
 import Lighting from './render/Lighting.jsx'
 import { pbr, worldUV } from './render/pbr.js'
 import Props from './render/Props.jsx'
+import { EXPORT, BakeExport } from './render/exportGLB.js'
 
 const TAU = Math.PI * 2
 
 // ---------- helpers
-function Instanced({ items, material, geometry }) {
+function Instanced({ items, material, geometry, bake }) {
   const ref = useRef()
   useLayoutEffect(() => {
     if (!ref.current) return // empty item lists render nothing
@@ -42,7 +43,7 @@ function Instanced({ items, material, geometry }) {
     ref.current.instanceMatrix.needsUpdate = true
   }, [items])
   if (!items.length) return null
-  return <instancedMesh ref={ref} args={[geometry, material, items.length]} frustumCulled={false} />
+  return <instancedMesh ref={ref} args={[geometry, material, items.length]} frustumCulled={false} userData={bake ? { bake } : {}} />
 }
 
 const BOX = new THREE.BoxGeometry(1, 1, 1)
@@ -89,9 +90,9 @@ function ribbon(points, y0, y1, uPerMeter = 0.25) {
   return g
 }
 
-function Arc({ c, rx, rz = rx, a0, a1, y0 = 0, h = H, material }) {
+function Arc({ c, rx, rz = rx, a0, a1, y0 = 0, h = H, material, bake }) {
   const geo = useMemo(() => new THREE.CylinderGeometry(1, 1, h, 72, 1, true, a0, a1 - a0), [h, a0, a1])
-  return <mesh geometry={geo} material={material} position={[c[0], y0 + h / 2, c[1]]} scale={[rx, 1, rz]} />
+  return <mesh geometry={geo} material={material} position={[c[0], y0 + h / 2, c[1]]} scale={[rx, 1, rz]} userData={bake ? { bake } : {}} />
 }
 
 function Plane({ p, rot = 0, w, h, material }) {
@@ -115,7 +116,7 @@ function useMaterials() {
       })
     const plaster = pbr('plaster', { color: false })
     const wood = pbr('wood')
-    return {
+    const M = {
       white: worldUV(std({ color: '#f2f0ec', roughness: 1, ...plaster, normalScale: new THREE.Vector2(0.35, 0.35) }), 0.5),
       sage: worldUV(std({ color: '#b9b7b2', roughness: 1, normalMap: plaster.normalMap, roughnessMap: plaster.roughnessMap, normalScale: new THREE.Vector2(0.35, 0.35) }), 0.5),
       exterior: glass('#8fa3b5', 0.2),
@@ -172,6 +173,10 @@ function useMaterials() {
       lamp: new THREE.MeshBasicMaterial({ color: '#fffaf0' }),
       column: std({ color: '#e8e8e6', roughness: 0.5 }),
     }
+    // the bake exporter (render/exportGLB.js) and the baked loader find materials by key
+    for (const [k, m] of Object.entries(M)) (Array.isArray(m) ? m : [m]).forEach((x, i) => (x.userData.key = Array.isArray(m) ? `${k}${i}` : k))
+    M.ceiling.userData.oneSided = true // only the underside is ever seen; bake that face alone
+    return M
   }, [])
 }
 
@@ -210,6 +215,11 @@ function FloorAndCeiling({ M }) {
       const f = (x, z) => new THREE.Vector2(x, flip ? -z : z)
       const s = new THREE.Shape([f(xMin, zMin), f(xMax, zMin), f(xMax, zMax), f(xMin, zMax)])
       s.holes.push(new THREE.Path(COURTYARD.map(([x, z]) => f(x, z))))
+      // the floor stops just inside each classroom's carpet disc, so no lightmap texels go
+      // to floor that the disc hides
+      if (flip)
+        for (const d of DRUMS)
+          s.holes.push(new THREE.Path(Array.from({ length: 64 }, (_, i) => ellPt(d.c, d.rx - DRUM_WALL - 0.05, d.rz - DRUM_WALL - 0.05, (i / 64) * TAU)).map(([x, z]) => f(x, z))))
       const g = new THREE.ShapeGeometry(s)
       g.rotateX(flip ? -Math.PI / 2 : Math.PI / 2)
       return g
@@ -221,9 +231,9 @@ function FloorAndCeiling({ M }) {
   }, [])
   return (
     <>
-      <mesh geometry={floor} material={M.carpet} />
-      <mesh geometry={ceil} material={M.ceiling} position={[0, H, 0]} />
-      <mesh geometry={lawn} material={M.lawn} position={[0, -5, 0]} />
+      <mesh geometry={floor} material={M.carpet} userData={{ bake: 'floor' }} />
+      <mesh geometry={ceil} material={M.ceiling} position={[0, H, 0]} userData={{ bake: 'ceiling' }} />
+      <mesh geometry={lawn} material={M.lawn} position={[0, -5, 0]} userData={{ bake: 'lawn' }} />
       <mesh material={M.ground} rotation={[-Math.PI / 2, 0, 0]} position={[0, -5.05, 0]}>
         <planeGeometry args={[600, 600]} />
       </mesh>
@@ -314,10 +324,10 @@ function CourtyardFrame({ M }) {
   }, [])
   return (
     <>
-      <mesh geometry={geos.pg} material={M.paving} position={[0, -4.98, 0]} />
-      <mesh geometry={geos.cg} material={M.canopy} position={[0, ROOF, 0]} />
-      <mesh geometry={geos.fascia} material={M.canopy} />
-      <Instanced items={cols.items} material={M.column} geometry={cols.g} />
+      <mesh geometry={geos.pg} material={M.paving} position={[0, -4.98, 0]} userData={{ bake: 'paving' }} />
+      <mesh geometry={geos.cg} material={M.canopy} position={[0, ROOF, 0]} userData={{ bake: 'canopy' }} />
+      <mesh geometry={geos.fascia} material={M.canopy} userData={{ bake: 'fascia' }} />
+      <Instanced items={cols.items} material={M.column} geometry={cols.g} bake="columns" />
     </>
   )
 }
@@ -386,7 +396,7 @@ function OutsideTrees({ M }) {
 const WALL_MATS = ['white', 'sage', 'exterior', 'libGlass', 'beinGlass', 'meetGlass', 'slats', 'desk', 'shelf', 'leather', 'orange']
 function Walls({ M }) {
   const groups = useMemo(() => WALL_MATS.map((m) => [m, wallItems(m)]), [])
-  return groups.map(([m, items]) => <Instanced key={m} items={items} material={M[m]} geometry={BOX} />)
+  return groups.map(([m, items]) => <Instanced key={m} items={items} material={M[m]} geometry={BOX} bake="walls" />)
 }
 
 // ---------- stadium-seating risers: stacked slabs, carpet on top, orange step edges
@@ -401,11 +411,11 @@ function Tiers({ M }) {
         const g = new THREE.ExtrudeGeometry(shape, { depth: RISE, bevelEnabled: false })
         g.rotateX(-Math.PI / 2)
         g.translate(0, (i - 1) * RISE + 0.005, 0)
-        out.push(g)
+        out.push([d.id, g])
       }
     return out
   }, [])
-  return geos.map((g, i) => <mesh key={i} geometry={g} material={[M.tierCarpet, M.stepEdge]} />)
+  return geos.map(([id, g], i) => <mesh key={i} geometry={g} material={[M.tierCarpet, M.stepEdge]} userData={{ bake: `tiers_${id}` }} />)
 }
 
 // ---------- classroom drums
@@ -424,8 +434,8 @@ function Drums({ M }) {
       <group key={d.id}>
         {arcs.map(([a0, a1], j) => (
           <group key={j}>
-            <Arc c={c} rx={rx} rz={rz} a0={a0} a1={a1} material={M.drum} />
-            <Arc c={c} rx={rx - DRUM_WALL} rz={rz - DRUM_WALL} a0={a0} a1={a1} material={M.drumIn[i % M.drumIn.length]} />
+            <Arc c={c} rx={rx} rz={rz} a0={a0} a1={a1} material={M.drum} bake={`drum_${d.id}`} />
+            <Arc c={c} rx={rx - DRUM_WALL} rz={rz - DRUM_WALL} a0={a0} a1={a1} material={M.drumIn[i % M.drumIn.length]} bake={`drumin_${d.id}`} />
           </group>
         ))}
         {doors.map((a, j) => {
@@ -442,7 +452,7 @@ function Drums({ M }) {
             </mesh>
           )
         })}
-        <mesh geometry={disc} material={M.roomCarpet} position={[c[0], 0.004, c[1]]} scale={[rx - DRUM_WALL, 1, rz - DRUM_WALL]} />
+        <mesh geometry={disc} material={M.roomCarpet} position={[c[0], 0.004, c[1]]} scale={[rx - DRUM_WALL, 1, rz - DRUM_WALL]} userData={{ bake: `room_${d.id}` }} />
         <Plane p={[sp[0], 1.55, sp[1]]} rot={Math.atan2(n[0], n[1])} w={0.5} h={0.62} material={signs[i]} />
       </group>
     )
@@ -501,16 +511,16 @@ function Beinecke({ M }) {
   const col = BEIN.col
   return (
     <>
-      <mesh geometry={geos.floor} material={M.beinCarpet} position={[c[0], 0.002, c[1]]} />
-      <mesh geometry={geos.ceil} material={M.ceiling} position={[c[0], H, c[1]]} />
-      <mesh geometry={geos.ter} material={M.stone} position={[c[0], 0.001, c[1]]} />
-      <mesh geometry={geos.over} material={M.ceiling} position={[c[0], H, c[1]]} />
+      <mesh geometry={geos.floor} material={M.beinCarpet} position={[c[0], 0.002, c[1]]} userData={{ bake: 'bein_floor' }} />
+      <mesh geometry={geos.ceil} material={M.ceiling} position={[c[0], H, c[1]]} userData={{ bake: 'bein_ceiling' }} />
+      <mesh geometry={geos.ter} material={M.stone} position={[c[0], 0.001, c[1]]} userData={{ bake: 'terrace' }} />
+      <mesh geometry={geos.over} material={M.ceiling} position={[c[0], H, c[1]]} userData={{ bake: 'terrace_soffit' }} />
       <Arc c={c} rx={r} a0={0} a1={Math.PI / 2 - doorGap} material={M.glass} />
       <Arc c={c} rx={r} a0={Math.PI / 2 + doorGap} a1={Math.PI} material={M.glass} />
-      <Arc c={c} rx={r - 0.3} a0={0.12} a1={1.0} h={H - 0.2} material={M.velvet} />
+      <Arc c={c} rx={r - 0.3} a0={0.12} a1={1.0} h={H - 0.2} material={M.velvet} bake="bein_curtain" />
       <Arc c={c} rx={terrace} a0={0} a1={Math.PI} h={1.05} material={M.rail} />
-      <Arc c={c} rx={muralR} a0={Math.PI / 2 - muralHalf} a1={Math.PI / 2 + muralHalf} h={3.8} material={M.mural} />
-      <mesh position={[col[0], H / 2, col[1]]} material={M.column}>
+      <Arc c={c} rx={muralR} a0={Math.PI / 2 - muralHalf} a1={Math.PI / 2 + muralHalf} h={3.8} material={M.mural} bake="bein_mural" />
+      <mesh position={[col[0], H / 2, col[1]]} material={M.column} userData={{ bake: 'bein_column' }}>
         <cylinderGeometry args={[0.25, 0.25, H, 20]} />
       </mesh>
       {BEIN_TABLES.map(([x, z], i) => (
@@ -643,6 +653,7 @@ export default function World() {
   return (
     <>
       <Atmosphere />
+      {EXPORT && <BakeExport />}
       <FloorAndCeiling M={M} />
       <Courtyard M={M} />
       <OutsideTrees M={M} />
