@@ -2,6 +2,7 @@ import { Suspense, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { Environment } from '@react-three/drei'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import {
@@ -209,6 +210,15 @@ function useMaterials() {
     }
     const plaster = pbr('plaster', { color: false })
     const wood = pbr('wood')
+    // classroom chairs: a woven fabric normal on the shell, brushed metal on the base
+    const sceneryTex = (file, n) => {
+      const t = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}scenery/tex/${file}`)
+      t.wrapS = t.wrapT = THREE.RepeatWrapping
+      t.repeat.set(n, n)
+      return t
+    }
+    const chairFabric = { normalMap: sceneryTex('fabric_normal.jpg', 3), roughnessMap: sceneryTex('fabric_rough.jpg', 3), normalScale: new THREE.Vector2(0.8, 0.8) }
+    const chairMetal = { normalMap: sceneryTex('metal_normal.jpg', 2), normalScale: new THREE.Vector2(0.3, 0.3) }
     const M = {
       white: worldUV(std({ color: '#f2f0ec', roughness: 1, ...plaster, normalScale: new THREE.Vector2(0.35, 0.35) }), 0.5),
       // classroom front wall behind the screens, darker than the plaster so the screens read
@@ -234,8 +244,8 @@ function useMaterials() {
       orange: std({ color: '#d4552a', roughness: 0.8 }),
       // classroom chairs: near-black shell, a slightly lighter seat cushion (vertex colours) and a
       // brushed-metal star base; both lifted by unbakedFill (render/Baked.jsx)
-      chair: unbakedFill(std({ color: '#ffffff', vertexColors: true, roughness: 0.55, metalness: 0.1, envMapIntensity: 0.6 }), 3),
-      chairFrame: unbakedFill(std({ color: '#8e9399', roughness: 0.35, metalness: 0.85, envMapIntensity: 0.6 }), 3),
+      chair: unbakedFill(std({ color: '#ffffff', vertexColors: true, roughness: 0.85, metalness: 0, envMapIntensity: 0.6, ...chairFabric }), 3),
+      chairFrame: unbakedFill(std({ color: '#9ca1a7', roughness: 0.35, metalness: 0.6, envMapIntensity: 0.8, ...chairMetal }), 3),
       // glossy deep-blue glass drums (photos 01-05): clear-coated so they mirror the room
       drum: new THREE.MeshPhysicalMaterial({ map: T.drumTex(), roughness: 0.12, metalness: 0.2, clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensity: 2.4 }),
       // acoustic wall panels change colour from room to room: lavender, sage, gold, beige, grey
@@ -975,30 +985,49 @@ function DeskTops({ M }) {
   )
 }
 
-// office chair: star base, gas column, seat, armrest pads, mesh back leaning 6 degrees, about
-// 80 triangles (946 instances);
-// local +z points away from the desk, the seat top is 0.5 m above the floor. The back stays
-// within 0.24 m of the seat centre: the next row's desk panel stands 0.28 m behind it
-// Two meshes: the shell (seat, arm pads, back; vertex colours give the cushion a lighter fabric)
-// and the metal base (star and gas column)
+// office chair: five-spoke star base on casters, gas column, seat, armrest pads, back leaning 6
+// degrees (328 instances since round 3). Local +z points away from the desk, the seat top is 0.5 m
+// above the floor. The back stays within 0.24 m of the seat centre: the next row's desk panel
+// stands 0.28 m behind it. Two meshes: the shell (seat, arm pads, back as rounded boxes with smooth
+// normals; vertex colours give the cushion a lighter fabric, and the shell material carries a
+// fabric normal map) and the metal base (spokes, casters, gas column). The flat-shaded box chair
+// read as faceted plastic (Lan, round 3).
 const CHAIR = (() => {
   const parts = []
-  const box = (w, h, d, x, y, z, rx, color) => {
-    const g = new THREE.BoxGeometry(w, h, d).toNonIndexed()
-    g.rotateX(rx)
-    g.translate(x, y, z)
+  const add = (g, color) => {
+    g = g.index ? g.toNonIndexed() : g
     const c = new THREE.Color(color)
     g.setAttribute('color', new THREE.Float32BufferAttribute(Array.from({ length: g.attributes.position.count }, () => [c.r, c.g, c.b]).flat(), 3))
     parts.push(g)
   }
-  box(0.5, 0.07, 0.46, 0, 0.465, -0.01, 0, '#2a2a2e')
-  for (const x of [-0.26, 0.26]) box(0.06, 0.03, 0.28, x, 0.7, 0.0, 0, '#1a1a1c')
-  box(0.46, 0.56, 0.035, 0, 0.83, 0.19, 0.1, '#1a1a1c')
-  const base = new THREE.CylinderGeometry(0.3, 0.3, 0.035, 5)
-  base.translate(0, 0.06, 0)
-  const col = new THREE.CylinderGeometry(0.025, 0.03, 0.38, 6, 1, true)
-  col.translate(0, 0.25, 0)
-  return { shell: mergeGeometries(parts), frame: mergeGeometries([base, col].map((g) => g.toNonIndexed())) }
+  const rbox = (w, h, d, r, x, y, z, rx, color) => {
+    const g = new RoundedBoxGeometry(w, h, d, 2, r)
+    g.rotateX(rx)
+    g.translate(x, y, z)
+    add(g, color)
+  }
+  rbox(0.5, 0.08, 0.47, 0.035, 0, 0.465, -0.01, 0, '#34343a') // seat cushion
+  for (const x of [-0.26, 0.26]) rbox(0.06, 0.035, 0.28, 0.015, x, 0.7, 0.0, 0, '#1a1a1c')
+  rbox(0.46, 0.56, 0.045, 0.02, 0, 0.83, 0.19, 0.1, '#1e1e22') // back
+  const frame = []
+  const metal = (g) => frame.push(g.index ? g.toNonIndexed() : g)
+  for (let k = 0; k < 5; k++) {
+    const a = (k / 5) * TAU
+    const spoke = new THREE.BoxGeometry(0.035, 0.03, 0.29)
+    spoke.translate(0, 0.075, 0.145)
+    spoke.rotateY(a)
+    metal(spoke)
+    const caster = new THREE.SphereGeometry(0.025, 10, 6)
+    caster.translate(Math.sin(a) * 0.29, 0.027, Math.cos(a) * 0.29)
+    metal(caster)
+  }
+  const hub = new THREE.CylinderGeometry(0.045, 0.05, 0.05, 16)
+  hub.translate(0, 0.08, 0)
+  metal(hub)
+  const col = new THREE.CylinderGeometry(0.025, 0.03, 0.34, 12, 1, true)
+  col.translate(0, 0.27, 0)
+  metal(col)
+  return { shell: mergeGeometries(parts), frame: mergeGeometries(frame) }
 })()
 
 // ---------- classroom drums
