@@ -8,14 +8,13 @@ import { sceneDepth } from './depthCopy.js'
 // drums (photos 01-05 show them mirroring the soffit, the columns and the courtyard glass).
 // The concourse carpet is matte in the photos and gets none.
 //
-// The effect needs no extra full-scene render and no G-buffer. Each frame it renders only the
-// glossy meshes (layer 7) into a small G-buffer (view-space normal plus depth), keeps pixels
+// The effect needs no extra full-scene render. Each frame it renders only the glossy meshes
+// into a small G-buffer (view-space normal plus depth), keeps pixels
 // where that depth matches the scene depth, and marches the reflected ray through the scene
 // depth in screen space. No temporal accumulation, so moving characters do not ghost.
 // Ceiling: one hit per pixel and no roughness blur, so it suits mirror-like surfaces only; a
 // rough reflector would need a G-buffer pass with roughness (realism-effects style SSR).
 
-const LAYER = 7
 // glossy and opaque: the drums (roughness 0.12, clearcoat 1); glass is transparent and skipped
 const isGlossy = (m) => m && !m.transparent && (m.clearcoat >= 0.5 || (m.roughness <= 0.15 && m.metalness < 0.9))
 
@@ -143,46 +142,45 @@ class GlossySSREffect extends Effect {
     this.maskMat = new THREE.MeshNormalMaterial()
     this.uniforms.get('sceneDepth').value = sceneDepth
     this.frame = 0
+    this.meshes = []
     this.clearColor = new THREE.Color()
   }
 
-  // tag glossy meshes on layer 7; content mounts in waves, so re-check every two seconds
+  // collect the glossy meshes; content mounts in waves, so re-check every two seconds
   tag() {
+    const list = []
     this.scene.traverse((o) => {
       if (!o.isMesh) return
       const mats = Array.isArray(o.material) ? o.material : [o.material]
-      if (mats.some(isGlossy)) o.layers.enable(LAYER)
+      if (mats.some(isGlossy)) list.push(o)
     })
+    this.meshes = list
   }
 
+  // render only the glossy meshes, one draw each, with the normal material swapped in; this
+  // skips the full-scene traversal a layer-filtered scene render would cost every frame
   update(renderer) {
     if (this.frame++ % 120 === 0) this.tag()
-    const { scene, camera, target } = this
+    const { camera, target } = this
     this.uniforms.get('proj').value.copy(camera.projectionMatrix)
     this.uniforms.get('invProj').value.copy(camera.projectionMatrixInverse)
-    const mask = camera.layers.mask
-    const bg = scene.background
-    const override = scene.overrideMaterial
-    const shadowUpdate = renderer.shadowMap.needsUpdate
-    const autoMatrix = scene.matrixWorldAutoUpdate
-    renderer.shadowMap.needsUpdate = false
-    scene.matrixWorldAutoUpdate = false // the main render already updated every matrix this frame
-    camera.layers.set(LAYER)
-    scene.background = null
-    scene.overrideMaterial = this.maskMat
-    renderer.setRenderTarget(target)
-    renderer.getClearColor(this.clearColor)
+    const autoClear = renderer.autoClear
     const clearAlpha = renderer.getClearAlpha()
+    renderer.getClearColor(this.clearColor)
+    renderer.setRenderTarget(target)
     renderer.setClearColor(0x000000, 0)
     renderer.clear(true, true, false)
-    renderer.render(scene, camera)
+    renderer.autoClear = false
+    for (const m of this.meshes) {
+      if (!m.visible || !m.parent) continue
+      const mat = m.material
+      m.material = this.maskMat
+      renderer.render(m, camera)
+      m.material = mat
+    }
+    renderer.autoClear = autoClear
     renderer.setRenderTarget(null)
     renderer.setClearColor(this.clearColor, clearAlpha)
-    camera.layers.mask = mask
-    scene.background = bg
-    scene.overrideMaterial = override
-    renderer.shadowMap.needsUpdate = shadowUpdate
-    scene.matrixWorldAutoUpdate = autoMatrix
   }
 
   setSize(width, height) {

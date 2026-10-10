@@ -33,7 +33,7 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
 `
 
 class GradeEffect extends Effect {
-  constructor({ balance = [0.985, 1.0, 1.02], contrast = 0.25, saturation = 1.05, warmBoost = 0.06, shadowTint = [-0.004, 0.0, 0.008], highlightTint = [0.0, 0.002, 0.006] } = {}) {
+  constructor({ balance = [0.985, 1.0, 1.02], contrast = 0.25, saturation = 1.04, warmBoost = 0.03, shadowTint = [-0.004, 0.0, 0.008], highlightTint = [0.0, 0.002, 0.006] } = {}) {
     super('GradeEffect', frag, {
       uniforms: new Map([
         ['balance', new THREE.Uniform(new THREE.Vector3(...balance))],
