@@ -109,10 +109,8 @@ export default function App() {
               </div>
             ) : (
               <div className="keys">
-                <span><b>W A S D</b> walk</span>
-                <span><b>Mouse</b> look</span>
+                <span><b>WASD</b> move · <b>mouse or arrows</b> look · <b>Space</b> hop</span>
                 <span><b>Shift</b> sprint</span>
-                <span><b>Space</b> jump</span>
                 <span><b>C</b> crouch</span>
                 <span><b>M</b> map</span>
                 <span><b>E</b> interact</span>

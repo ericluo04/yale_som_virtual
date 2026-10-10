@@ -12,8 +12,10 @@ const CROUCH_EYE = 1.05
 const JUMP_SPEED = 4.2
 const GRAVITY = 12
 const LOOK_SPEED = 0.005 // radians per touch pixel
+const KEY_YAW = (120 * Math.PI) / 180 // arrow-key look, radians per second
+const KEY_PITCH = (80 * Math.PI) / 180
 
-// PC controls work like a shooter: WASD move, mouse look, Shift sprint, Space jump, C crouch.
+// PC controls work like a shooter: WASD move, mouse or arrow keys look, Shift sprint, Space hop, C crouch.
 // Touch controls come in through touchRef: { active, move: [x, y], look: [dx, dy], jump }.
 export default function Player({ lockRef, mapRef, touchRef, onLock, onWhere }) {
   const { camera, gl } = useThree()
@@ -56,7 +58,7 @@ export default function Player({ lockRef, mapRef, touchRef, onLock, onWhere }) {
     controls.addEventListener('unlock', off)
     const down = (e) => {
       keys.current[e.code] = true
-      if (e.code === 'Space') e.preventDefault()
+      if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault()
     }
     const up = (e) => (keys.current[e.code] = false)
     const blur = () => (keys.current = {})
@@ -101,17 +103,29 @@ export default function Player({ lockRef, mapRef, touchRef, onLock, onWhere }) {
     touch.look[0] = 0
     touch.look[1] = 0
 
+    // arrow keys look: left/right yaw, up/down pitch, clamped to the mouse's pitch limits
+    const k = keys.current
+    const ay = active ? (k.ArrowLeft ? 1 : 0) - (k.ArrowRight ? 1 : 0) : 0
+    const ap = active ? (k.ArrowUp ? 1 : 0) - (k.ArrowDown ? 1 : 0) : 0
+    if (ay || ap) {
+      euler.setFromQuaternion(camera.quaternion)
+      euler.y += ay * KEY_YAW * dt
+      const lo = Math.PI / 2 - controls.maxPolarAngle
+      const hi = Math.PI / 2 - controls.minPolarAngle
+      euler.x = Math.max(lo, Math.min(hi, euler.x + ap * KEY_PITCH * dt))
+      camera.quaternion.setFromEuler(euler)
+    }
+
     camera.getWorldDirection(fwd)
     fwd.y = 0
     fwd.normalize()
 
-    const k = keys.current
     let f = 0
     let s = 0
     let sprint = false
     if (active) {
-      f = (k.KeyW || k.ArrowUp ? 1 : 0) - (k.KeyS || k.ArrowDown ? 1 : 0)
-      s = (k.KeyD || k.ArrowRight ? 1 : 0) - (k.KeyA || k.ArrowLeft ? 1 : 0)
+      f = (k.KeyW ? 1 : 0) - (k.KeyS ? 1 : 0)
+      s = (k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0)
       sprint = k.ShiftLeft || k.ShiftRight
     }
     if (active && touch.active && (touch.move[0] || touch.move[1])) {
