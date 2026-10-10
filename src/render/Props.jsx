@@ -402,6 +402,44 @@ function Beinecke() {
   )
 }
 
+// ---------- meeting rooms: a white table, 2.6 x 1.1 m with a 4 cm top, on two dark steel T-legs,
+// in place of the World's glass slab and its four box legs (hidden here)
+const tableMats = {
+  top: new THREE.MeshStandardMaterial({ color: '#f3f2ee', roughness: 0.35 }),
+  leg: new THREE.MeshStandardMaterial({ color: '#3a3d42', metalness: 0.7, roughness: 0.35 }),
+}
+const meetTops = MEETING.map((m) => ({ p: [m.x, 0.72, m.z], r: 0, s: [2.6, 0.04, 1.1] }))
+const meetLegs = MEETING.flatMap((m) =>
+  [-0.95, 0.95].flatMap((dx) => [
+    { p: [m.x + dx, 0.35, m.z], r: 0, s: [0.07, 0.7, 0.07] }, // post
+    { p: [m.x + dx, 0.015, m.z], r: 0, s: [0.08, 0.03, 0.85] }, // foot
+    { p: [m.x + dx, 0.68, m.z], r: 0, s: [0.06, 0.04, 0.9] }, // top rail
+  ]),
+)
+function MeetingTables() {
+  const { scene, gl } = useThree()
+  useLayoutEffect(() => {
+    const hidden = []
+    scene.traverse((o) => {
+      if (!o.isInstancedMesh) return
+      const k = o.material?.userData?.key
+      // the glass tops, and the box legs: the only mullion-material instance set with 4 per room
+      if (k === 'tableGlass' || (k === 'mullion' && o.count === MEETING.length * 4)) {
+        o.visible = false
+        hidden.push(o)
+      }
+    })
+    gl.shadowMap.needsUpdate = true
+    return () => hidden.forEach((o) => (o.visible = true))
+  }, [scene, gl])
+  return (
+    <>
+      <Boxes items={meetTops} material={tableMats.top} />
+      <Boxes items={meetLegs} material={tableMats.leg} />
+    </>
+  )
+}
+
 export default function Props() {
   return (
     <>
@@ -415,6 +453,7 @@ export default function Props() {
       <DirectionSigns />
       <StairDoors />
       <Beinecke />
+      <MeetingTables />
       <Suspense fallback={null}>
         {!OFF.has('scenery') && <Scenery />}
         {!OFF.has('backdrop') && <Backdrop />}

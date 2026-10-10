@@ -258,6 +258,16 @@ const beinChairs = BEIN_TABLES.flatMap(([x, z], t) =>
   }),
 )
 
+// meeting rooms: seven office chairs round each white table (seats from layout.js), turned to face
+// the table with a little jitter
+const meetChairs = MEETING.flatMap((m, j) =>
+  m.seats.map((c, i) => {
+    const head = Math.abs(c.x - m.x) > 1.5 // the seat at the table's west end
+    const r = head ? Math.atan2(m.x - c.x, 0) : Math.atan2(0, m.z - c.z)
+    return { p: [c.x, 0, c.z], r: r + (((i * 7 + j * 3) % 5) - 2) * 0.08, s: 1.6 }
+  }),
+)
+
 // ---------- patches to World.jsx materials (that file belongs to the bake workstream)
 // PBR leather (ambientCG Leather 037) for the cognac banquettes and painted metal (Metal 027)
 // for their dark plinths; the World's courtyard sphere trees give way to the scanned trees above.
@@ -439,7 +449,7 @@ export default function Scenery() {
       <Model name="trash_bin" items={bins} material={greyBin} />
       <Model name="laptop" items={[...laptops, ...deskLaptops]} />
       <Model name="study_table" items={studyTables} material={whiteTable} />
-      <Model name="office_chair" items={deskChairs} material={blackChair} />
+      <Model name="office_chair" items={[...deskChairs, ...meetChairs]} material={blackChair} />
       <Model name="lounge_chair" items={loungeChairs} />
       <Model name="side_table" items={loungeTables} />
       <Model name="shelf" items={shelves} material={whiteShelf} />
