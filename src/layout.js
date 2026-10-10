@@ -309,6 +309,14 @@ for (const v of [-19.3, -11.5, -3.8, 3.9, 11.6, 19.3]) {
 export const COLUMNS = COLS.filter((c) => !c.court || inPoly(c.x, c.z, COURTYARD))
 for (const c of COLUMNS) if (!c.court) dot([c.x, c.z])
 
+// lived-in props (drawn in render/Props.jsx): white-topped high counters against the drum
+// fronts, a reception desk inside the library door, signage screens on the west stair cores
+export const COUNTERS = [[-15.3, -24.1], [15.3, -24.1], [-15, 24.6], [15, 24.6]].map(([x, z]) => ({ x, z, w: 2.4, d: 0.6 }))
+for (const k of COUNTERS) W([k.x - k.w / 2, k.z], [k.x + k.w / 2, k.z], 'none', { t: k.d })
+export const RECEPTION = { x: LIBRARY.x1 - 1.6, z: -2.4, w: 2.8, d: 0.8 }
+W([RECEPTION.x, RECEPTION.z - RECEPTION.w / 2], [RECEPTION.x, RECEPTION.z + RECEPTION.w / 2], 'none', { t: RECEPTION.d })
+export const SIGNAGE = STAIRS.filter((s) => s.id === 'A' || s.id === 'B').map((s) => ({ x: s.c[0], z: s.c[1] - Math.sign(s.c[1]) * (s.d / 2 + 0.03), rot: s.c[1] > 0 ? Math.PI : 0 }))
+
 // colliders with bounding boxes for fast rejection
 export const COLLIDERS = WALLS.filter((w) => w.collide).map((w) => ({
   ...w,

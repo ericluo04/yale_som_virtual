@@ -17,6 +17,7 @@ import { COURSE_KEYS, slideTex } from './slides.js'
 import { rng } from './textures.js'
 import Lighting from './render/Lighting.jsx'
 import { pbr, worldUV } from './render/pbr.js'
+import Props from './render/Props.jsx'
 
 const TAU = Math.PI * 2
 
@@ -631,8 +632,7 @@ function MeetingRooms({ M }) {
 function Details({ M }) {
   return (
     <>
-      <Instanced items={PLANTS.map(([x, z]) => ({ p: [x, 0.3, z], s: [0.3, 0.6, 0.3] }))} material={M.pot} geometry={BOX} />
-      <Instanced items={PLANTS.map(([x, z]) => ({ p: [x, 1.1, z], s: [0.5, 0.65, 0.5] }))} material={M.leaf} geometry={SPHERE} />
+      <Props />
       <MeetingRooms M={M} />
     </>
   )
