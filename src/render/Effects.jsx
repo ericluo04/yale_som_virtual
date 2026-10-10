@@ -1,6 +1,7 @@
 import { EffectComposer, N8AO, Bloom, SMAA, Vignette, ToneMapping } from '@react-three/postprocessing'
 import { ToneMappingMode } from 'postprocessing'
 import { OFF, QUALITY } from './debugCam.js'
+import SSR from './SSR.jsx'
 
 // High quality only. The composer renders the scene to a linear HDR buffer, so tone
 // mapping moves out of the materials into the ToneMapping effect at the end of the chain.
@@ -11,6 +12,7 @@ export default function Effects() {
   return (
     <EffectComposer multisampling={0}>
       {!OFF.has('ao') && <N8AO halfRes aoRadius={1.0} distanceFalloff={0.6} intensity={2.2} quality="performance" />}
+      {!OFF.has('ssr') && <SSR />}
       {!OFF.has('bloom') && <Bloom mipmapBlur luminanceThreshold={1.6} luminanceSmoothing={0.15} intensity={0.55} radius={0.7} />}
       <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
       {!OFF.has('smaa') && <SMAA />}
