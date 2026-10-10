@@ -521,7 +521,8 @@ function Level4({ M }) {
   return (
     <group>
       <mesh geometry={geos.floor} material={mats.floor} position={[0, L4.floor, 0]} />
-      <mesh geometry={geos.ceil} material={mats.ceil} position={[0, L4.top, 0]} />
+      {/* 5 cm under the baked canopy's underside (also at L4.top), which it overlaps by a 3% strip */}
+      <mesh geometry={geos.ceil} material={mats.ceil} position={[0, L4.top - 0.05, 0]} />
       <mesh geometry={geos.fascia} material={mats.fascia} />
       <mesh geometry={geos.rail} material={M.rail} />
       <mesh geometry={geos.handrail} material={M.silver} />
