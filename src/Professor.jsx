@@ -16,8 +16,22 @@ export const PROFESSORS = {
 
 // Each professor is a rigged GLB from tools/blender/professor.py (public/models/professor_<who>.glb),
 // built at the real height in the table above, so nothing is scaled here.
-// Clips: Idle (sway), Lecture (open-palm gesture), WandRaise (2.4 s, starts and ends in the Idle pose).
+// Clips: Idle (sway), Lecture (open-palm gesture), WandRaise (2.4 s), Point (1.2 s, aims the wand at the class),
+// Nod (1.0 s). The three one-shot clips start and end in the Idle pose.
 Object.keys(PROFESSORS).forEach((who) => preloadModel(`professor_${who}`))
+
+// the teaching loop: [clip, seconds, once]; each professor walks it from a different start (phase)
+const LOOP = [
+  ['Lecture', 4.2, false],
+  ['Point', 1.2, true],
+  ['Idle', 2.2, false],
+  ['Nod', 1.0, true],
+  ['Lecture', 3.6, false],
+  ['WandRaise', 2.4, true],
+  ['Idle', 2.8, false],
+  ['Nod', 1.0, true],
+]
+const LOOP_LEN = LOOP.reduce((t, [, d]) => t + d, 0)
 
 function ProfessorModel({ who, position = [0, 0, 0], rotation = 0, phase = 0 }) {
   const root = useRef()
@@ -26,12 +40,14 @@ function ProfessorModel({ who, position = [0, 0, 0], rotation = 0, phase = 0 }) 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime + phase
     root.current.rotation.y = rotation + Math.sin(t * 0.4) * 0.35 // scanning the room
-    // same timer as before: the wand goes up on every positive half of sin(1.3 t) (2.4 s, the clip's length);
-    // in between the professor alternates lecturing and standing
-    const w = t * 1.3
-    const cycle = Math.floor(w / (2 * Math.PI))
-    const raising = Math.sin(w) > 0
-    play(raising ? 'WandRaise' : cycle % 2 ? 'Lecture' : 'Idle', { once: raising })
+    let u = t % LOOP_LEN
+    for (const [clip, d, once] of LOOP) {
+      if (u < d) {
+        play(clip, { once })
+        break
+      }
+      u -= d
+    }
   })
   return (
     <group ref={root} position={position} rotation={[0, rotation, 0]}>
