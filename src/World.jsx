@@ -1,6 +1,7 @@
 import { Suspense, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { Environment } from '@react-three/drei'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import {
@@ -43,6 +44,34 @@ function HideBaked({ roles }) {
     return () => hidden.forEach((o) => (o.visible = true))
   }, [scene, roles])
   return null
+}
+
+// world-space box projection: each face samples the plane its normal points along most, so
+// curved vertical faces do not smear the way worldUV's (x + z, y) does
+function boxUV(mat, scale) {
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uvScale = { value: scale }
+    sh.vertexShader = 'uniform float uvScale;\n' + sh.vertexShader.replace(
+      '#include <uv_vertex>',
+      `#include <uv_vertex>
+      {
+        vec3 wq = (modelMatrix * vec4(position, 1.0)).xyz;
+        vec3 an = abs(normalize(mat3(modelMatrix) * normal));
+        vec2 wuv = (an.y > 0.5 ? wq.xz : an.x > an.z ? wq.zy : wq.xy) * uvScale;
+        #ifdef USE_MAP
+          vMapUv = wuv;
+        #endif
+        #ifdef USE_NORMALMAP
+          vNormalMapUv = wuv;
+        #endif
+        #ifdef USE_ROUGHNESSMAP
+          vRoughnessMapUv = wuv;
+        #endif
+      }`,
+    )
+  }
+  mat.customProgramCacheKey = () => `boxUV-${scale}`
+  return mat
 }
 
 // points every `step` metres along a closed polyline pushed out by d: [x, z, heading]
@@ -173,7 +202,7 @@ function useMaterials() {
       leather: std({ color: '#9a5530', roughness: 0.45 }),
       plinth: std({ color: '#2b2b2b', roughness: 0.6 }),
       orange: std({ color: '#d4552a', roughness: 0.8 }),
-      chair: std({ color: '#0a0a0b', roughness: 0.85, envMapIntensity: 0.25 }),
+      chair: std({ color: '#141417', roughness: 0.6, metalness: 0.2, envMapIntensity: 0.6 }),
       // glossy deep-blue glass drums (photos 01-05): clear-coated so they mirror the room
       drum: new THREE.MeshPhysicalMaterial({ map: T.drumTex(), roughness: 0.12, metalness: 0.2, clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensity: 2.4 }),
       // acoustic wall panels change colour from room to room: lavender, sage, gold, beige, grey
@@ -186,6 +215,13 @@ function useMaterials() {
       roomCarpet: std({ ...pbr('carpet', { repeat: [7, 7], color: 'concourse' }), color: '#a9a9a6', roughness: 1 }),
       tierCarpet: std({ ...pbr('carpet', { repeat: [0.6, 0.6], color: 'concourse' }), color: '#a9a9a6', roughness: 1 }),
       stepEdge: std({ color: '#d9822b', roughness: 0.7 }),
+      // unbaked overlays on the baked classrooms (Tiers, DeskTops): riser faces in plain carpet
+      // with box-projected UVs, drawn in front of the baked faces, whose lightmap texels break up
+      // into triangles; desks with path-following wood UVs and a dark leather writing strip
+      riser: boxUV(std({ ...pbr('carpet', { color: 'concourse' }), color: '#8a8a88', roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }), 0.6),
+      hidden: new THREE.MeshBasicMaterial({ visible: false }),
+      deskWood: std({ ...pbr('wood', { repeat: [0.8, 0.8] }), color: '#e8c9a8', roughness: 0.75, side: THREE.DoubleSide }),
+      deskLeather: std({ color: '#2b211c', roughness: 0.5, side: THREE.DoubleSide }),
       beinCarpet: std({ ...pbr('carpet', { repeat: [14, 14] }), color: '#e6dccb', roughness: 1 }),
       stone: std({ map: T.stoneTex([2, 2]), roughness: 0.95 }),
       ceiling: std({ color: '#f7f5f0', roughness: 1, side: THREE.DoubleSide }),
@@ -607,9 +643,144 @@ function Tiers({ M }) {
       }
     return out
   }, [])
-  if (!PROC) return null
+  // baked: only the riser faces are redrawn, over the baked ones (polygon offset)
+  if (!PROC) return geos.map(([, g], i) => <mesh key={i} geometry={g} material={[M.hidden, M.riser]} />)
   return geos.map(([id, g], i) => <mesh key={i} geometry={g} material={[M.tierCarpet, M.stepEdge]} userData={{ bake: `tiers_${id}` }} />)
 }
+
+// Sweep a 2D profile [(a, b)] along a path of [x, y, z] points; a runs along the per-point
+// horizontal normal [nx, nz], b along +y. Each profile edge is its own strip (hard edges), u is
+// metres along the path and v metres along the profile; both ends are capped.
+function sweep(path, normals, profile) {
+  const pos = []
+  const uv = []
+  const at = (k, [a, b]) => [path[k][0] + normals[k][0] * a, path[k][1] + b, path[k][2] + normals[k][1] * a]
+  const len = [0]
+  for (let k = 1; k < path.length; k++) len.push(len[k - 1] + Math.hypot(path[k][0] - path[k - 1][0], path[k][2] - path[k - 1][2]))
+  let v = 0
+  for (let j = 0; j < profile.length; j++) {
+    const p0 = profile[j]
+    const p1 = profile[(j + 1) % profile.length]
+    const dv = Math.hypot(p1[0] - p0[0], p1[1] - p0[1])
+    for (let k = 0; k < path.length - 1; k++) {
+      const q = [at(k, p0), at(k + 1, p0), at(k + 1, p1), at(k, p1)]
+      const t = [[len[k], v], [len[k + 1], v], [len[k + 1], v + dv], [len[k], v + dv]]
+      for (const i of [0, 2, 1, 0, 3, 2]) {
+        pos.push(...q[i])
+        uv.push(...t[i])
+      }
+    }
+    v += dv
+  }
+  const tris = THREE.ShapeUtils.triangulateShape(profile.map(([a, b]) => new THREE.Vector2(a, b)), [])
+  for (const [k, flip] of [[0, false], [path.length - 1, true]])
+    for (const tri of tris)
+      for (const i of flip ? [...tri].reverse() : tri) {
+        pos.push(...at(k, profile[i]))
+        uv.push(profile[i][0], profile[i][1])
+      }
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
+  g.computeVertexNormals()
+  return g
+}
+
+// The baked horseshoe desks (tools/bake/detail.py) redrawn unbaked from the same rows and
+// radii, 4 mm larger so they cover the baked ones: wood with UVs that follow the curve (the
+// baked desks' world UVs smear into stripes), a wood lip at the front and a dark leather
+// writing strip on top.
+function DeskTops({ M }) {
+  const geos = useMemo(() => {
+    const wood = []
+    const leather = []
+    const body = [[-0.254, -0.002], [-0.216, -0.002], [-0.216, 0.906], [0.254, 0.906], [0.254, 0.954], [-0.254, 0.954]]
+    const strip = [[-0.17, 0.95], [0.214, 0.95], [0.214, 0.962], [-0.17, 0.962]]
+    for (const d of DRUMS) {
+      const { F, back } = d.tiers
+      const t = [-back[1], back[0]]
+      const rows = new Map()
+      for (const w of WALLS) {
+        if (w.mat !== 'desk') continue
+        const mx = (w.a[0] + w.b[0]) / 2
+        const mz = (w.a[1] + w.b[1]) / 2
+        if (((mx - d.c[0]) / d.rx) ** 2 + ((mz - d.c[1]) / d.rz) ** 2 >= 1) continue
+        const v = [mx - F[0], mz - F[1]]
+        const r = Math.hypot(v[0], v[1])
+        const th = Math.atan2(v[0] * t[0] + v[1] * t[1], v[0] * back[0] + v[1] * back[1])
+        if (!rows.has(w.y0)) rows.set(w.y0, [])
+        rows.get(w.y0).push({ r, th })
+      }
+      for (const [y0, desks] of rows)
+        for (const side of [1, -1]) {
+          const ds = desks.filter((x) => x.th * side > 0).sort((a, b) => Math.abs(a.th) - Math.abs(b.th))
+          if (!ds.length) continue
+          const r = ds.reduce((s, x) => s + x.r, 0) / ds.length
+          const runs = [[ds[0]]]
+          for (const x of ds.slice(1)) {
+            const cur = runs[runs.length - 1]
+            if ((Math.abs(x.th) - Math.abs(cur[cur.length - 1].th)) * r > 1.7) runs.push([x]) // a skipped desk
+            else cur.push(x)
+          }
+          for (const run of runs) {
+            const half = 0.6 / r
+            const t0 = Math.abs(run[0].th) - half
+            const t1 = Math.abs(run[run.length - 1].th) + half
+            const n = Math.max(2, Math.floor((t1 - t0) / 0.06))
+            const path = []
+            const nrm = []
+            for (let k = 0; k <= n; k++) {
+              const th = side * (t0 + ((t1 - t0) * k) / n)
+              const u = [Math.cos(th) * back[0] + Math.sin(th) * t[0], Math.cos(th) * back[1] + Math.sin(th) * t[1]]
+              path.push([F[0] + u[0] * r, y0, F[1] + u[1] * r])
+              nrm.push(u)
+            }
+            if (side < 0) {
+              path.reverse()
+              nrm.reverse()
+            }
+            wood.push(sweep(path, nrm, body))
+            leather.push(sweep(path, nrm, strip))
+          }
+        }
+    }
+    return { wood: mergeGeometries(wood), leather: mergeGeometries(leather) }
+  }, [])
+  return (
+    <>
+      <mesh geometry={geos.wood} material={M.deskWood} />
+      <mesh geometry={geos.leather} material={M.deskLeather} />
+    </>
+  )
+}
+
+// office chair: five-star base, gas column, seat, armrests, mesh back leaning 6 degrees;
+// local +z points away from the desk, the seat top is 0.5 m above the floor. The back stays
+// within 0.24 m of the seat centre: the next row's desk panel stands 0.28 m behind it
+const CHAIR = (() => {
+  const parts = []
+  const box = (w, h, d, x, y, z, rx = 0, ry = 0) => {
+    const g = new THREE.BoxGeometry(w, h, d)
+    g.rotateX(rx)
+    g.rotateY(ry)
+    g.translate(x, y, z)
+    parts.push(g)
+  }
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * TAU
+    box(0.04, 0.035, 0.3, Math.sin(a) * 0.15, 0.06, Math.cos(a) * 0.15, 0, a)
+  }
+  const col = new THREE.CylinderGeometry(0.025, 0.03, 0.38, 10)
+  col.translate(0, 0.25, 0)
+  parts.push(col)
+  box(0.5, 0.07, 0.46, 0, 0.465, -0.01)
+  for (const x of [-0.26, 0.26]) {
+    box(0.04, 0.2, 0.04, x, 0.6, 0.02)
+    box(0.06, 0.03, 0.28, x, 0.7, 0.0)
+  }
+  box(0.46, 0.56, 0.035, 0, 0.83, 0.19, 0.1)
+  return mergeGeometries(parts.map((g) => g.toNonIndexed()))
+})()
 
 // ---------- classroom drums
 function Drums({ M }) {
@@ -653,17 +824,11 @@ function Drums({ M }) {
 }
 
 function ClassroomStuff({ M }) {
-  const seats = useMemo(() => CHAIRS.map((c) => ({ p: [c.x, (c.y || 0) + 0.47, c.z], r: c.rot, s: [0.5, 0.08, 0.5] })), [])
-  const backs = useMemo(
-    () => CHAIRS.map((c) => ({ p: [c.x + Math.sin(c.rot) * 0.22, (c.y || 0) + 0.8, c.z + Math.cos(c.rot) * 0.22], r: c.rot, s: [0.5, 0.6, 0.06] })),
-    [],
-  )
-  const legs = useMemo(() => CHAIRS.map((c) => ({ p: [c.x, (c.y || 0) + 0.22, c.z], s: [0.06, 0.44, 0.06] })), [])
+  const chairs = useMemo(() => CHAIRS.map((c) => ({ p: [c.x, c.y || 0, c.z], r: c.rot })), [])
   return (
     <>
-      <Instanced items={seats} material={M.chair} geometry={BOX} />
-      <Instanced items={backs} material={M.chair} geometry={BOX} />
-      <Instanced items={legs} material={M.mullion} geometry={BOX} />
+      <Instanced items={chairs} material={M.chair} geometry={CHAIR} />
+      {!PROC && <DeskTops M={M} />}
       {SCREENS.map((s, i) => (
         <Plane key={i} p={[s.x, 2.95, s.z]} rot={s.rot} w={2.1} h={1.18} material={slideMat(s.course, s.kind)} />
       ))}
