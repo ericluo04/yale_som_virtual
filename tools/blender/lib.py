@@ -213,6 +213,15 @@ class Parts:
         me = bpy.data.meshes.new(name)
         me.from_pydata(verts, [], faces)
         me.update()
+        # UVs for the cloth normal map: u around (4 repeats), v up the profile in meters x 4
+        uv = me.uv_layers.new(name="UVMap")
+        for poly in me.polygons:
+            for li in poly.loop_indices:
+                vi = me.loops[li].vertex_index
+                i, j = divmod(vi, seg)
+                if j == 0 and any(me.loops[l].vertex_index % seg == seg - 1 for l in poly.loop_indices):
+                    j = seg  # the seam column closes at u = 1
+                uv.data[li].uv = (4 * j / seg, 4 * profile[i][1])
         o = bpy.data.objects.new(name, me)
         bpy.context.scene.collection.objects.link(o)
         bpy.context.view_layer.objects.active = o

@@ -37,12 +37,127 @@ export function furBumpTex() {
   furBump.repeat.set(4, 4)
   return furBump
 }
-const FURRY = new Set(['Fur', 'Frog', 'Coat', 'Brindle'])
+// cloth normal map: a plain weave (over-under threads) with a few soft creases, built once on a canvas
+let clothNormal
+export function clothNormalTex() {
+  if (clothNormal) return clothNormal
+  const N = 256
+  const h = new Float32Array(N * N)
+  for (let y = 0; y < N; y++)
+    for (let x = 0; x < N; x++) {
+      const u = (x / N) * 2 * Math.PI * 32
+      const v = (y / N) * 2 * Math.PI * 32
+      const warp = Math.sin(u) * Math.max(0, Math.cos(v / 2)) // threads cross over and under
+      const weft = Math.sin(v) * Math.max(0, -Math.cos(u / 2))
+      const crease = 0.6 * Math.sin((x + 0.5 * y) / N * 2 * Math.PI * 3) * Math.sin((y / N) * 2 * Math.PI * 2)
+      h[y * N + x] = 0.5 * (warp + weft) + crease
+    }
+  const data = new Uint8Array(N * N * 4)
+  for (let y = 0; y < N; y++)
+    for (let x = 0; x < N; x++) {
+      const at = (i, j) => h[((j + N) % N) * N + ((i + N) % N)]
+      const dx = (at(x + 1, y) - at(x - 1, y)) * 0.5
+      const dy = (at(x, y + 1) - at(x, y - 1)) * 0.5
+      const l = Math.hypot(dx, dy, 1)
+      const k = (y * N + x) * 4
+      data[k] = Math.round((0.5 - (0.5 * dx) / l) * 255)
+      data[k + 1] = Math.round((0.5 - (0.5 * dy) / l) * 255)
+      data[k + 2] = Math.round((0.5 + 0.5 / l) * 255)
+      data[k + 3] = 255
+    }
+  clothNormal = new THREE.DataTexture(data, N, N)
+  clothNormal.wrapS = clothNormal.wrapT = THREE.RepeatWrapping
+  clothNormal.minFilter = THREE.LinearMipmapLinearFilter
+  clothNormal.magFilter = THREE.LinearFilter
+  clothNormal.generateMipmaps = true
+  clothNormal.needsUpdate = true
+  return clothNormal
+}
+
+// Material looks, by glTF material name (the names come from tools/blender/*.py):
+//   fur      fur bump, roughness 0.75, a small warm fresnel rim (light scattering through the pile)
+//   skin     roughness 0.65, a warmer, stronger rim (a cheap stand-in for subsurface scattering)
+//   cloth    weave normal map, roughness 0.85
+//   eye      MeshPhysicalMaterial with clearcoat 1.0 at roughness 0.05 (the wet, glassy toy eye)
+//   glossy   teeth and Dan's nose: clearcoat 0.5
+//   glint    the eye highlights: unlit white
+const LOOK = {
+  Fur: 'fur', Coat: 'fur', Brindle: 'fur', DarkBrindle: 'fur',
+  Skin: 'skin',
+  Frog: 'cloth', Shirt: 'cloth', Robe: 'cloth', Trim: 'cloth', Hat: 'cloth', Shawl: 'cloth', Fringe: 'cloth', Cravat: 'cloth', Collar: 'cloth',
+  EyeWhite: 'eye', Iris: 'eye', Pupil: 'eye', Eye: 'eye', MagicEye: 'eye',
+  Teeth: 'glossy', Tooth: 'glossy', Nose: 'glossy', Tongue: 'glossy',
+  EyeGlint: 'glint', Glint: 'glint',
+  Hair: 'hair', BrowWhite: 'hair',
+}
+const RIM = { fur: [0.1, new THREE.Color(1.0, 0.85, 0.7)], skin: [0.16, new THREE.Color(1.0, 0.5, 0.38)] }
+const CLOTH_REPEAT = { Shirt: 6, Frog: 5, Robe: 1, Trim: 1, Hat: 4, Shawl: 4, Fringe: 4, Cravat: 4, Collar: 6 }
+
+// small warm fresnel term added to the emissive radiance; `u` holds uRim (strength) and uRimColor
+export const RIM_GLSL = /* glsl */ `
+  float rimF = pow(1.0 - saturate(dot(normal, normalize(vViewPosition))), 3.0);
+  totalEmissiveRadiance += uRimColor * diffuseColor.rgb * rimF * uRim;`
+function rimPatch(sh, u) {
+  Object.assign(sh.uniforms, u)
+  sh.fragmentShader = sh.fragmentShader
+    .replace('#include <common>', '#include <common>\nuniform float uRim;\nuniform vec3 uRimColor;')
+    .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>${RIM_GLSL}`)
+}
+
+function toPhysical(m, extra) {
+  const p = new THREE.MeshPhysicalMaterial({
+    name: m.name, color: m.color, map: m.map, roughness: m.roughness, metalness: m.metalness,
+    emissive: m.emissive, emissiveIntensity: m.emissiveIntensity, emissiveMap: m.emissiveMap, side: m.side, ...extra,
+  })
+  p.userData.dressed = true
+  return p
+}
+
+const dressed = new WeakMap() // glTF materials are shared by every copy of a model: convert each once
 export function dressMaterial(m) {
-  if (FURRY.has(m.name)) {
+  const look = LOOK[m.name]
+  if (!look) return m
+  if (look === 'eye' || look === 'glossy') {
+    if (m.isMeshPhysicalMaterial) return m
+    if (!dressed.has(m))
+      dressed.set(m, toPhysical(m, look === 'eye' ? { clearcoat: 1.0, clearcoatRoughness: 0.05, roughness: m.name === 'EyeWhite' ? 0.3 : 0.15 } : { clearcoat: 0.5, clearcoatRoughness: 0.15, roughness: 0.3 }))
+    return dressed.get(m)
+  }
+  if (look === 'glint') {
+    m.emissive.set('#ffffff')
+    m.emissiveIntensity = 1.2
+    return m
+  }
+  if (look === 'hair') {
+    m.roughness = 0.55
+    return m
+  }
+  if (look === 'cloth') {
+    m.normalMap = clothNormalTex()
+    m.normalScale = new THREE.Vector2(0.35, 0.35)
+    m.roughness = 0.85
+    // one shared texture, so the tiling lives in the material: scale the UVs in the shader
+    const rep = CLOTH_REPEAT[m.name] ?? 4
+    m.onBeforeCompile = (sh) => {
+      sh.uniforms.uClothRep = { value: rep }
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', '#include <common>\nuniform float uClothRep;')
+        .replace('#include <normal_fragment_maps>', THREE.ShaderChunk.normal_fragment_maps.replaceAll('vNormalMapUv', '( vNormalMapUv * uClothRep )'))
+    }
+    m.customProgramCacheKey = () => 'cloth'
+    return m
+  }
+  // fur and skin
+  if (look === 'fur') {
     m.bumpMap = furBumpTex()
     m.bumpScale = 1.2
-  }
+    m.roughness = 0.75
+  } else m.roughness = 0.65
+  const [k, c] = RIM[look]
+  const u = { uRim: { value: k }, uRimColor: { value: c } }
+  m.userData.rim = u
+  m.onBeforeCompile = (sh) => rimPatch(sh, u)
+  m.customProgramCacheKey = () => 'rim'
   return m
 }
 
@@ -54,9 +169,9 @@ export function dressMaterial(m) {
 // ?fur=0 turns the shells off (A/B frame-rate checks)
 export const FUR_ON = typeof location === 'undefined' || new URLSearchParams(location.search).get('fur') !== '0'
 export const FUR = {
-  Fur: { len: 0.02, scale: 1 / 0.28, shells: 12, mask: 'labubu' },
-  Coat: { len: 0.008, scale: 1 / 0.16, shells: 8, mask: 'none' },
-  Brindle: { len: 0.008, scale: 1 / 0.16, shells: 8, mask: 'none' },
+  Fur: { len: 0.02, scale: 1 / 0.28, shells: 12, mask: 'labubu', ao: 0.72 },
+  Coat: { len: 0.008, scale: 1 / 0.16, shells: 8, mask: 'none', ao: 0.9 }, // ao: shell brightness at the roots (Dan's white coat stays white)
+  Brindle: { len: 0.008, scale: 1 / 0.16, shells: 8, mask: 'none', ao: 0.9 },
 }
 
 // strand texture: a jittered grid of round strands; each texel holds strand length x radial falloff
@@ -131,13 +246,16 @@ export function shellMaterial(base, cfg, { items = 1, clothes = 0 } = {}) {
   const u = {
     uFurLen: { value: cfg.len },
     uFurScale: { value: cfg.scale },
+    uFurAO: { value: cfg.ao ?? 0.72 },
     uShellCount: { value: cfg.shells },
     uItems: { value: items },
     uClothes: { value: clothes },
     uStrands: { value: strandTex() },
   }
   m.userData.fur = u
+  const rim = base.userData.rim
   m.onBeforeCompile = (sh) => {
+    if (rim) rimPatch(sh, rim)
     Object.assign(sh.uniforms, u)
     sh.vertexShader = sh.vertexShader
       .replace(
@@ -164,7 +282,7 @@ export function shellMaterial(base, cfg, { items = 1, clothes = 0 } = {}) {
       .replace(
         '#include <common>',
         `#include <common>
-        uniform float uFurScale;
+        uniform float uFurScale, uFurAO;
         uniform sampler2D uStrands;
         varying vec3 vFurP, vFurN;
         varying float vShellK, vFurMask;`,
@@ -177,10 +295,10 @@ export function shellMaterial(base, cfg, { items = 1, clothes = 0 } = {}) {
         vec3 fp = vFurP * uFurScale;
         float strand = texture2D(uStrands, fp.zy).r * bw.x + texture2D(uStrands, fp.xz).r * bw.y + texture2D(uStrands, fp.xy).r * bw.z;
         if (vFurMask < 0.05 || strand < vShellK) discard;
-        diffuseColor.rgb *= mix(0.72, 1.05, vShellK); // darker toward the roots`,
+        diffuseColor.rgb *= mix(uFurAO, 1.05, vShellK); // darker toward the roots`,
       )
   }
-  m.customProgramCacheKey = () => `furshell-${cfg.mask}`
+  m.customProgramCacheKey = () => `furshell-${cfg.mask}-${rim ? 'rim' : ''}`
   return m
 }
 

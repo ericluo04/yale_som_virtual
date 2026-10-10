@@ -41,7 +41,10 @@ def materials():
         "white": lib.mat("White", (0.97, 0.97, 0.95), 0.35),
         "dark": lib.mat("Dark", lib.hexrgb("#24140e"), 0.45),
         "mouth": lib.mat("Mouth", lib.hexrgb("#3a120f"), 0.6),
-        "iris": lib.mat("Iris", lib.hexrgb("#3b2414"), 0.2),
+        "iris": lib.mat("Iris", lib.hexrgb("#24140e"), 0.15),
+        "eyewhite": lib.mat("EyeWhite", (0.97, 0.97, 0.95), 0.25),
+        "glint": lib.mat("EyeGlint", (1, 1, 1), 0.1, emit=(1, 1, 1)),
+        "teeth": lib.mat("Teeth", (0.97, 0.96, 0.92), 0.3),
         "shirt": lib.mat("Shirt", (0.92, 0.92, 0.92), 0.85),
         "print": lib.mat("Print", (0.98, 0.98, 0.98), 0.7),
         "frog": lib.mat("Frog", lib.hexrgb("#5fb548"), 0.9, fur_bump=True),
@@ -82,8 +85,8 @@ def body(P, M, costume):
         hood = M["frog"]
         for s in (1, -1):
             P.sphere(f"frogeye{s}", (0.12 * s, -0.05, 1.0), (0.085, 0.08, 0.075), hood, "head", seg=16, rings=10)
-            P.sphere(f"frogwhite{s}", (0.12 * s, -0.115, 1.02), (0.055, 0.03, 0.05), M["white"], "head", seg=12, rings=8)
-            P.sphere(f"frogpupil{s}", (0.12 * s, -0.14, 1.02), (0.022, 0.012, 0.03), M["dark"], "head", seg=10, rings=6)
+            P.sphere(f"frogwhite{s}", (0.12 * s, -0.115, 1.02), (0.055, 0.03, 0.05), M["eyewhite"], "head", seg=12, rings=8)
+            P.sphere(f"frogpupil{s}", (0.12 * s, -0.14, 1.02), (0.022, 0.012, 0.03), M["iris"], "head", seg=10, rings=6)
 
 
 def eyes(P, M, face):
@@ -94,11 +97,11 @@ def eyes(P, M, face):
         x, z = 0.1 * s, 0.745
         bone = f"eye.{side}"
         c = face_pt(x, z, 0.004)
-        P.sphere(f"sclera.{side}", c, (0.062 * big, 0.022, 0.07 * big), M["white"], bone, seg=16, rings=10)
+        P.sphere(f"sclera.{side}", c, (0.062 * big, 0.022, 0.07 * big), M["eyewhite"], bone, seg=16, rings=10)
         ci = face_pt(x + 0.003 * s, z - 0.003, 0.022)
-        P.sphere(f"iris.{side}", ci, (0.05 * big * iris, 0.008, 0.058 * big * iris), M["dark"], bone, seg=16, rings=10)
+        P.sphere(f"iris.{side}", ci, (0.05 * big * iris, 0.008, 0.058 * big * iris), M["iris"], bone, seg=16, rings=10)
         for dx, dz, r in ((-0.014, 0.018, 0.012), (0.012, -0.018, 0.0055)):
-            P.sphere(f"glint.{side}{r}", face_pt(x + dx * s, z + dz, 0.031), (r, 0.004, r), M["white"], bone, seg=8, rings=4, subd=0)
+            P.sphere(f"glint.{side}{r}", face_pt(x + dx * s, z + dz, 0.031), (r, 0.004, r), M["glint"], bone, seg=8, rings=4, subd=0)
         if face == "sleepy":
             # heavy lid: skin dome over the top half of each eye, with a dark lash line at its edge
             lid = P.sphere(f"lid.{side}", face_pt(x, z + 0.012, 0.012), (0.07, 0.03, 0.06), M["skin"], bone, seg=16, rings=10)
@@ -154,7 +157,7 @@ def grin(P, M, width=0.15, z0=0.62, depth=0.05, up=0.035, n_teeth=9, name="grin"
         base = len(tv)
         tv += [a, b, c]
         tf.append((base, base + 2, base + 1))
-    P.poly(f"{name}.teeth", tv, tf, M["white"], "head")
+    P.poly(f"{name}.teeth", tv, tf, M["teeth"], "head")
 
 
 def surprised_mouth(P, M):
@@ -172,7 +175,7 @@ def surprised_mouth(P, M):
         base = len(tv)
         tv += [face_pt(xc - 0.007, zt, 0.008), face_pt(xc + 0.007, zt, 0.008), face_pt(xc, zt - 0.02, 0.008)]
         tf.append((base, base + 2, base + 1))
-    P.poly("surprised.teeth", tv, tf, M["white"], "head")
+    P.poly("surprised.teeth", tv, tf, M["teeth"], "head")
 
 
 def face_parts(P, M, face):
