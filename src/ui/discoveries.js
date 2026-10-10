@@ -4,9 +4,7 @@ import { toast } from './toast.js'
 
 // The easter-egg catalog. Add one line per egg: id -> the title shown in the toast.
 // N in "discoveries X / N" is the size of this catalog plus any id registered at runtime.
-export const CATALOG = {
-  'demo-sign': 'Read the demo sign', // DEMO: remove with the demo sign
-}
+export const CATALOG = {}
 
 const LS = 'evans.discoveries.v1'
 const load = () => {
