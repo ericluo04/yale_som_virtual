@@ -17,7 +17,7 @@ export default function Effects() {
   return (
     <EffectComposer multisampling={0}>
       <primitive object={depthCopy} />
-      {!OFF.has('ao') && <N8AO halfRes aoRadius={1.0} distanceFalloff={0.6} intensity={2.2} quality="performance" />}
+      {!OFF.has('ao') && <N8AO halfRes aoRadius={1.0} distanceFalloff={0.6} intensity={1.0} quality="performance" />}
       {!OFF.has('ssr') && <SSR />}
       {!OFF.has('bloom') && <Bloom mipmapBlur luminanceThreshold={1.6} luminanceSmoothing={0.15} intensity={0.55} radius={0.7} />}
       {!OFF.has('dof') && <FarBlur />}

@@ -321,7 +321,7 @@ export const SIGNAGE = STAIRS.filter((s) => s.id === 'A' || s.id === 'B').map((s
 
 // ---------- scenery (render/Scenery.jsx draws scanned CC0 models; colliders here)
 // more plants in front of the drums, between the counters and the doors
-export const PLANTS_EXTRA = [[-18.6, -25.3], [3.4, -25.3], [11.9, -25.3], [-18.5, 26.2], [3.5, 26.2], [11.5, 26.2], [-27.4, -22.6], [27.9, 20.4]]
+export const PLANTS_EXTRA = [[-18.6, -25.3], [3.4, -25.3], [11.9, -25.3], [-18.5, 26.2], [3.5, 26.2], [11.5, 26.2], [-27.4, -22.6], [27.9, 22.4]]
 for (const p of PLANTS_EXTRA) dot(p)
 // waste bins at the four cloister corners, out of both walkways
 export const BINS = [[-27.6, -23.9], [27.9, -21.5], [-27.5, 24.0], [27.9, 21.4]]

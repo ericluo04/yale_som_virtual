@@ -257,8 +257,9 @@ function PatchWorld() {
       if (!o.isMesh || Array.isArray(o.material)) return
       const hex = o.material.color?.getHexString()
       if (hex === '9a5530' && !o.material.userData.scenery) {
-        // grain and sheen from the scan; the cognac colour from the photos stays
-        Object.assign(o.material, { normalMap: LEATHER.normalMap, roughnessMap: LEATHER.roughnessMap, roughness: 0.85 })
+        // grain from the scan; the cognac colour from the photos stays. No roughness map: three
+        // multiplies it (mean about 0.4) into the constant and the seat tops washed out to pink
+        Object.assign(o.material, { normalMap: LEATHER.normalMap, roughness: 0.9 })
         o.material.normalScale = new THREE.Vector2(0.6, 0.6)
         o.material.userData.scenery = true
         o.material.needsUpdate = true
