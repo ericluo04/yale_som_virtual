@@ -81,6 +81,8 @@ def materials(p):
     h = lib.hexrgb
     return {
         "robe": lib.mat("Robe", h(p["robe"]), 0.85),
+        # inside of the sleeves: the robe colour in shadow
+        "lining": lib.mat("Lining", tuple(c * 0.35 for c in h(p["robe"])), 0.9),
         "trim": lib.mat("Trim", h(p["trim"]), 0.7),
         "skin": lib.mat("Skin", h(p["skin"]), 0.55),
         "hair": lib.mat("Hair", h(p["hair"]), 0.9),
@@ -133,14 +135,19 @@ def base_body(Q, M, who):
     Q.sphere("head", HEAD_C, HEAD_R, skin, "head", seg=16, rings=10, subd=1)
     for s in (1, -1):
         Q.sphere(f"ear{s}", (0.12 * s, 0.0, 1.7), (0.02, 0.03, 0.038), skin, "head", seg=6, rings=4, subd=1)
-    # arms: upper sleeve, a thick bell sleeve with a few pleats, cuff, hand
+    # arms: upper sleeve, a thick bell sleeve with a few pleats, cuff, and a mitt hand. A lining
+    # disc closes the bell 6 cm above the opening, so a raised arm shows dark cloth instead of
+    # the hollow tube; the mitt (wrist, flat palm, thumb) starts inside the cuff
     bell = [(0.11, -0.12), (0.095, -0.06), (0.08, 0.0), (0.068, 0.12), (0.056, 0.12), (0.069, 0.0), (0.084, -0.06), (0.099, -0.116)]
     for s, side in ((1, "L"), (-1, "R")):
         Q.cyl(f"upsleeve.{side}", (0.275 * s, 0, 1.33), 0.07, 0.065, 0.28, robe, f"upperarm.{side}", rot=(0, 0.15 * s, 0), verts=14)
         Q.lathe(f"bell.{side}", bell, robe, f"lowerarm.{side}", seg=20, loc=(0.305 * s, 0, 1.08), rot=(0, 0.03 * s, 0),
                 disp=lambda th, z: 0.006 * math.sin(7 * th) * (0.12 - z) / 0.24, closed=True)
         Q.torus(f"cuff.{side}", (0.307 * s, 0, 0.965), 0.108, 0.012, trim, f"lowerarm.{side}", seg=16, minor=4)
-        Q.sphere(f"hand.{side}", (0.31 * s, -0.02, 0.93), (0.042, 0.04, 0.055), skin, f"lowerarm.{side}", seg=8, rings=5, subd=1)
+        Q.cyl(f"sleevecap.{side}", (0.305 * s, 0, 1.02), 0.086, 0.086, 0.012, M["lining"], f"lowerarm.{side}", rot=(0, 0.03 * s, 0), verts=20)
+        Q.cyl(f"wrist.{side}", (0.31 * s, -0.012, 0.985), 0.03, 0.028, 0.07, skin, f"lowerarm.{side}", verts=10)
+        Q.sphere(f"hand.{side}", (0.31 * s, -0.018, 0.918), (0.027, 0.046, 0.058), skin, f"lowerarm.{side}", seg=10, rings=6, subd=1)
+        Q.sphere(f"thumb.{side}", (0.29 * s, -0.05, 0.935), (0.015, 0.016, 0.032), skin, f"lowerarm.{side}", rot=(0.5, 0, 0), seg=8, rings=5, subd=1)
 
 
 def face(Q, M, who):
