@@ -4,17 +4,29 @@ import * as THREE from 'three'
 import { COURTYARD, inPoly } from '../layout.js'
 import { useInteractable } from '../interact/index.jsx'
 import { angleTo, rand, sfx, timed, turnToward, useLabubuRig } from './common.js'
+import { fx } from './fx.jsx'
+const TRAIL = ['#ff6fb5', '#ffffff', '#ffc2e2']
 
 // Courtyard frisbee: three Labubus on the south lawn throw a disc. The disc flies a parabola with a sideways
 // curve and spin; the catcher runs to where it will come down, reaches up (Catch) as it arrives, then turns
 // and throws (Throw, released on frame 12). About one throw in five goes wide and lands on the grass. Handsome
 // Dan then apparates onto the lawn, sniffs the disc, carries it in his mouth to the nearest player (who waves),
-// and pops back to his classroom tour (HandsomeDan.jsx reads FRISBEE). From the cloister you can press E on a
-// grounded disc to throw it in the direction you look, and the Labubus chase it.
+// and pops back to his classroom tour (HandsomeDan.jsx reads FRISBEE). Dan waits 6 s first: in that window you
+// can press E from the south cloister ("[E] Throw the disc", within 10 m) to throw it in the direction you look,
+// and the Labubus chase it.
+// The game sits on the south lawn between z 10 and 14.5. Spots closer to the south glass (z 17 to 19) are below
+// the cloister floor edge from eye height on the south cloister (the edge hides the lawn closer than about
+// 5 m from the glass), so these are the nearest spots that read from there. A throw goes every 4 s, and the
+// thrower and the free player run to new spots between throws. The disc is 0.45 m across with a bright pink rim
+// and a sparkle trail from the fx pool.
 const Y = -5 // lawn level
 const SCALE = 1.3 // same size as the other courtyard Labubus
 const HAND = 0.78 * SCALE // disc height in a raised paw above the lawn
-const SPOTS = [[-8, 15.2], [3.5, 16.4], [-2.5, 12.2]]
+// six spots in a loose ring on the south lawn, clear of the aspens at (-5,9.5) and (6,10); players start on
+// the first three and move to a free one between throws
+const SPOTS = [[-3.6, 12.8], [3.6, 12.6], [0.3, 10.4], [-2.4, 10.6], [2.6, 10.4], [0.8, 13.0]]
+const THROW_EVERY = 4 // s between releases
+const GROUND_WAIT = 6 // s a disc on the grass waits for you before Dan is asked to fetch it
 const LOOKS = [
   { fur: '#f2a65a', expression: 'grin', shirt: 'yale' },
   { fur: '#8cc3ff', expression: 'happy', shirt: '#ffffff' },
@@ -44,12 +56,13 @@ function onLawn(x, z) {
   return [x, z]
 }
 
-const DISC_MAT = new THREE.MeshStandardMaterial({ color: '#ff4fa3', roughness: 0.35, metalness: 0.05 })
-const RIM_MAT = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.4 })
+const DISC_MAT = new THREE.MeshStandardMaterial({ color: '#fff2f8', roughness: 0.35, metalness: 0.05 })
+const RIM_MAT = new THREE.MeshStandardMaterial({ color: '#ff2e9a', emissive: '#ff2e9a', emissiveIntensity: 1.6, roughness: 0.4 })
+const R_DISC = 0.225 // 0.45 m across
 function discMesh() {
   const g = new THREE.Group()
-  const top = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.018, 28), DISC_MAT)
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.014, 8, 28), RIM_MAT)
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(R_DISC, R_DISC, 0.022, 32), DISC_MAT)
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(R_DISC, 0.028, 8, 32), RIM_MAT)
   rim.rotation.x = Math.PI / 2
   rim.position.y = -0.006
   g.add(top, rim)
@@ -87,10 +100,10 @@ export default function Frisbee() {
   const disc = useMemo(discMesh, [])
   const st = useMemo(() => {
     const r = rand(1701 + 404)
-    const players = SPOTS.map((p, i) => ({ i, home: p, pos: [...p], yaw: 0, clip: 'Idle', ts: 1, once: false, paw: new THREE.Vector3(p[0], Y + HAND, p[1]), task: 'idle', at: 0 }))
+    const players = SPOTS.slice(0, 3).map((p, i) => ({ i, home: p, pos: [...p], yaw: 0, clip: 'Idle', ts: 1, once: false, paw: new THREE.Vector3(p[0], Y + HAND, p[1]), task: 'idle', at: 0 }))
     FRISBEE.players = players
     FRISBEE.mesh = disc
-    return { r, players, throws: 0, flight: null, holdUntil: 2, phase: 'hold', target: 1, groundSince: 0 }
+    return { r, players, throws: 0, flight: null, holdUntil: 2, phase: 'hold', target: 1, groundSince: 0, lastRelease: -10, trailAt: 0 }
   }, [disc])
 
   // the disc lies on the grass: give it to player i (Dan drops it, or a player picks it up)
@@ -124,8 +137,8 @@ export default function Frisbee() {
 
   useInteractable({
     position: () => FRISBEE.pos,
-    radius: 7.5, // you are up on the cloister behind the glass: reach is generous
-    label: 'the frisbee',
+    radius: 10, // you are up on the south cloister behind the glass: reach is generous
+    label: 'the disc',
     verb: 'Throw',
     marker: 'interact',
     get enabled() {
@@ -231,15 +244,27 @@ export default function Frisbee() {
             const az = tgt.pos[1] - h.pos[1]
             const l = Math.hypot(ax, az) || 1
             const side = r() < 0.5 ? -1 : 1
-            const [x, z] = onLawn(tgt.pos[0] + (ax / l) * (4 + r() * 3) + (-az / l) * side * 3, tgt.pos[1] + (az / l) * (4 + r() * 3) + (ax / l) * side * 3)
+            let [x, z] = onLawn(tgt.pos[0] + (ax / l) * (4 + r() * 3) + (-az / l) * side * 3, tgt.pos[1] + (az / l) * (4 + r() * 3) + (ax / l) * side * 3)
+            // it lands where the south cloister can see it and reach it with E (10 m)
+            x = Math.max(-6, Math.min(6, x))
+            z = Math.max(11.5, Math.min(15.5, z))
             to = [x, Y + 0.02, z]
           } else {
-            const [x, z] = onLawn(tgt.home[0] + (r() - 0.5) * 2.4, tgt.home[1] + (r() - 0.5) * 2.4)
+            const [x, z] = onLawn(tgt.home[0] + (r() - 0.5) * 1.6, tgt.home[1] + (r() - 0.5) * 1.6)
             to = [x, Y + HAND, z]
           }
           st.thrower = FRISBEE.holder
+          st.lastRelease = t
           launch(from, to, t, { wild, catcher: wild ? -1 : st.target })
-          h.task = 'idle'
+          // the thrower and the free player run to new spots instead of standing
+          for (const q of P) {
+            if (q.i === st.target) continue
+            const used = P.filter((o) => o !== q).map((o) => o.home)
+            const free = SPOTS.filter((sp) => !used.includes(sp) && Math.hypot(sp[0] - q.pos[0], sp[1] - q.pos[1]) > 2)
+            if (free.length) q.home = free[Math.floor(r() * free.length)]
+            if (q.task === 'idle') q.task = 'home'
+          }
+          h.task = 'home'
           if (!wild) {
             tgt.task = 'run'
             tgt.goal = [to[0], to[2]]
@@ -259,6 +284,11 @@ export default function Frisbee() {
           F.from[2] + dz * u + (dx / l) * c,
         )
         disc.rotation.y += dt * 22
+        // sparkle trail: a few pink and white sparks every 1/30 s
+        if (t > st.trailAt) {
+          st.trailAt = t + 1 / 30
+          fx.sparks([FRISBEE.pos.x, FRISBEE.pos.y, FRISBEE.pos.z], { count: 5, colors: TRAIL, speed: 0.35, up: 0.15, life: 0.55, size: 0.08 })
+        }
         disc.rotation.z = 0.12 * Math.sin(t * 3) + (F.curve > 0 ? 0.15 : -0.15)
         if (u >= 1) {
           if (F.catcher >= 0) {
@@ -273,14 +303,16 @@ export default function Frisbee() {
             st.target = (others.find((q) => q.i !== st.thrower) || others[0]).i
             if (r() < 0.25) st.target = others[Math.floor(r() * others.length)].i
             st.phase = 'hold'
-            st.holdUntil = t + 0.9 + r() * 0.8
+            // one release every 4 s (the wind-up takes 0.37 s)
+            st.holdUntil = Math.max(t + 0.5, st.lastRelease + THROW_EVERY - 0.37)
           } else {
             // on the grass: a short skid, then wait for Dan (or a player, or you)
             FRISBEE.mode = 'ground'
             FRISBEE.pos.set(F.to[0] + (dx / l) * 0.6, Y + 0.02, F.to[2] + (dz / l) * 0.6)
             disc.rotation.set(0, disc.rotation.y, 0.04)
             st.groundSince = t
-            FRISBEE.request = !F.byYou
+            st.youThrew = !!F.byYou
+            FRISBEE.request = false // asked after GROUND_WAIT s, so you get a turn first
             if (F.byYou)
               // you threw it: everybody chases
               for (const q of P) {
@@ -291,6 +323,7 @@ export default function Frisbee() {
           st.flight = null
         }
       } else if (FRISBEE.mode === 'ground') {
+        if (!FRISBEE.claimed && !F && t - st.groundSince > GROUND_WAIT && !st.youThrew && !P.some((q) => q.task === 'fetch' || q.task === 'chase')) FRISBEE.request = true
         // chasers: the first one to reach the disc picks it up
         for (const q of P) {
           if ((q.task === 'chase' || q.task === 'fetch') && Math.hypot(q.pos[0] - FRISBEE.pos.x, q.pos[1] - FRISBEE.pos.z) < 0.45) {
