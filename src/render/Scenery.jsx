@@ -110,6 +110,35 @@ const blackChair = memo((m) => {
   c.metalness = m.name === 'carpet' ? 0 : 0.6
   return c
 })
+// Beinecke Terrace Room (photo 16): honey-oak round tops and slim black upholstered chairs. The
+// scan's walnut map is reddish, so a colour factor alone only gives brighter mahogany. The shader
+// keeps the map's luminance relative to its mean (the grain, at 60% contrast) and takes the hue
+// and brightness from the oak colour (picked by eye against the photo).
+const oakTable = memo((m) => {
+  const c = m.clone()
+  c.color.set('#d2a875')
+  c.roughness = 0.5
+  c.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace(
+      '#include <map_fragment>',
+      `#ifdef USE_MAP
+        const vec3 LUM = vec3( 0.2126, 0.7152, 0.0722 );
+        float grain = dot( texture2D( map, vMapUv ).rgb, LUM );
+        float mean = dot( textureLod( map, vec2( 0.5 ), 12.0 ).rgb, LUM ); // last mip: the map's mean
+        diffuseColor.rgb *= clamp( mix( 1.0, grain / max( mean, 1e-3 ), 0.6 ), 0.0, 1.6 );
+      #endif`,
+    )
+  }
+  c.customProgramCacheKey = () => 'scenery-oak-table'
+  return c
+})
+const blackDiningChair = memo((m) => {
+  const c = m.clone()
+  c.map = null
+  c.color.set('#18181a')
+  c.roughness = 0.55
+  return c
+})
 const greyBin = memo((m) => {
   const c = m.clone()
   c.color.set(m.name === 'metal' ? '#b9bec3' : '#55595e')
@@ -219,7 +248,7 @@ shelves.forEach((sh, i) => {
 const clocks = [{ p: [(x0 + x1) / 2 + 2.5, 2.7, LIBRARY.z1 - 0.12], r: Math.PI, s: 1.3 }]
 const extinguishers = [{ p: [x1 - 0.5, 0, LIBRARY.z1 - 0.35], r: Math.PI, s: 1 }, { p: [-27.9, 0, -24.9], r: Math.PI / 2, s: 1 }]
 
-// Beinecke Terrace Room: walnut round tables, six black leather chairs each (photo 16)
+// Beinecke Terrace Room: oak round tables, six black chairs each (photo 16)
 const beinTables = BEIN_TABLES.map(([x, z], i) => ({ p: [x, 0, z], r: i, s: [1.16, 0.765, 1.16] }))
 const beinChairs = BEIN_TABLES.flatMap(([x, z], t) =>
   Array.from({ length: 6 }, (_, i) => {
@@ -417,8 +446,8 @@ export default function Scenery() {
       <Model name="books" items={books} />
       <Model name="wall_clock" items={clocks} />
       <Model name="extinguisher" items={extinguishers} />
-      <Model name="round_table" items={beinTables} />
-      <Model name="dining_chair" items={beinChairs} />
+      <Model name="round_table" items={beinTables} material={oakTable} />
+      <Model name="dining_chair" items={beinChairs} material={blackDiningChair} />
     </>
   )
 }

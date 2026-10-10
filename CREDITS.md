@@ -21,8 +21,8 @@ Downloaded at 1K, then compressed with glTF-Transform (WebP textures at 512 or 1
 | `plant_b.glb` | Potted Plant 02 by Rico Cilliers, Poly Haven, https://polyhaven.com/a/potted_plant_02 | CC0 1.0 | decimated to 25% |
 | `lounge_chair.glb` | Mid Century Lounge Chair by Kuutti Siitonen, Poly Haven, https://polyhaven.com/a/mid_century_lounge_chair | CC0 1.0 | |
 | `side_table.glb` | Coffee Table Round 01 by Ulan Cabanilla, Poly Haven, https://polyhaven.com/a/coffee_table_round_01 | CC0 1.0 | |
-| `dining_chair.glb` | Dining Chair 02 by James Ray Cock, Poly Haven, https://polyhaven.com/a/dining_chair_02 | CC0 1.0 | decimated to 12% |
-| `round_table.glb` | Round Wooden Table 01 by Ulan Cabanilla, Poly Haven, https://polyhaven.com/a/round_wooden_table_01 | CC0 1.0 | decimated to 40% |
+| `dining_chair.glb` | Dining Chair 02 by James Ray Cock, Poly Haven, https://polyhaven.com/a/dining_chair_02 | CC0 1.0 | decimated to 12%; recoloured black in code |
+| `round_table.glb` | Round Wooden Table 01 by Ulan Cabanilla, Poly Haven, https://polyhaven.com/a/round_wooden_table_01 | CC0 1.0 | decimated to 40%; recoloured to oak in code |
 | `study_table.glb` | Wooden Table 02 by Serhii Khromov, Poly Haven, https://polyhaven.com/a/wooden_table_02 | CC0 1.0 | top recoloured white in code |
 | `shelf.glb` | Shelf 01 by Gabriel Radić, Poly Haven, https://polyhaven.com/a/Shelf_01 | CC0 1.0 | recoloured white in code |
 | `books.glb` | Book Encyclopedia Set 01 by John Malcolm, Poly Haven, https://polyhaven.com/a/book_encyclopedia_set_01 | CC0 1.0 | decimated to 1% |
@@ -42,5 +42,6 @@ Downloaded at 1K, then compressed with glTF-Transform (WebP textures at 512 or 1
 | `tex/grass_*.jpg` | Grass 004 by ambientCG, https://ambientcg.com/view?id=Grass004 | CC0 1.0 | lawn outside, 512 px |
 | `tex/facade_brick_*.jpg` | Facade 018 A by ambientCG, https://ambientcg.com/view?id=Facade018A | CC0 1.0 | neighbour buildings; colour at 2K, normal and roughness at 1K |
 | `tex/facade_brown_*.jpg` | Facade 020 A by ambientCG, https://ambientcg.com/view?id=Facade020A | CC0 1.0 | as above |
+| `tex/fabric_*.jpg` | Fabric 030 by ambientCG, https://ambientcg.com/view?id=Fabric030 | CC0 1.0 | Beinecke curtain weave; normal and roughness at 512 px |
 
 No CC0 water cooler was found on Poly Haven, Kenney or Quaternius, so none is placed.

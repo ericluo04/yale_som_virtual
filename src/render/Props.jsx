@@ -1,7 +1,7 @@
 import { Suspense, useLayoutEffect, useMemo } from 'react'
 import { useThree } from '@react-three/fiber'
 import * as THREE from 'three'
-import { COUNTERS, RECEPTION, SIGNAGE, DRUMS, MEETING, LIBRARY, STAIRS, ellPt } from '../layout.js'
+import { COUNTERS, RECEPTION, SIGNAGE, DRUMS, MEETING, LIBRARY, STAIRS, BEIN, BEIN_CURTAIN, H, EAST, ellPt } from '../layout.js'
 import { slideTex, COURSE_KEYS } from '../slides.js'
 import Scenery, { METAL } from './Scenery.jsx'
 import Backdrop from './Backdrop.jsx'
@@ -297,6 +297,111 @@ function StairDoors() {
   return STAIRS.map((s) => <StairDoor key={s.id} s={s} />)
 }
 
+// ---------- Beinecke Terrace Room: a dark curtain wall behind the mural (photos 16, 17) and slim
+// silver mullions with one transom on the room's glass
+const texLoader = new THREE.TextureLoader()
+const fabricTex = (file, rx, ry) => {
+  const t = texLoader.load(`${import.meta.env.BASE_URL}scenery/tex/${file}`)
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  t.repeat.set(rx, ry)
+  t.anisotropy = 8
+  return t
+}
+// ambientCG Fabric 030 weave; the folds are in the geometry
+const curtainMat = new THREE.MeshStandardMaterial({
+  color: '#232a40', roughness: 1, side: THREE.DoubleSide,
+  normalMap: fabricTex('fabric_normal.jpg', 1, 1), roughnessMap: fabricTex('fabric_rough.jpg', 1, 1), normalScale: new THREE.Vector2(0.6, 0.6),
+})
+function curtainGeo() {
+  const { r, half } = BEIN_CURTAIN
+  const a0 = Math.PI / 2 - half
+  const span = 2 * half
+  const FOLD = 0.2 // pleat spacing along the curtain, m
+  const AMP = 0.035 // pleat depth, m
+  const n = Math.ceil((span * r) / FOLD) * 8
+  const top = H - 0.04
+  const pos = []
+  const uv = []
+  const idx = []
+  for (let i = 0; i <= n; i++) {
+    const th = a0 + (span * i) / n
+    const arcLen = (th - a0) * r
+    const rr = r + AMP * Math.sin((arcLen / FOLD) * Math.PI * 2)
+    const x = BEIN.c[0] + rr * Math.sin(th)
+    const z = BEIN.c[1] + rr * Math.cos(th)
+    pos.push(x, 0, z, x, top, z)
+    uv.push(arcLen / 0.6, 0, arcLen / 0.6, top / 0.6) // weave tiles every 0.6 m
+    if (i < n) {
+      const k = i * 2
+      idx.push(k, k + 2, k + 1, k + 1, k + 2, k + 3)
+    }
+  }
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
+  g.setIndex(idx)
+  g.computeVertexNormals()
+  return g
+}
+const mullionMat = new THREE.MeshStandardMaterial({ color: '#b4bbc1', metalness: 0.85, roughness: 0.3 })
+// vertical mullions about 1.6 m apart (photo 16) and a transom at 4.6 m, on the curved glass and
+// on the straight glass toward the concourse
+function beinMullions() {
+  const { c, r, doorGap } = BEIN
+  const out = []
+  const TRANSOM = 4.6
+  const curve = (t0, t1) => {
+    const n = Math.max(1, Math.round(((t1 - t0) * r) / 1.6))
+    for (let i = 0; i <= n; i++) {
+      const th = t0 + ((t1 - t0) * i) / n
+      const [x, z] = ellPt(c, r - 0.08, r - 0.08, th)
+      out.push({ p: [x, H / 2, z], r: th, s: [0.05, H, 0.1] })
+      if (i < n) {
+        const tm = th + (t1 - t0) / n / 2
+        const [mx, mz] = ellPt(c, r - 0.08, r - 0.08, tm)
+        const chord = 2 * (r - 0.08) * Math.sin((t1 - t0) / n / 2)
+        out.push({ p: [mx, TRANSOM, mz], r: tm, s: [chord, 0.06, 0.08] })
+      }
+    }
+  }
+  curve(0, Math.PI / 2 - doorGap)
+  curve(Math.PI / 2 + doorGap, Math.PI)
+  for (const [z0, z1] of [[-r, -1.3], [1.3, r]]) {
+    const n = Math.round((z1 - z0) / 1.6)
+    for (let i = 0; i <= n; i++) {
+      const z = z0 + ((z1 - z0) * i) / n
+      out.push({ p: [EAST + 0.08, H / 2, z], r: 0, s: [0.1, H, 0.05] })
+      if (i < n) out.push({ p: [EAST + 0.08, TRANSOM, z + (z1 - z0) / n / 2], r: 0, s: [0.08, 0.06, (z1 - z0) / n] })
+    }
+  }
+  return out
+}
+function Boxes({ items, material }) {
+  const geo = useMemo(() => {
+    const g = box.clone()
+    const m = new THREE.Matrix4()
+    const q = new THREE.Quaternion()
+    const up = new THREE.Vector3(0, 1, 0)
+    return { g, set: (mesh) => {
+      if (!mesh) return
+      items.forEach((it, i) => mesh.setMatrixAt(i, m.compose(new THREE.Vector3(...it.p), q.setFromAxisAngle(up, it.r), new THREE.Vector3(...it.s))))
+      mesh.instanceMatrix.needsUpdate = true
+      mesh.computeBoundingSphere()
+    } }
+  }, [items])
+  return <instancedMesh ref={geo.set} args={[geo.g, material, items.length]} castShadow receiveShadow />
+}
+function Beinecke() {
+  const curtain = useMemo(curtainGeo, [])
+  const mullions = useMemo(beinMullions, [])
+  return (
+    <>
+      <mesh geometry={curtain} material={curtainMat} receiveShadow />
+      <Boxes items={mullions} material={mullionMat} />
+    </>
+  )
+}
+
 export default function Props() {
   return (
     <>
@@ -309,6 +414,7 @@ export default function Props() {
       <RoomPlates />
       <DirectionSigns />
       <StairDoors />
+      <Beinecke />
       <Suspense fallback={null}>
         {!OFF.has('scenery') && <Scenery />}
         {!OFF.has('backdrop') && <Backdrop />}

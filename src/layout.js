@@ -319,6 +319,10 @@ export const RECEPTION = { x: LIBRARY.x1 - 1.6, z: -2.4, w: 2.8, d: 0.8 }
 W([RECEPTION.x, RECEPTION.z - RECEPTION.w / 2], [RECEPTION.x, RECEPTION.z + RECEPTION.w / 2], 'none', { t: RECEPTION.d })
 export const SIGNAGE = STAIRS.filter((s) => s.id === 'A' || s.id === 'B').map((s) => ({ x: s.c[0], z: s.c[1] - Math.sign(s.c[1]) * (s.d / 2 + 0.03), rot: s.c[1] > 0 ? Math.PI : 0 }))
 
+// Beinecke: a full-height dark curtain on a curve just behind the mural (render/Props.jsx)
+export const BEIN_CURTAIN = { r: BEIN.muralR + 0.3, half: BEIN.muralHalf + 0.12 }
+P(arc(BEIN.c, BEIN_CURTAIN.r, BEIN_CURTAIN.r, Math.PI / 2 - BEIN_CURTAIN.half, Math.PI / 2 + BEIN_CURTAIN.half, 20), 'none', { t: 0.15 })
+
 // ---------- scenery (render/Scenery.jsx draws scanned CC0 models; colliders here)
 // more plants in front of the drums, between the counters and the doors
 export const PLANTS_EXTRA = [[-18.6, -25.3], [3.4, -25.3], [11.9, -25.3], [-18.5, 26.2], [3.5, 26.2], [11.5, 26.2], [-27.4, -22.6], [27.9, 22.4]]
