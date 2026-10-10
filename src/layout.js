@@ -224,6 +224,10 @@ for (const s of STAIRS) {
   P(q, 'white')
 }
 
+// recycling pair against the west face of stair G's core (render/Fixtures.jsx)
+export const RECYCLE = [{ p: [22.73, 26.1], r: -Math.PI / 2 }]
+for (const { p } of RECYCLE) W([p[0], p[1] - 0.55], [p[0], p[1] + 0.55], 'none', { t: 0.55 })
+
 // small glass meeting rooms in strips behind each drum row
 export const MEETING = []
 const M_X1 = 22.6

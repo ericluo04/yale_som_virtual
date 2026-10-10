@@ -5,6 +5,7 @@ import { COUNTERS, RECEPTION, SIGNAGE, DRUMS, MEETING, LIBRARY, STAIRS, BEIN, BE
 import { slideTex, COURSE_KEYS } from '../slides.js'
 import Scenery, { METAL } from './Scenery.jsx'
 import Backdrop from './Backdrop.jsx'
+import Fixtures from './Fixtures.jsx'
 import { OFF } from './debugCam.js'
 import { pbr, worldUV } from './pbr.js'
 
@@ -478,6 +479,7 @@ export default function Props() {
       <Beinecke />
       <MeetingTables />
       <Library />
+      {!OFF.has('fixtures') && <Fixtures />}
       <Suspense fallback={null}>
         {!OFF.has('scenery') && <Scenery />}
         {!OFF.has('backdrop') && <Backdrop />}

@@ -253,7 +253,8 @@ function useMaterials() {
       poster: new THREE.MeshBasicMaterial({ map: T.posterTex() }),
       board: std({ color: '#fbfbf8', roughness: 0.3 }),
       dark: std({ color: '#1b1c20', roughness: 0.6 }),
-      exit: new THREE.MeshBasicMaterial({ map: T.exitTex() }),
+      // lit exit signs over the stair doors: above 1 and not tone mapped, so they catch a little bloom
+      exit: new THREE.MeshBasicMaterial({ map: T.exitTex(), color: new THREE.Color(1.8, 1.8, 1.8), toneMapped: false }),
       opening: std({ map: T.stairOpeningTex(), roughness: 0.9 }),
       pot: std({ color: '#26262a', roughness: 0.7 }),
       leaf: std({ color: '#3f7a35', roughness: 0.9 }),
