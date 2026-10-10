@@ -69,17 +69,27 @@ const AISLE_HALF = 0.8
 const TIER_SPAN = 1.42 // radians each side of the center aisle covered by risers
 const bandStart = (i) => ROW0 - 0.35 + i * ROW_STEP
 const SLIDE_ORDER = ['title', 'chart', 'content']
+// Walk-through gaps between neighbouring drums (Lan, round 3): at least 2.2 m clear between the
+// colliders of two drums, door fins included, so a player walks from the cloister to the back
+// corridor between any two classrooms. The plan's ovals touched or nearly touched (1.45 m between
+// the north drums, 0.35 m between their door fins). Each drum of the three-drum runs loses width
+// along the row (x) only: the south ovals 6.5 -> 6.15 m, the north drums 6.85 -> 6.3 m. The wood
+// door fins stand out 0.3 m (was 0.7), since at 0.7 they alone closed half of each gap.
+const RX_S = 6.15
+const RX_N = 6.3
+const FIN = 0.3
 export const DRUMS = [
   // south row: a 16 x 20 m oval in the southwest corner, then three 13 x 19 m ovals (long axis N-S)
   { id: '2400', course: 'mgt409', name: 'MBA Class of 1980 Classroom', c: [-32.3, 34.7], rx: 8, rz: 10, front: [1, 0] },
-  { id: '2410', course: 'mgt404', name: 'Bewkes Classroom', c: [-15, 34.7], rx: 6.5, rz: 9.3, front: [0, -1] },
-  { id: '2420', course: 'mgt403', name: 'Betts Classroom', c: [0, 34.7], rx: 6.5, rz: 9.3, front: [0, -1] },
-  { id: '2430', course: 'mgt887', name: 'Baker Classroom', c: [15, 34.7], rx: 6.5, rz: 9.3, front: [0, -1] },
+  { id: '2410', course: 'mgt404', name: 'Bewkes Classroom', c: [-15, 34.7], rx: RX_S, rz: 9.3, front: [0, -1] },
+  { id: '2420', course: 'mgt403', name: 'Betts Classroom', c: [0, 34.7], rx: RX_S, rz: 9.3, front: [0, -1] },
+  { id: '2430', course: 'mgt887', name: 'Baker Classroom', c: [15, 34.7], rx: RX_S, rz: 9.3, front: [0, -1] },
   // north row: a 15 x 16 m oval in the northwest corner, then three round 13.7 x 12.4 m drums
+  // (both rows' three-drum runs narrowed along x for the walk-through gaps, RX_S and RX_N above)
   { id: '2200', course: 'mgt402', name: 'Blumetti Classroom', c: [-32.9, -32.6], rx: 7.3, rz: 7.9, front: [1, 0] },
-  { id: '2210', course: 'mgt538', name: 'Allison Foundation Classroom', c: [-15.3, -31.1], rx: 6.85, rz: 6.2, front: [0, 1] },
-  { id: '2220', course: 'mgt800', name: 'Jones Classroom', c: [0, -31.1], rx: 6.85, rz: 6.2, front: [0, 1] },
-  { id: '2230', course: 'mgt541', name: 'Nooyi Classroom', c: [15.3, -31.1], rx: 6.85, rz: 6.2, front: [0, 1] },
+  { id: '2210', course: 'mgt538', name: 'Allison Foundation Classroom', c: [-15.3, -31.1], rx: RX_N, rz: 6.2, front: [0, 1] },
+  { id: '2220', course: 'mgt800', name: 'Jones Classroom', c: [0, -31.1], rx: RX_N, rz: 6.2, front: [0, 1] },
+  { id: '2230', course: 'mgt541', name: 'Nooyi Classroom', c: [15.3, -31.1], rx: RX_N, rz: 6.2, front: [0, 1] },
 ].map((d) => {
   const dir = norm(d.front)
   const phi = Math.atan2(dir[0], dir[1])
@@ -150,7 +160,7 @@ for (const d of DRUMS) {
       const p = ellPt(c, rx, rz, e)
       const pin = ellPt(c, rx - DRUM_WALL, rz - DRUM_WALL, e)
       const n = norm([p[0] - c[0], p[1] - c[1]])
-      W(pin, [p[0] + n[0] * 0.7, p[1] + n[1] * 0.7], 'slats', { t: 0.14 })
+      W(pin, [p[0] + n[0] * FIN, p[1] + n[1] * FIN], 'slats', { t: 0.14 })
     }
   }
 
