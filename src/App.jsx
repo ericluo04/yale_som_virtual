@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { PerformanceMonitor, Stats } from '@react-three/drei'
 import * as THREE from 'three'
@@ -14,6 +14,7 @@ import { useStore } from './interact/store.js'
 import InteractUI from './ui/InteractUI.jsx'
 import EggsA from './eggs/eggsA.jsx'
 import EggsB from './eggs/eggsB.jsx'
+import Loading, { LoadingProbe } from './ui/Loading.jsx'
 
 export default function App() {
   const [locked, setLocked] = useState(false)
@@ -57,11 +58,14 @@ export default function App() {
           gl.outputColorSpace = THREE.SRGBColorSpace
         }}
       >
-        <World />
+        <Suspense fallback={null}>
+          <World />
+          <InteractScene />
+          <EggsA />
+          <EggsB />
+        </Suspense>
         <Player lockRef={lockRef} mapRef={mapRef} touchRef={touchRef} onLock={onLock} onWhere={onWhere} />
-        <InteractScene />
-        <EggsA />
-        <EggsB />
+        <LoadingProbe />
         {/* N8AO keeps stale half-res buffers across a pixel-ratio change, so the chain remounts */}
         <Effects key={dpr} />
         {QUALITY !== 'low' && !DPR && (
@@ -121,6 +125,7 @@ export default function App() {
           </div>
         </div>
       )}
+      <Loading />
     </>
   )
 }
