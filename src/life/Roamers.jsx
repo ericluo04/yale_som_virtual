@@ -188,7 +188,8 @@ function Roamer({ cfg, id }) {
           ts = 1.6
           if (u >= 1) {
             tk.opened = true
-            openDialogue([{ speaker: cfg.name, text: tk.text }])
+            // avatar: a portrait spec for src/ui/portraits.js (r3-h), drawn from this roamer's fur, face and shirt
+            openDialogue([{ speaker: cfg.name, text: tk.text, avatar: { kind: 'labubu', color: cfg.fur, expression: cfg.expression, shirt: cfg.shirt } }])
           }
         } else {
           clip = 'Talk'

@@ -2,9 +2,8 @@ import { Suspense, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { LIFE, LIFE_ON } from './common.js'
 import Roamers from './Roamers.jsx'
-import Frisbee from './Frisbee.jsx'
 import { Bursts } from './fx.jsx'
-import Spells from './Spells.jsx'
+import SpellSchool from './SpellSchool.jsx'
 import Ambient from './Ambient.jsx'
 import Birds from './Birds.jsx'
 
@@ -20,8 +19,7 @@ function LifeOn() {
     <group ref={ref}>
       <Suspense fallback={null}>
         <Roamers />
-        <Frisbee />
-        <Spells />
+        <SpellSchool />
         <Ambient />
         <Birds />
         <Bursts />

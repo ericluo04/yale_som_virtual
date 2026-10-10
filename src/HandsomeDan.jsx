@@ -1,13 +1,15 @@
 import { Suspense, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
+import * as THREE from 'three'
 import { preloadModel, useClipPlayer, useRigInstance } from './characters/rig.js'
-import { DRUMS, ellPt } from './layout.js'
-import { FRISBEE } from './life/Frisbee.jsx'
-import { fx } from './life/fx.jsx'
-import { LIFE_ON, sfx } from './life/common.js'
+import { turnToward } from './life/common.js'
+import { BENCHES, DRUMS, PLANTS, PLANTS_EXTRA, ellPt } from './layout.js'
 
 // Handsome Dan, Yale's bulldog. He tours a loop of 1000 randomly chosen classrooms:
 // walk the cloister to the next room, go in through a door, pause at the front, head back out.
+// On the cloister loop he stops now and then: he trots over to a potted plant and sniffs it for 3 s, and when
+// you are within 5 m as he passes a banquette he sits by it for 6 s and his head follows you (up to 60 degrees
+// either way of his body).
 
 export const DAN = { x: 0, z: 0 } // live position for the minimap
 
@@ -84,6 +86,45 @@ function legPath(from, to) {
   return [A.inside, ...A.via, A.inner, A.outer, ...ringPath(A.ring, Bb.ring), Bb.outer, Bb.inner, ...[...Bb.via].reverse(), Bb.inside]
 }
 
+// stops on the loop: plants within 3.2 m of it (sniffed at most every 90 s each), banquettes (a sit at most
+// every 40 s each, and only while you are near), and at least 20 s of walking between two stops
+// A plant's stop is the nearest loop point within 3.2 m whose straight walk to the pot clears every banquette
+// by 0.5 m (the plant at (8.8, -20.55) stands behind one).
+const BENCH_SEGS = BENCHES.map((b) => {
+  const d = [Math.cos(b.rot), -Math.sin(b.rot)]
+  return [[b.c[0] - (d[1] * b.len) / 2, b.c[1] + (d[0] * b.len) / 2], [b.c[0] + (d[1] * b.len) / 2, b.c[1] - (d[0] * b.len) / 2]]
+})
+function segDist(p, q, a, b) {
+  // distance between segments pq and ab (sampled along pq: plenty for 3 m walks)
+  let best = Infinity
+  for (let i = 0; i <= 20; i++) {
+    const x = p[0] + ((q[0] - p[0]) * i) / 20
+    const z = p[1] + ((q[1] - p[1]) * i) / 20
+    const dx = b[0] - a[0]
+    const dz = b[1] - a[1]
+    const u = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz)))
+    best = Math.min(best, Math.hypot(x - a[0] - dx * u, z - a[1] - dz * u))
+  }
+  return best
+}
+const SNIFFS = [...PLANTS, ...PLANTS_EXTRA].flatMap((p) => {
+  const ring = RING.map((r, i) => ({ i, d: Math.hypot(r[0] - p[0], r[1] - p[1]) }))
+    .filter((r) => r.d < 3.2)
+    .sort((a, b) => a.d - b.d)
+    .find((r) => BENCH_SEGS.every(([a, b]) => segDist(RING[r.i], p, a, b) > 0.95)) // half the 0.9 m depth + 0.5
+  return ring ? [{ kind: 'sniff', p, ring: ring.i, next: 8 }] : []
+})
+const SITS = BENCHES.map((b) => ({ kind: 'sit', p: b.c, ring: nearestRing(b.c), next: 0 }))
+const STOPS = [...SNIFFS, ...SITS]
+const SNIFF_S = 3
+const SIT_S = 6
+const SIT_NEAR = 5 // m from the camera
+const HEAD_MAX = Math.PI / 3
+const _ax = new THREE.Vector3()
+const _fw = new THREE.Vector3()
+const _pq = new THREE.Quaternion()
+const _hq = new THREE.Quaternion()
+
 preloadModel('handsome_dan')
 
 const STRIDE = 0.55 // meters covered per Walk cycle at timeScale 1 (the clip is 0.8 s)
@@ -96,127 +137,113 @@ function DanModel() {
 
   const state = useMemo(() => {
     const order = tour(1701) // Yale founded 1701
-    return { order, leg: 0, path: legPath(order[0], order[1]), seg: 0, u: 0, pause: 0 }
+    return { order, leg: 0, path: legPath(order[0], order[1]), seg: 0, u: 0, pause: 0, stop: null, headYaw: 0 }
   }, [])
-
-  const ep = useMemo(() => ({ phase: null, t: 0, saved: null, target: -1 }), [])
-  const jaw = useMemo(() => {
-    let j = null
-    object.traverse((b) => b.isBone && b.name === 'jaw' && (j = b))
-    return j
-  }, [object])
   const headBone = useMemo(() => {
     let j = null
     object.traverse((b) => b.isBone && b.name === 'head' && (j = b))
     return j
   }, [object])
+  // the head's forward axis in its own frame, read from the rest pose (the rest pose is the Idle pose, head
+  // straight ahead along the body's +z). The Sit clip pitches the spine up, which swings the head sideways,
+  // so the sit aims the head from its measured direction instead of adding a fixed offset.
+  const headFwd = useMemo(() => {
+    if (!headBone) return null
+    object.updateMatrixWorld(true)
+    const rel = object.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(headBone.getWorldQuaternion(new THREE.Quaternion()))
+    return new THREE.Vector3(0, 0, 1).applyQuaternion(rel.invert())
+  }, [object, headBone])
+  if (import.meta.env.DEV && typeof window !== 'undefined') {
+    // dev readout, and danStop(i) to put him at stop i now (screenshots; the sit skips the 5 m check)
+    window.__life ||= {}
+    window.__life.dan = () => [root.current.position.x, root.current.position.z, root.current.rotation.y, state.stop?.kind, state.stop?.phase, state.headYaw, Object.keys(actions).filter((k) => actions[k].isRunning()).join("+")]
+    window.__life.danStops = STOPS.map((q) => [q.kind, ...q.p])
+    window.__life.danStop = (i) => (state.force = i)
+  }
 
-  // The frisbee episode (src/life/Frisbee.jsx): when a disc lies on the lawn and Dan is out on the cloister loop,
-  // he apparates down to the lawn, sniffs the disc, carries it in his mouth to the nearest player, and apparates
-  // back to the exact spot of his tour, which then carries on.
-  const episode = (t, dt) => {
+  // a stop on the loop; returns true while it holds Dan in place of the tour
+  const stopStep = (st, t, dt, camera) => {
     const o = root.current
-    const here = [o.position.x, o.position.y, o.position.z]
-    const pop = (p) => {
-      fx.sparks([p[0], p[1] + 0.45, p[2]], { count: 160, colors: ['#ffffff', '#4a8fe7', '#ffd36e'], speed: 2.4, life: 0.7 })
-      sfx.pop(p[0], p[1] + 0.4, p[2])
-    }
-    const runTo = (gx, gz, stopAt) => {
-      const dx = gx - o.position.x
-      const dz = gz - o.position.z
+    const S = st.stop
+    const walkTo = (to, gap) => {
+      const dx = to[0] - o.position.x
+      const dz = to[1] - o.position.z
       const d = Math.hypot(dx, dz)
-      if (d > stopAt + 0.02) {
-        const k = Math.min(2.6 * dt, d - stopAt) / d
-        o.position.x += dx * k
-        o.position.z += dz * k
-        let a = Math.atan2(dx, dz) - o.rotation.y
-        a = Math.atan2(Math.sin(a), Math.cos(a))
-        o.rotation.y += a * Math.min(1, dt * 8)
-        play('Walk', { timeScale: (2.6 / STRIDE) * 0.8 })
+      if (d <= gap + 0.02) return true
+      const k = Math.min(SPEED * dt, d - gap) / d
+      o.position.x += dx * k
+      o.position.z += dz * k
+      turnToward(o, Math.atan2(dx, dz), dt * 8)
+      play('Walk', { timeScale: walkScale })
+      return false
+    }
+    if (S.kind === 'sniff') {
+      if (S.phase === 'go' && walkTo(S.q.p, 0.75)) {
+        S.phase = 'sniff'
+        S.t0 = t
+      } else if (S.phase === 'sniff') {
+        play('Idle')
+        turnToward(o, Math.atan2(S.q.p[0] - o.position.x, S.q.p[1] - o.position.z), dt * 6)
+        // nose down to the pot on top of the Idle clip
+        if (headBone) headBone.rotateX(-0.5 - 0.08 * Math.sin(t * 14))
+        if (t - S.t0 > SNIFF_S) S.phase = 'back'
+      } else if (S.phase === 'back' && walkTo(S.from, 0)) {
+        st.stop = null
+        st.quiet = t + 20
         return false
       }
-      return true
-    }
-    if (ep.phase === 'out') {
-      if (t - ep.t > 0.35) {
-        // land 3.5 m from the disc, on the lawn side away from the glass
-        const p = FRISBEE.pos
-        const l = Math.hypot(p.x, p.z) || 1
-        o.position.set(p.x - (p.x / l) * 3.5, -5, p.z - (p.z / l) * 3.5)
-        o.visible = true
-        pop([o.position.x, -5, o.position.z])
-        ep.phase = 'toDisc'
+    } else {
+      // sit by the banquette turned toward you as you were when he sat; the head then follows you
+      play('Sit')
+      S.yaw ??= Math.atan2(camera.position.x - o.position.x, camera.position.z - o.position.z)
+      turnToward(o, S.yaw, dt * 5)
+      let a = Math.atan2(camera.position.x - o.position.x, camera.position.z - o.position.z) - o.rotation.y
+      a = Math.atan2(Math.sin(a), Math.cos(a))
+      a = Math.max(-HEAD_MAX, Math.min(HEAD_MAX, a))
+      st.headYaw += (a - st.headYaw) * Math.min(1, dt * 5)
+      if (headBone && headFwd) {
+        // where the head points now (after the clip), then turn it about the world vertical through its pivot
+        // to body yaw + headYaw; the turn is expressed in the head's parent space
+        _fw.copy(headFwd).applyQuaternion(headBone.getWorldQuaternion(_hq))
+        let d = o.rotation.y + st.headYaw - Math.atan2(_fw.x, _fw.z)
+        d = Math.atan2(Math.sin(d), Math.cos(d))
+        headBone.parent.getWorldQuaternion(_pq).invert()
+        _ax.set(0, 1, 0).applyQuaternion(_pq)
+        headBone.quaternion.premultiply(_hq.setFromAxisAngle(_ax, d))
       }
-    } else if (ep.phase === 'toDisc') {
-      if (runTo(FRISBEE.pos.x, FRISBEE.pos.z, 0.55)) {
-        ep.phase = 'sniff'
-        ep.t = t
+      if (t - S.t0 > SIT_S) {
+        st.stop = null
+        st.quiet = t + 20
+        st.headYaw = 0
+        return false
       }
-    } else if (ep.phase === 'sniff') {
-      play('Idle')
-      if (t - ep.t > 1.7) {
-        // pick it up by the rim
-        if (jaw) {
-          jaw.add(FRISBEE.mesh)
-          FRISBEE.mesh.position.set(0, 0.17, -0.01)
-          FRISBEE.mesh.rotation.set(Math.PI / 2, 0, 0)
-        }
-        FRISBEE.mode = 'dan'
-        const P = FRISBEE.players
-        ep.target = P.reduce((b, q) => (Math.hypot(q.pos[0] - o.position.x, q.pos[1] - o.position.z) < Math.hypot(P[b].pos[0] - o.position.x, P[b].pos[1] - o.position.z) ? q.i : b), 0)
-        ep.phase = 'carry'
-      }
-    } else if (ep.phase === 'carry') {
-      const q = FRISBEE.players[ep.target]
-      q.yaw = Math.atan2(o.position.x - q.pos[0], o.position.z - q.pos[1])
-      if (runTo(q.pos[0], q.pos[1], 1.0)) {
-        FRISBEE.give(ep.target)
-        ep.phase = 'linger'
-        ep.t = t
-      }
-    } else if (ep.phase === 'linger') {
-      play('Idle')
-      if (t - ep.t > 1.4) {
-        pop(here)
-        o.visible = false
-        ep.phase = 'back'
-        ep.t = t
-      }
-    } else if (ep.phase === 'back' && t - ep.t > 0.35) {
-      o.position.set(...ep.saved.p)
-      o.rotation.y = ep.saved.r
-      o.visible = true
-      pop(ep.saved.p)
-      ep.phase = null
     }
     DAN.x = o.position.x
     DAN.z = o.position.z
+    return true
   }
-  if (import.meta.env.DEV && typeof window !== 'undefined') (window.__life ||= {}).dan = () => [root.current.position.x, root.current.position.y, root.current.position.z, root.current.rotation.y, ep.phase, FRISBEE.claimed, FRISBEE.request]
 
-  useFrame(({ clock }, rawDt) => {
+  useFrame(({ clock, camera }, rawDt) => {
     const dt = Math.min(rawDt, 0.05)
     const st = state
     const t = clock.elapsedTime
-    if (ep.phase) {
-      episode(t, dt)
-      // sniffing: nose down to the grass on top of the Idle clip
-      if (ep.phase === 'sniff' && headBone) headBone.rotateX(-0.45 - 0.08 * Math.sin(t * 14))
-      return
+    if (import.meta.env.DEV && st.force !== undefined) {
+      const q = STOPS[st.force]
+      root.current.position.set(RING[q.ring][0], 0, RING[q.ring][1])
+      st.stop = { kind: q.kind, q, phase: 'go', t0: t, from: RING[q.ring] }
+      st.force = undefined
     }
-    // start an episode when the disc is waiting on the grass and Dan is out on the cloister loop
-    if (LIFE_ON && FRISBEE.request && !FRISBEE.claimed && st.pause <= 0) {
+    if (st.stop && stopStep(st, t, dt, camera)) return
+    // start a stop when he walks past its ring point on the loop
+    if (!st.stop && st.pause <= 0 && !(t < st.quiet)) {
       const p = root.current.position
-      const r = RING[nearestRing([p.x, p.z])]
-      if (Math.hypot(r[0] - p.x, r[1] - p.z) < 0.3) {
-        FRISBEE.claimed = true
-        ep.saved = { p: [p.x, p.y, p.z], r: root.current.rotation.y }
-        ep.phase = 'out'
-        ep.t = t
-        fx.sparks([p.x, 0.45, p.z], { count: 160, colors: ['#ffffff', '#4a8fe7', '#ffd36e'], speed: 2.4, life: 0.7 })
-        sfx.pop(p.x, 0.4, p.z)
-        root.current.visible = false
-        return
+      for (const q of STOPS) {
+        if (t < q.next || Math.hypot(RING[q.ring][0] - p.x, RING[q.ring][1] - p.z) > 0.3) continue
+        if (q.kind === 'sit' && Math.hypot(camera.position.x - p.x, camera.position.z - p.z) > SIT_NEAR) continue
+        q.next = t + (q.kind === 'sit' ? 40 : 90)
+        st.stop = { kind: q.kind, q, phase: 'go', t0: t, from: [p.x, p.z] }
+        if (stopStep(st, t, dt, camera)) return
+        break
       }
     }
     let moving = true
