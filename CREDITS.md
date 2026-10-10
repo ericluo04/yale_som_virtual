@@ -8,6 +8,7 @@ Third-party assets bundled in `public/`. All are released under CC0 1.0 (public 
 | `public/tex/wood_*.jpg` | Wood 092 by ambientCG, https://ambientcg.com/view?id=Wood092 | CC0 1.0 |
 | `public/tex/plaster_*.jpg` | Painted Plaster 017 by ambientCG, https://ambientcg.com/view?id=PaintedPlaster017 | CC0 1.0 |
 | `public/hdri/kloofendal_48d_partly_cloudy_puresky_1k.hdr` | Kloofendal 48d Partly Cloudy (Pure Sky) by Greg Zaal and Jarod Guest, Poly Haven, https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky | CC0 1.0 |
+| `public/hdri/kloofendal_48d_partly_cloudy_sky_4k.jpg` | The same Poly Haven HDRI at 4K, encoded as an 8-bit JPG: each channel stores L / (1 + L) of the linear radiance, the sun disc clipped at 200, the lower hemisphere replaced by a flat horizon haze. It is the visible sky on the backdrop sphere (`src/render/Backdrop.jsx`), which decodes it back to HDR | CC0 1.0 |
 
 The ambientCG sets were downloaded at 1K and re-encoded as JPG (colour and roughness at quality 80, normal maps at quality 90). Only the colour, OpenGL normal, and roughness maps are kept.
 
@@ -32,7 +33,7 @@ Downloaded at 1K, then compressed with glTF-Transform (WebP textures at 512 or 1
 | `office_chair.glb` | chairDesk from the Furniture Kit by Kenney, https://kenney.nl/assets/furniture-kit | CC0 1.0 | recoloured black in code |
 | `trash_bin.glb` | trashcan from the Furniture Kit by Kenney, https://kenney.nl/assets/furniture-kit | CC0 1.0 | recoloured in code |
 | `tree_maple.glb`, `tree_aspen.glb`, `tree_birch.glb` | Grown for this project in Blender 5.2 with the Sapling Tree Gen add-on (https://extensions.blender.org/add-ons/sapling-tree-gen/, GPL; its output carries no licence of its own) from the small maple, quaking aspen and white birch presets. Bark: Bark 001 and Bark 007 by ambientCG (https://ambientcg.com/view?id=Bark001, https://ambientcg.com/view?id=Bark007). Leaf-twig cards composited from Leaf 001 by ambientCG (https://ambientcg.com/view?id=Leaf001) | CC0 1.0 | |
-| `backdrop_museumplein_2k.jpg` | Museumplein by Greg Zaal, Poly Haven, https://polyhaven.com/a/museumplein | CC0 1.0 | 2K HDR tone mapped (ACES) to an 8-bit equirectangular JPG |
+| `backdrop_museumplein_2k.jpg` | Museumplein by Greg Zaal, Poly Haven, https://polyhaven.com/a/museumplein | CC0 1.0 | 2K HDR tone mapped (ACES) to an 8-bit equirectangular JPG. No longer referenced: the backdrop sphere shows the Kloofendal sky instead |
 | `tex/leather_*.jpg` | Leather 037 by ambientCG, https://ambientcg.com/view?id=Leather037 | CC0 1.0 | normal and roughness at 512 px |
 | `tex/metal_*.jpg` | Metal 027 by ambientCG, https://ambientcg.com/view?id=Metal027 | CC0 1.0 | normal and roughness at 512 px |
 | `tex/carpet_*_2k.jpg` | Carpet 016 by ambientCG at 2K, https://ambientcg.com/view?id=Carpet016 | CC0 1.0 | swapped in at run time for the 1K normal and roughness maps of the same set |

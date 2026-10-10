@@ -3,12 +3,16 @@ import { useFrame, useLoader } from '@react-three/fiber'
 import * as THREE from 'three'
 import { BOUNDS, EAST, BEIN } from '../layout.js'
 import { Trees } from './Scenery.jsx'
+import { SUN_DIR } from './Lighting.jsx'
 
 // What the player sees through the perimeter glass. Two layers:
-//  1. far: an outdoor panorama (Poly Haven "Museumplein", CC0) on a sphere that follows the camera,
-//     so its horizon of low buildings and autumn trees stays at eye level. It is an 8-bit JPG tone
-//     mapped from the 2K HDR (6.5 MB as .hdr, 0.43 MB as .jpg). It covers the World's pure-sky HDRI,
-//     which stays as scene.background underneath.
+//  1. far: the sky. The Poly Haven "Kloofendal 48d Partly Cloudy (Pure Sky)" HDRI (CC0), the same
+//     sky the lightmaps were baked under and the drei Environment background, as a 4K 8-bit JPG
+//     (0.38 MB) on a sphere that follows the camera. Pure sky has no ground or buildings in it, so
+//     nothing in it can disagree with the street geometry below or show a seam. Each channel holds
+//     t = L / (1 + L) and the shader decodes L = t / (1 - t), so clouds and the sun disc keep their
+//     HDR range through the ACES tone mapping. The lower hemisphere of the JPG is a flat horizon
+//     haze; the ground plane covers all of it but a 1 degree band at the horizon.
 //  2. near: the street outside at ground level (5 m below floor 2): lawn, raised sidewalks with
 //     kerbs, Whitney Avenue to the west and a street to the north, street trees, and low brick
 //     neighbours across the road with photo-scanned facades.
@@ -16,25 +20,39 @@ const BASE = import.meta.env.BASE_URL
 const G = -5 // ground level relative to the floor 2 slab
 const SKY_R = 450
 
-// Lighting.jsx puts the sun at (-0.42, 1.05, 0.45), south-west. The panorama's brightest pixel sits
-// at u = 0.601, so the sphere turns until that column lies under the sun's azimuth.
-const SUN_AZ = Math.atan2(0.45, -0.42)
-const PANO_SUN_U = 0.601
+// The sky's sun sits at u = 0.595 (48 degrees up, measured on the 2K HDR); the sphere turns until
+// that column lies under the azimuth of Lighting.jsx's sun, so the sun disc, the shadows and the
+// bright side of the sky agree.
+const SUN_AZ = Math.atan2(SUN_DIR.z, SUN_DIR.x)
+const PANO_SUN_U = 0.595
 const SKY_YAW = Math.PI * 2 * PANO_SUN_U - SUN_AZ
+// sky radiance scale: 1 is the HDR as shot. A blue sky is dimmer than sunlit white paving, and at
+// 0.7 the sky through the courtyard reads blue next to the sunlit lawn and floors. My judgment
+// from the screenshots.
+const SKY_GAIN = 0.7
 
 function Sky() {
   const ref = useRef()
-  const map = useLoader(THREE.TextureLoader, `${BASE}scenery/backdrop_museumplein_2k.jpg`)
+  const map = useLoader(THREE.TextureLoader, `${BASE}hdri/kloofendal_48d_partly_cloudy_sky_4k.jpg`)
   const { geo, mat } = useMemo(() => {
-    map.colorSpace = THREE.SRGBColorSpace
+    map.colorSpace = THREE.NoColorSpace // the encoding is linear Reinhard, not sRGB
     map.anisotropy = 4
+    map.generateMipmaps = true
     const g = new THREE.SphereGeometry(SKY_R, 64, 32)
     g.scale(-1, 1, 1) // seen from inside, unmirrored
-    const m = new THREE.MeshBasicMaterial({ map, toneMapped: false, depthWrite: false, fog: false })
+    const m = new THREE.MeshBasicMaterial({ map, depthWrite: false, fog: false })
+    m.onBeforeCompile = (sh) => {
+      sh.fragmentShader = sh.fragmentShader.replace(
+        '#include <map_fragment>',
+        `vec3 skyT = min( texture2D( map, vMapUv ).rgb, vec3( 254.0 / 255.0 ) );
+        diffuseColor.rgb *= skyT / ( 1.0 - skyT ) * ${SKY_GAIN.toFixed(3)};`,
+      )
+    }
     return { geo: g, mat: m }
   }, [map])
   useFrame(({ camera }) => ref.current.position.copy(camera.position))
-  return <mesh ref={ref} geometry={geo} material={mat} rotation={[0, SKY_YAW, 0]} renderOrder={-1} frustumCulled={false} userData={{ dynamic: true }} />
+  // not flagged dynamic, so the drum reflection probes capture it (it casts and receives nothing)
+  return <mesh ref={ref} geometry={geo} material={mat} rotation={[0, SKY_YAW, 0]} renderOrder={-1} frustumCulled={false} />
 }
 
 // ---------- canvas textures for the street
@@ -111,6 +129,10 @@ const NEIGHBOURS = [
   [36, -77, 20, 12, 9.9, 0],
   [62, 52, 14, 18, 9.9, 1], // low blocks east, seen past the Beinecke terrace
   [66, -46, 12, 16, 9.9, 0],
+  // east, straight out of the Beinecke glass: with a pure sky and no photo horizon, this view
+  // had only lawn to the horizon
+  [76, 14, 16, 24, 13.2, 0],
+  [82, -14, 14, 22, 16.5, 1],
 ]
 const FACADES = ['facade_brown', 'facade_brick']
 
@@ -126,7 +148,7 @@ const STREET = (() => {
   }
   for (let z = -36; z <= 44; z += 16) add(BOUNDS.xMin - 9.3, z) // west, Whitney Avenue kerb (6)
   for (let x = -30; x <= 26; x += 14) add(x, BOUNDS.zMin - 7.3) // north kerb (5)
-  for (const z of [-30, 30]) add(EAST + BEIN.terrace + 12, z) // east, past the terrace (2)
+  for (const z of [-30, -10, 10, 30]) add(EAST + BEIN.terrace + 12, z) // east, past the terrace (4)
   add(-10, BOUNDS.zMax + 9) // south (1)
   return out
 })()
