@@ -4,6 +4,7 @@ import { PerformanceMonitor, Stats } from '@react-three/drei'
 import * as THREE from 'three'
 import World from './World.jsx'
 import Effects from './render/Effects.jsx'
+import CameraFeel from './render/CameraFeel.jsx'
 import Player from './Player.jsx'
 import Minimap from './Minimap.jsx'
 import TouchControls from './TouchControls.jsx'
@@ -70,6 +71,7 @@ export default function App() {
           <EggsB />
         </Suspense>
         <Player lockRef={lockRef} mapRef={mapRef} touchRef={touchRef} onLock={onLock} onWhere={onWhere} />
+        <CameraFeel />
         <LoadingProbe />
         {/* N8AO keeps stale half-res buffers across a pixel-ratio change, so the chain remounts */}
         <Effects key={dpr} />
