@@ -35,14 +35,20 @@ body.egg-routing .dlg-next {
   }
 }
 
-/* Lisa's portrait before the speaker name (dialogue line field `avatar`) */
+/* the speaker's portrait before the name (dialogue line field `avatar`, src/ui/portraits.js draws
+   the pink ring into the picture) */
 .dlg-avatar {
-  width: 44px;
-  height: 44px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
-  border: 2px solid var(--ui-pink, #ff4fa3);
   box-shadow: 0 0 14px rgba(255, 79, 163, 0.35);
   flex: none;
+}
+.dlg-avatar.empty {
+  display: inline-block;
+  background: linear-gradient(#1b2440, #0b0b0d);
+  border: 2px solid var(--ui-pink, #ff4fa3);
+  box-sizing: border-box;
 }
 .dlg-avatar + .dlg-speaker {
   margin: 0 auto 0 12px;

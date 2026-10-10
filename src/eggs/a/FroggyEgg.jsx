@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import Froggy from '../../characters/Froggy.jsx'
 import { Interactable, openDialogue, useDiscovery } from '../../interact/index.jsx'
+import { withAvatars } from '../../ui/portraits.js'
 import { createStore, useStore } from '../../interact/store.js'
 import { canvasTex, printMat, solidMat } from './util.js'
 
@@ -105,7 +106,7 @@ export default function FroggyEgg() {
   )
   return (
     <>
-      <Interactable position={FROGGY} radius={2.2} solid={0.35} label="Froggy" verb="Talk to" marker="npc" onInteract={() => openDialogue(froggyScript(read, discover))}>
+      <Interactable position={FROGGY} radius={2.2} solid={0.35} label="Froggy" verb="Talk to" marker="npc" onInteract={() => openDialogue(withAvatars(froggyScript(read, discover)))}>
         <Froggy reading rotation={FROGGY_ROT} />
       </Interactable>
       <Interactable
@@ -116,7 +117,7 @@ export default function FroggyEgg() {
         label="the bakery poster"
         verb="Read"
         marker="interact"
-        onInteract={() => openDialogue(POSTER_SCRIPT, { onClose: () => state.set({ read: true }) })}
+        onInteract={() => openDialogue(withAvatars(POSTER_SCRIPT), { onClose: () => state.set({ read: true }) })}
       >
         {/* easel: two legs, a back brace, the board leaning back a little */}
         {wood([-0.36, 0.85, 0], [0.05, 1.7, 0.05])}

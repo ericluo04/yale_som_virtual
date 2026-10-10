@@ -32,6 +32,10 @@
   right: 16px;
   align-items: flex-end;
 }
+.hud-row {
+  display: flex;
+  gap: 6px;
+}
 .hud-slot.hud-prompt {
   left: 50%;
   bottom: 72px;

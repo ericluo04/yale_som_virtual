@@ -21,16 +21,17 @@ const QA = [
   ["What's the tech stack?", 'Python with Plotly Dash, PydanticAI and yfinance for the first apps. Then React + Vite + TypeScript up front, FastAPI with SQLite or Supabase behind it, Render to deploy, GitHub for the code, and MCP servers to hand your agents tools.'],
   ['What are the 13 lectures?', 'AI and Vibe Coding, Structured Data from Free Text, Tools & Skills, Agents, Image Analysis, Video Analysis, Web Applications, Application Deployment, MCP Servers, Multi-Agent Systems, Tokenomics, AI Safety, and Future Directions.'],
   ['What are the homeworks?', 'HW1 is Spoke & Wrench Bicycle Repair: turn a pile of receipts into an income statement. HW2 builds a sales lead agent. HW3 to HW6 are Campus Customs: product spotting in influencer photos, a shop chatbot, a multi-agent team, and a vendor desk that has to survive prompt injection.'],
+  ["When are your office hours?", "Always. I'm in your area around the clock: walk up to this kiosk any time, day or night, and ask."],
   ['Any advice for the final project?', 'Pick a problem you actually have, ship a small version early, and deploy it so someone else can click it. A working app with one feature beats a slide deck with ten.'],
 ]
 const PAGES = [
   [0, 1, 2, 3, 4],
-  [5, 6, 7, 8, 9],
+  [5, 6, 7, 8, 9, 10],
 ]
 
 // util.js waitThen() with Lisa's avatar on the waiting line: thinking dots (eggsA.css) for THINK_MS, then the answer
 function think(script, index) {
-  const hold = [{ speaker: 'Lisa', avatar: lisaAvatar(), text: '', next: 0 }]
+  const hold = [{ speaker: 'Lisa', avatar: LISA, text: '', next: 0 }]
   document.body.classList.add('egg-thinking')
   dialogueState.set({ script: hold, index: 0 })
   setTimeout(() => {
@@ -53,19 +54,24 @@ function buildScript() {
     { id: 'p0', speaker: 'Lisa · AI TA', text: "Hi! I'm Lisa, the MGT 409 TA. What can I help you with?", choices: [...PAGES[0].map(ask), { text: 'More questions', next: 'p1' }, bye] },
     { id: 'p1', speaker: 'Lisa · AI TA', text: 'Sure. Here are a few more.', choices: [...PAGES[1].map(ask), { text: 'Back', next: 'p0' }, bye] },
     ...QA.map(([, a], i) => ({ id: `a${i}`, speaker: 'Lisa', text: a, next: PAGES[0].includes(i) ? 'p0' : 'p1' })),
-    { id: 'bye', speaker: 'Lisa', text: 'Anytime. Go build something.', next: 'end' },
+    { id: 'bye', speaker: 'Lisa', text: "Anytime. Go build something. That's the TA life.", next: 'end' },
   )
-  const avatar = lisaAvatar()
-  script.forEach((l) => (l.avatar = avatar))
+  script.forEach((l) => (l.avatar = LISA))
   return script
 }
 
-// Lisa's portrait, vector style: dark bob, glasses, Yale-blue top, pink headset with a mic boom.
+// Lisa's portrait, vector style, after the K-pop idol the TA is named for (a stylized cartoon, drawn
+// from scratch): long straight dark hair with blunt bangs, a slim face, winged eyeliner, a confident
+// half-smile, a small gold hoop, a black top with pink trim, and the pink headset with a mic boom.
 // Drawn in a 100-unit space centred on her face; (x, y) is the face centre on the canvas, k the scale.
+// The kiosk screen and the dialogue portrait (src/ui/portraits.js, kind 'lisa') both use it.
 export function drawLisa(g, x, y, k) {
-  const skin = '#f2cba8'
-  const hair = '#1d1b24'
+  const skin = '#f4d2b6'
+  const shade = '#e3b394'
+  const hair = '#16121b'
+  const sheen = '#3b3447'
   const pink = '#ff4fa3'
+  const black = '#111115'
   g.save()
   g.translate(x, y)
   g.scale(k, k)
@@ -84,103 +90,118 @@ export function drawLisa(g, x, y, k) {
       g.stroke()
     }
   }
-  // top: Yale blue with a lighter collar edge, neck
-  path(() => g.rect(-11, 26, 22, 46), '#e3b18e')
+  // long hair, back layer: from the crown straight down past the shoulders
+  path(() => {
+    g.moveTo(-50, 0)
+    g.bezierCurveTo(-60, -62, -28, -74, 0, -74)
+    g.bezierCurveTo(28, -74, 60, -62, 50, 0)
+    g.lineTo(60, 160)
+    g.lineTo(-60, 160)
+    g.closePath()
+  }, hair)
+  // neck, then a black top with a pink V neckline and pink piping over the shoulders
+  path(() => g.rect(-10, 24, 20, 48), shade)
   path(() => {
     g.moveTo(-112, 170)
-    g.bezierCurveTo(-106, 98, -72, 74, -27, 66)
-    g.quadraticCurveTo(0, 92, 27, 66)
-    g.bezierCurveTo(72, 74, 106, 98, 112, 170)
+    g.bezierCurveTo(-106, 100, -72, 76, -26, 68)
+    g.lineTo(0, 98)
+    g.lineTo(26, 68)
+    g.bezierCurveTo(72, 76, 106, 100, 112, 170)
     g.closePath()
-  }, '#00356b')
+  }, black)
   path(() => {
-    g.moveTo(-30, 66)
-    g.quadraticCurveTo(0, 98, 30, 66)
-  }, null, '#286dc0', 5)
-  // bob, back layer, cut level with the chin
+    g.moveTo(-26, 68)
+    g.lineTo(0, 98)
+    g.lineTo(26, 68)
+  }, null, pink, 5)
   path(() => {
-    g.moveTo(-52, 42)
-    g.bezierCurveTo(-64, -8, -62, -64, 0, -66)
-    g.bezierCurveTo(62, -64, 64, -8, 52, 42)
-    g.quadraticCurveTo(47, 50, 37, 47)
-    g.lineTo(-37, 47)
-    g.quadraticCurveTo(-47, 50, -52, 42)
-  }, hair)
-  // face
-  path(() => g.ellipse(0, 4, 37, 44, 0, 0, Math.PI * 2), skin)
-  // side-swept bangs with a sheen
-  path(() => {
-    g.moveTo(-45, -6)
-    g.bezierCurveTo(-50, -50, -18, -62, 8, -60)
-    g.bezierCurveTo(40, -58, 52, -36, 45, -4)
-    g.quadraticCurveTo(36, -30, 10, -24)
-    g.quadraticCurveTo(-16, -19, -32, -32)
-    g.quadraticCurveTo(-38, -18, -45, -6)
-  }, hair)
-  path(() => {
-    g.moveTo(-26, -48)
-    g.quadraticCurveTo(0, -60, 26, -50)
-  }, null, '#45405a', 3)
-  // brows, eyes with highlights, blush, nose, smile
-  path(() => {
-    g.moveTo(-28, -16)
-    g.quadraticCurveTo(-19, -21, -10, -16)
-    g.moveTo(10, -16)
-    g.quadraticCurveTo(19, -21, 28, -16)
-  }, null, '#2a2430', 2.6)
-  for (const sx of [-1, 1]) {
-    path(() => g.ellipse(19 * sx, 1, 4.2, 5.2, 0, 0, Math.PI * 2), '#1b1720')
-    path(() => g.arc(19 * sx + 1.6, -1, 1.5, 0, Math.PI * 2), '#ffffff')
-    path(() => g.ellipse(25 * sx, 17, 7, 4, 0, 0, Math.PI * 2), 'rgba(255, 110, 150, 0.35)')
-  }
-  path(() => {
-    g.moveTo(1, 6)
-    g.quadraticCurveTo(-3, 13, 2, 15)
-  }, null, '#cf9a7c', 2)
-  path(() => {
-    g.moveTo(-11, 23)
-    g.quadraticCurveTo(0, 35, 11, 23)
-    g.quadraticCurveTo(0, 27, -11, 23)
-  }, '#c2475f')
-  // glasses: rounded dark frames, faint blue lenses, a bridge
-  for (const gx of [-31, 7]) path(() => g.roundRect(gx, -8, 24, 17, 7), 'rgba(170, 205, 255, 0.14)', '#121218', 3.2)
-  path(() => {
-    g.moveTo(-7, -1)
-    g.quadraticCurveTo(0, -4, 7, -1)
-  }, null, '#121218', 3)
-  // pink headset: band over the hair, ear cups, mic boom to the corner of her mouth
-  path(() => g.ellipse(0, -8, 59, 64, 0, Math.PI * 1.03, Math.PI * 1.97), null, pink, 7)
-  for (const cx of [-66, 50]) {
-    path(() => g.roundRect(cx, -14, 16, 32, 7), pink)
-    path(() => g.roundRect(cx + 4, -8, 8, 20, 4), '#c22f7a')
-  }
-  path(() => {
-    g.moveTo(-58, 16)
-    g.quadraticCurveTo(-52, 40, -20, 35)
+    g.moveTo(-104, 160)
+    g.quadraticCurveTo(-86, 96, -44, 80)
+    g.moveTo(104, 160)
+    g.quadraticCurveTo(86, 96, 44, 80)
   }, null, pink, 3.5)
-  path(() => g.arc(-18, 35, 4.5, 0, Math.PI * 2), '#ffd6ea')
+  // slim face, narrowing to the chin
+  path(() => {
+    g.moveTo(-33, -18)
+    g.bezierCurveTo(-34, 14, -22, 38, 0, 47)
+    g.bezierCurveTo(22, 38, 34, 14, 33, -18)
+    g.bezierCurveTo(32, -48, -32, -48, -33, -18)
+  }, skin)
+  // straight front locks framing the face and falling over the shoulders
+  for (const sx of [-1, 1]) {
+    path(() => {
+      g.moveTo(sx * 31, -20)
+      g.lineTo(sx * 50, -12)
+      g.lineTo(sx * 58, 132)
+      g.lineTo(sx * 40, 126)
+      g.quadraticCurveTo(sx * 36, 60, sx * 30, 26)
+      g.closePath()
+    }, hair)
+    path(() => {
+      g.moveTo(sx * 44, 0)
+      g.lineTo(sx * 50, 110)
+    }, null, sheen, 2.5)
+  }
+  // blunt bangs cut straight across just above the eyes, with a sheen line
+  path(() => {
+    g.moveTo(-40, -10)
+    g.bezierCurveTo(-46, -56, -20, -68, 0, -68)
+    g.bezierCurveTo(20, -68, 46, -56, 40, -10)
+    for (let bx = 40; bx > -40; bx -= 8) g.lineTo(bx - 4, bx % 16 ? -11 : -9) // a faint comb texture
+    g.closePath()
+  }, hair)
+  path(() => {
+    g.moveTo(-26, -52)
+    g.quadraticCurveTo(0, -62, 26, -52)
+  }, null, sheen, 3)
+  // eyes: almond whites, dark irises with a highlight, winged liner flicking up and out
+  for (const sx of [-1, 1]) {
+    path(() => {
+      g.moveTo(sx * 9, 2)
+      g.quadraticCurveTo(sx * 19, -6, sx * 28, 0)
+      g.quadraticCurveTo(sx * 19, 8, sx * 9, 2)
+    }, '#ffffff')
+    path(() => g.arc(sx * 18.5, 1.5, 4.3, 0, Math.PI * 2), '#2b1c18')
+    path(() => g.arc(sx * 18.5 + 1.5, -0.3, 1.4, 0, Math.PI * 2), '#ffffff')
+    path(() => {
+      g.moveTo(sx * 8, 2)
+      g.quadraticCurveTo(sx * 19, -7.5, sx * 28, -0.5)
+      g.lineTo(sx * 35, -6)
+    }, null, '#0c0a10', 2.8)
+    path(() => g.ellipse(sx * 24, 16, 6.5, 3.5, 0, 0, Math.PI * 2), 'rgba(255, 110, 150, 0.3)')
+  }
+  // nose, and a confident half-smile that lifts on one side
+  path(() => {
+    g.moveTo(1, 7)
+    g.quadraticCurveTo(-2, 14, 2, 15.5)
+  }, null, '#cf9a7c', 1.8)
+  path(() => {
+    g.moveTo(-9, 26)
+    g.quadraticCurveTo(1, 33, 11, 22)
+    g.quadraticCurveTo(1, 28.5, -9, 26)
+  }, '#d14d6c')
+  path(() => {
+    g.moveTo(-9, 26)
+    g.quadraticCurveTo(1, 30.5, 11, 22)
+  }, null, '#a8324f', 1.6)
+  // pink headset: band over the hair, ear cups, mic boom to the corner of her mouth
+  path(() => g.ellipse(0, -8, 59, 66, 0, Math.PI * 1.03, Math.PI * 1.97), null, pink, 7)
+  for (const cx of [-66, 50]) {
+    path(() => g.roundRect(cx, -16, 16, 30, 7), pink)
+    path(() => g.roundRect(cx + 4, -10, 8, 18, 4), '#c22f7a')
+  }
+  path(() => {
+    g.moveTo(-58, 12)
+    g.quadraticCurveTo(-52, 38, -20, 34)
+  }, null, pink, 3.5)
+  path(() => g.arc(-18, 34, 4.5, 0, Math.PI * 2), '#ffd6ea')
+  // a small gold hoop under the right ear cup
+  path(() => g.arc(58, 22, 5, 0, Math.PI * 2), null, '#e9c46a', 2.2)
   g.restore()
 }
 
-// the same portrait in a 128 px circle, for the dialogue panel (a data URL, made once)
-let avatarUrl = null
-export function lisaAvatar() {
-  if (avatarUrl) return avatarUrl
-  const c = document.createElement('canvas')
-  c.width = c.height = 128
-  const g = c.getContext('2d')
-  g.beginPath()
-  g.arc(64, 64, 64, 0, Math.PI * 2)
-  g.clip()
-  const bg = g.createLinearGradient(0, 0, 0, 128)
-  bg.addColorStop(0, '#1b2440')
-  bg.addColorStop(1, '#0b0b0d')
-  g.fillStyle = bg
-  g.fillRect(0, 0, 128, 128)
-  drawLisa(g, 64, 62, 0.92)
-  avatarUrl = c.toDataURL('image/png')
-  return avatarUrl
-}
+// what Lisa's dialogue lines carry as `avatar`: src/ui/portraits.js draws drawLisa in the 128 px ring
+const LISA = { kind: 'lisa' }
 
 const BUBBLE_Y = 592 // centre of the chat bubble the 3D dots sit on, in canvas pixels (of 768)
 
@@ -216,11 +237,11 @@ function screenTex() {
     g.stroke()
     g.textAlign = 'center'
     g.fillStyle = '#ff4fa3'
-    g.font = 'bold 66px Helvetica, Arial, sans-serif'
-    g.fillText('LISA', w / 2, 466)
+    g.font = 'bold 58px Helvetica, Arial, sans-serif'
+    g.fillText('LISA · AI TA', w / 2, 466)
     g.fillStyle = '#ffffff'
-    g.font = '600 28px Helvetica, Arial, sans-serif'
-    g.fillText('AI TA  ·  MGT 409', w / 2, 508)
+    g.font = '600 26px Helvetica, Arial, sans-serif'
+    g.fillText('MGT 409', w / 2, 506)
     // chat bubble that the 3D dots sit on
     g.fillStyle = '#1d1d24'
     g.beginPath()

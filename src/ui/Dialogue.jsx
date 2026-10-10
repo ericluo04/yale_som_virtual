@@ -2,6 +2,7 @@ import { Fragment, useEffect, useRef, useState } from 'react'
 import { ui, useStore } from '../interact/store.js'
 import { sound } from '../interact/sound.js'
 import { advanceDialogue, closeDialogue, dialogueState } from './dialogueStore.jsx'
+import { GENERIC, avatarFor, usePortrait } from './portraits.js'
 
 const CPS = 55 // typewriter characters per second
 
@@ -14,6 +15,10 @@ export default function Dialogue() {
   const { script, index } = useStore(dialogueState)
   const touch = useStore(ui, (s) => s.touch)
   const line = script?.[index]
+  // who is talking: the line's avatar (a URL or a portraits.js spec), else the speaker's entry in
+  // SPEAKER_AVATARS, else (any other named speaker, such as a roamer) a generic Labubu
+  const avatar = line ? line.avatar ?? (line.speaker ? avatarFor(line.speaker) ?? GENERIC : null) : null
+  const portrait = usePortrait(avatar)
   const [shown, setShown] = useState(0)
   const full = line?.text ?? ''
   const done = shown >= full.length
@@ -78,7 +83,7 @@ export default function Dialogue() {
     <div className="dlg-scrim" onPointerDown={(e) => e.stopPropagation()}>
       <div className="dlg" onClick={click} role="dialog" aria-live="polite">
         <div className="dlg-head">
-          {line.avatar && <img className="dlg-avatar" src={line.avatar} alt="" />}
+          {avatar && (portrait ? <img className="dlg-avatar" src={portrait} alt="" /> : <span className="dlg-avatar empty" />)}
           {line.speaker && <span className="dlg-speaker">{line.speaker}</span>}
           <button
             className="dlg-x"

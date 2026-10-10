@@ -1,6 +1,7 @@
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Interactable, openDialogue, useDiscovery } from '../../interact/index.jsx'
+import { withAvatars } from '../../ui/portraits.js'
 import { Box, canvasTex, seeded, std } from './common.jsx'
 import { MEETING } from '../../layout.js'
 
@@ -128,7 +129,7 @@ export default function Ticker() {
   // answers read the live quotes when the choice is made: each choice reopens the script at its answer
   const script = (start) => {
     const { best, worst } = answers(quotes.q)
-    const pick = (id) => () => openDialogue(script(id))
+    const pick = (id) => () => openDialogue(withAvatars(script(id)))
     const lines = {
       hello: { speaker: 'Analyst agent', text: 'Hi. I track AAPL, MSFT, NVDA, GOOGL, AMZN, META, TSLA, JPM, BAC and GS. What do you want to know?', next: 'menu' },
       best: { id: 'best', speaker: 'Analyst agent', text: `Best today: ${fmt(best)}.`, next: 'menu' },
@@ -155,7 +156,7 @@ export default function Ticker() {
   }
   const ask = () => {
     discover()
-    openDialogue(script('hello'))
+    openDialogue(withAvatars(script('hello')))
   }
 
   return (

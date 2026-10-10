@@ -16,7 +16,7 @@ export const EGGS = [
   { id: 'attendance', title: 'Marked present for Lecture 13', name: 'Attendance', hint: 'Ten percent of the grade hangs on a wall by 2400.', desc: 'The QR attendance poster outside the MGT 409 classroom. The code is real.' },
 ]
 
-// id -> the title shown in the toast. N in "discoveries X / N" is the size of this catalog plus any id
+// id -> the line shown in the toast. N in "Easter egg found: name · X / N" is the size of this catalog plus any id
 // registered at runtime.
 export const CATALOG = Object.fromEntries(EGGS.map((e) => [e.id, e.title]))
 
@@ -70,7 +70,8 @@ export function discover(id, title) {
   save(found)
   saveTimes(times)
   const t = discoveryState.get()
-  toast(title ?? t.catalog[id], { title: `Discovery ${found.length} / ${total(t)}`, kind: 'discovery', ms: 4500 })
+  const name = EGGS.find((e) => e.id === id)?.name ?? title ?? t.catalog[id]
+  toast(title ?? t.catalog[id], { title: `Easter egg found: ${name} · ${found.length} / ${total(t)}`, kind: 'discovery', ms: 4500 })
   return true
 }
 

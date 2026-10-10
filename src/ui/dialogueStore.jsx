@@ -4,7 +4,8 @@ import { sound } from '../interact/sound.js'
 
 // Dialogue script format: an array of lines, played in order unless a line says where to go.
 //   { id?, speaker, text, choices?: [{ text, next?, onChoice? }], next?, onChoice?, code? }
-// avatar: an image URL shown as a small circle before the speaker name (Lisa's portrait).
+// avatar: an image URL or a src/ui/portraits.js spec, shown as a small circle before the speaker
+// name; a line without one uses the speaker's entry in SPEAKER_AVATARS or a generic Labubu.
 // next: a line id, a line index, or 'end'. Text inside `backticks` renders in monospace.
 // onChoice on a choice runs when that choice is picked; onChoice on the line runs for any choice,
 // called as onChoice(choice, index).
@@ -67,6 +68,8 @@ export function advanceDialogue(choiceIndex = null, relock = true) {
 }
 
 const api = { openDialogue, closeDialogue, isOpen: () => !!dialogueState.get().script }
+// dev only: window.__dialogue.open(script) for headless checks of the panel and its portraits
+if (import.meta.env.DEV && typeof window !== 'undefined') window.__dialogue = api
 // The default value is the real API, so useDialogue() works with or without a provider,
 // including inside the R3F <Canvas>, which does not inherit DOM-tree context.
 export const DialogueContext = createContext(api)
