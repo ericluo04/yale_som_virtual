@@ -490,6 +490,9 @@ function syllable(t, f, dur, gain, dest, vowel = rand(500, 1300)) {
 
 function scheduleRoom(now, until) {
   if (room.i < 0 || !room.at) return
+  // a room entered before the audio context existed leaves murNext at 0; a syllable's consonant
+  // starts 12 ms before it, so a phrase at t 0 threw a negative-time RangeError
+  if (murNext < now) murNext = now + 0.05
   // talking about 60% of the time: 3.5 to 5.5 s of phrases, then 2 to 3.5 s of quiet
   while (murNext < until) {
     if (murNext >= talkUntil && murNext >= restUntil) {
