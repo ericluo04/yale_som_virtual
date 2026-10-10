@@ -83,7 +83,8 @@ export function cafeTex() {
 }
 
 // the courtyard curtain wall above level 2 as seen from across the courtyard: the white
-// level 4 slab edge, blue drums behind clear glass, silver mullions, the roof fascia on top
+// level 4 slab edge, silver mullions, the roof fascia on top. World.jsx no longer uses it: the
+// level 4 drums are real geometry (Level4), so the painted drums were removed from this tile
 export function courtyardFacadeTex() {
   const [c, g] = canvas(1024, 512)
   const sky = g.createLinearGradient(0, 0, 0, 512)
@@ -96,18 +97,6 @@ export function courtyardFacadeTex() {
   g.fillRect(0, 40, 1024, 28)
   g.fillStyle = 'rgba(40,52,66,0.55)'
   g.fillRect(0, 68, 1024, 380)
-  // one level 4 drum per tile
-  const dg = g.createLinearGradient(0, 110, 0, 400)
-  dg.addColorStop(0, '#1554a8')
-  dg.addColorStop(1, '#00356b')
-  g.fillStyle = dg
-  g.beginPath()
-  g.roundRect(150, 100, 724, 300, 90)
-  g.fill()
-  g.fillStyle = 'rgba(2,10,30,0.6)'
-  for (let y = 150; y < 400; y += 50) g.fillRect(150, y, 724, 3)
-  g.fillStyle = 'rgba(200,220,255,0.18)'
-  g.fillRect(220, 110, 90, 280)
   // level 4 slab edge and the roof fascia
   g.fillStyle = '#eceae6'
   g.fillRect(0, 448, 1024, 64)

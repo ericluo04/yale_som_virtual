@@ -155,7 +155,6 @@ function useMaterials() {
       lawn: std({ map: T.lawnTex(), roughness: 1 }),
       ground: std({ color: '#2b3a26', roughness: 1 }),
       cafe: std({ map: T.cafeTex(), emissive: '#ffffff', emissiveMap: T.cafeTex(), emissiveIntensity: 0.35, roughness: 0.3, side: THREE.DoubleSide }),
-      upper: std({ map: T.courtyardFacadeTex(), emissive: '#ffffff', emissiveMap: T.courtyardFacadeTex(), emissiveIntensity: 0.2, roughness: 0.25, side: THREE.DoubleSide }),
       silver: std({ color: '#9aa3a8', metalness: 0.8, roughness: 0.3 }),
       canopy: std({ color: '#f1f0ec', roughness: 0.9, side: THREE.DoubleSide }),
       paving: std({ map: T.stoneTex([0.5, 0.5]), color: '#e4e0d8', roughness: 0.95 }),
@@ -248,9 +247,9 @@ function FloorAndCeiling({ M }) {
 }
 
 function Courtyard({ M }) {
-  const glass = useMemo(() => ribbon(COURTYARD, 0, H), [])
+  // clear glass from the concourse floor to the roof; level 4 behind it is real geometry
+  const glass = useMemo(() => ribbon(COURTYARD, 0, ROOF), [])
   const cafe = useMemo(() => ribbon(COURTYARD, -5, 0, 1 / 15), [])
-  const upper = useMemo(() => ribbon(COURTYARD, H, ROOF, 1 / 15), [])
   const mullions = useMemo(
     // silver mullions about 1.6 m apart from the lawn to the roof
     () => COURTYARD.filter((_, i) => i % 2 === 0).map(([x, z]) => ({ p: [x, (ROOF - 5) / 2, z], s: [0.06, ROOF + 5, 0.06] })),
@@ -269,7 +268,7 @@ function Courtyard({ M }) {
     <>
       <mesh geometry={glass} material={M.glass} />
       <mesh geometry={cafe} material={M.cafe} />
-      <mesh geometry={upper} material={M.upper} />
+      <Level4 M={M} />
       {PROC && <Instanced items={mullions} material={M.mullion} geometry={BOX} />}
       {/* the lawn trees are scanned models now (render/Scenery.jsx) */}
       <CourtyardFrame M={M} />
@@ -278,6 +277,75 @@ function Courtyard({ M }) {
         <LabubuParty />
       </group>
     </>
+  )
+}
+
+// closed polyline pushed out by d along its vertex normals (away from the origin)
+function offsetLoop(pts, d) {
+  const m = pts.length
+  return pts.map((p, i) => {
+    const a = pts[(i - 1 + m) % m]
+    const b = pts[(i + 1) % m]
+    let nx = b[1] - a[1]
+    let nz = -(b[0] - a[0])
+    const l = Math.hypot(nx, nz) || 1
+    nx /= l
+    nz /= l
+    if (nx * p[0] + nz * p[1] < 0) [nx, nz] = [-nx, -nz]
+    return [p[0] + nx * d, p[1] + nz * d]
+  })
+}
+
+// Level 4 as seen across the courtyard (photo 06): the classroom drums of the floor above, stacked
+// on the level 2 drums, with the level 4 slab edge set back from the curtain wall behind a glass
+// balustrade and a pale ceiling under the roof. Unbaked; only the courtyard view reaches it.
+const L4 = { floor: H + 0.12, top: ROOF - 0.6, slot: 0.9 }
+function Level4({ M }) {
+  const geos = useMemo(() => {
+    const { xMin, xMax, zMin, zMax } = BOUNDS
+    const edge = offsetLoop(COURTYARD, L4.slot)
+    // the floor stops at the slot; the ceiling runs to the glass, so no sun falls through the slot
+    const plate = (flip) => {
+      const f = (x, z) => new THREE.Vector2(x, flip ? -z : z)
+      const s = new THREE.Shape([f(xMin, zMin), f(xMax, zMin), f(xMax, zMax), f(xMin, zMax)])
+      s.holes.push(new THREE.Path((flip ? edge : COURTYARD).map(([x, z]) => f(x, z))))
+      const g = new THREE.ShapeGeometry(s)
+      g.rotateX(flip ? -Math.PI / 2 : Math.PI / 2)
+      return g
+    }
+    const drum = new THREE.CylinderGeometry(1, 1, L4.top - L4.floor, 72, 1, true)
+    return {
+      floor: plate(true),
+      ceil: plate(false),
+      fascia: ribbon(edge, H - 0.05, L4.floor + 0.02),
+      rail: ribbon(offsetLoop(COURTYARD, L4.slot - 0.03), L4.floor, L4.floor + 1.05),
+      handrail: ribbon(offsetLoop(COURTYARD, L4.slot - 0.03), L4.floor + 1.03, L4.floor + 1.08),
+      drum,
+      walls: ribbon([[xMin, zMin], [xMax, zMin], [xMax, zMax], [xMin, zMax]], H, L4.top, 0.1),
+    }
+  }, [])
+  const mats = useMemo(() => {
+    const std = (o) => new THREE.MeshStandardMaterial(o)
+    return {
+      floor: std({ color: '#b9b5ae', roughness: 1 }),
+      // the soffit under the roof reads lit, as in the dusk photos, without real-time lights
+      ceil: std({ color: '#f2f1ed', emissive: '#fff6e8', emissiveIntensity: 0.35, roughness: 1 }),
+      fascia: std({ color: '#efeeea', roughness: 0.8, side: THREE.DoubleSide }),
+      walls: std({ color: '#d9d8d3', roughness: 1, side: THREE.DoubleSide }),
+    }
+  }, [])
+  return (
+    <group>
+      <mesh geometry={geos.floor} material={mats.floor} position={[0, L4.floor, 0]} />
+      <mesh geometry={geos.ceil} material={mats.ceil} position={[0, L4.top, 0]} />
+      <mesh geometry={geos.fascia} material={mats.fascia} />
+      <mesh geometry={geos.rail} material={M.rail} />
+      <mesh geometry={geos.handrail} material={M.silver} />
+      <mesh geometry={geos.walls} material={mats.walls} />
+      {DRUMS.map((d) => (
+        <mesh key={d.id} geometry={geos.drum} material={M.drum} position={[d.c[0], (L4.floor + L4.top) / 2, d.c[1]]} scale={[d.rx, 1, d.rz]} />
+      ))}
+    </group>
   )
 }
 
