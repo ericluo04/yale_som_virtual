@@ -7,7 +7,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import {
   H, EAST, BOUNDS, COURTYARD, DRUMS, DRUM_WALL, WALLS, CHAIRS, SCREENS, BOARDS, LECTERNS,
   STAIRS, MEETING, MEET_DOOR, BEIN, BEIN_TABLES, PLANTS, LIBRARY, RISE, inPoly, ellPt, tierOutline,
-  BENCHES, COLUMNS, ROOF,
+  BENCHES, COLUMNS, ROOF, DESK_SURFACES,
 } from './layout.js'
 import * as T from './textures.js'
 import LabubuParty, { MeetingLabubus } from './LabubuParty.jsx'
@@ -30,8 +30,9 @@ const TAU = Math.PI * 2
 
 // ---------- helpers
 // baked meshes that World.jsx redraws unbaked: the courtyard T-section mullions, the 22 cm level 4
-// rail and the transom at 3.1 m read as heavy black bars from across the courtyard
-const HIDDEN_BAKED = ['mullions', 'rail', 'transom']
+// rail and the transom at 3.1 m read as heavy black bars from across the courtyard. The classroom
+// desks and risers are drawn whole by DeskTops and Tiers, so their baked copies go too.
+const HIDDEN_BAKED = ['mullions', 'rail', 'transom', 'desks', ...DRUMS.map((d) => `tiers_${d.id}`)]
 function HideBaked({ roles }) {
   const { scene } = useThree()
   useLayoutEffect(() => {
@@ -911,63 +912,35 @@ function sweep(path, normals, profile) {
   return g
 }
 
-// The baked horseshoe desks (tools/bake/detail.py) redrawn unbaked from the same rows and
-// radii, 4 mm larger so they cover the baked ones: wood with UVs that follow the curve (the
-// baked desks' world UVs smear into stripes), a wood lip at the front and a dark leather
-// writing strip on top.
+// The classroom horseshoe desks, drawn unbaked from layout.js DESK_SURFACES (the same rows and
+// runs the colliders and the seated crowd use): wood with UVs that follow the curve (the baked
+// desks' world UVs smeared into stripes), a wood lip at the front and a dark leather writing
+// strip on top. The baked desks are hidden (HIDDEN_BAKED), so these are the only desks.
 function DeskTops({ M }) {
   const geos = useMemo(() => {
     const wood = []
     const leather = []
     const body = [[-0.254, -0.002], [-0.216, -0.002], [-0.216, 0.906], [0.254, 0.906], [0.254, 0.954], [-0.254, 0.954]]
     const strip = [[-0.17, 0.95], [0.214, 0.95], [0.214, 0.962], [-0.17, 0.962]]
-    for (const d of DRUMS) {
-      const { F, back } = d.tiers
+    for (const { F, back, rings } of DESK_SURFACES) {
       const t = [-back[1], back[0]]
-      const rows = new Map()
-      for (const w of WALLS) {
-        if (w.mat !== 'desk') continue
-        const mx = (w.a[0] + w.b[0]) / 2
-        const mz = (w.a[1] + w.b[1]) / 2
-        if (((mx - d.c[0]) / d.rx) ** 2 + ((mz - d.c[1]) / d.rz) ** 2 >= 1) continue
-        const v = [mx - F[0], mz - F[1]]
-        const r = Math.hypot(v[0], v[1])
-        const th = Math.atan2(v[0] * t[0] + v[1] * t[1], v[0] * back[0] + v[1] * back[1])
-        if (!rows.has(w.y0)) rows.set(w.y0, [])
-        rows.get(w.y0).push({ r, th })
-      }
-      for (const [y0, desks] of rows)
-        for (const side of [1, -1]) {
-          const ds = desks.filter((x) => x.th * side > 0).sort((a, b) => Math.abs(a.th) - Math.abs(b.th))
-          if (!ds.length) continue
-          const r = ds.reduce((s, x) => s + x.r, 0) / ds.length
-          const runs = [[ds[0]]]
-          for (const x of ds.slice(1)) {
-            const cur = runs[runs.length - 1]
-            if ((Math.abs(x.th) - Math.abs(cur[cur.length - 1].th)) * r > 1.7) runs.push([x]) // a skipped desk
-            else cur.push(x)
+      for (const { r0, r1, top, arcs } of rings) {
+        const r = (r0 + r1) / 2
+        const y0 = top - 0.962
+        for (const [a0, a1] of arcs) {
+          const n = Math.max(2, Math.floor((a1 - a0) / 0.06))
+          const path = []
+          const nrm = []
+          for (let k = 0; k <= n; k++) {
+            const th = a0 + ((a1 - a0) * k) / n
+            const u = [Math.cos(th) * back[0] + Math.sin(th) * t[0], Math.cos(th) * back[1] + Math.sin(th) * t[1]]
+            path.push([F[0] + u[0] * r, y0, F[1] + u[1] * r])
+            nrm.push(u)
           }
-          for (const run of runs) {
-            const half = 0.6 / r
-            const t0 = Math.abs(run[0].th) - half
-            const t1 = Math.abs(run[run.length - 1].th) + half
-            const n = Math.max(2, Math.floor((t1 - t0) / 0.06))
-            const path = []
-            const nrm = []
-            for (let k = 0; k <= n; k++) {
-              const th = side * (t0 + ((t1 - t0) * k) / n)
-              const u = [Math.cos(th) * back[0] + Math.sin(th) * t[0], Math.cos(th) * back[1] + Math.sin(th) * t[1]]
-              path.push([F[0] + u[0] * r, y0, F[1] + u[1] * r])
-              nrm.push(u)
-            }
-            if (side < 0) {
-              path.reverse()
-              nrm.reverse()
-            }
-            wood.push(sweep(path, nrm, body))
-            leather.push(sweep(path, nrm, strip))
-          }
+          wood.push(sweep(path, nrm, body))
+          leather.push(sweep(path, nrm, strip))
         }
+      }
     }
     return { wood: mergeGeometries(wood), leather: mergeGeometries(leather) }
   }, [])
