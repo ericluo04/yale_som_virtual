@@ -426,3 +426,197 @@ export function paintingTex(seed) {
   for (let i = 0; i < 30; i++) g.fillRect(112 + (i % 6) * 13, 262 + Math.floor(i / 6) * 18, 4, 4)
   return tex(c)
 }
+
+// ---------- library (render/Scenery.jsx book rows, render/Props.jsx prints)
+// One shelf row of book spines, 2 m wide by 0.37 m tall at 512 px/m, wrapping in u. Three kinds
+// with their own spine colours and heights, so neighbouring shelves stop repeating one tile:
+// 0 cloth hardbacks, 1 bright paperbacks, 2 bound journal runs with gilt bands. The space above
+// the shorter books is the dark inside of the shelf.
+export function bookTileTex(kind) {
+  const W = 1024
+  const Hh = 192
+  const [c, g] = canvas(W, Hh)
+  const grd = g.createLinearGradient(0, 0, 0, Hh)
+  grd.addColorStop(0, '#0e0c0a')
+  grd.addColorStop(1, '#2a241e')
+  g.fillStyle = grd
+  g.fillRect(0, 0, W, Hh)
+  const r = rng(101 + kind * 17)
+  const PAL = [
+    ['#6e1f24', '#1d2f55', '#2c4a33', '#8a6a3a', '#4a2a1a', '#2b2b2e', '#7d5a2c', '#5b1a32', '#c8b89a'],
+    ['#e3ddcc', '#c9a23a', '#b8623a', '#3f7a78', '#1c1c1c', '#9e3a36', '#41618f', '#ece8de', '#6f8a4a', '#b07a8a', '#d8cfb8'],
+    ['#00356b', '#5a1420', '#3c3f44', '#1e4d3a', '#7a6a55'],
+  ][kind]
+  let x = 0
+  while (x < W) {
+    if (r() < 0.04) {
+      x += 20 + r() * 50 // a gap on the shelf
+      continue
+    }
+    // journals come in runs of one colour and one height; the others vary book by book
+    const run = kind === 2 ? 4 + Math.floor(r() * 9) : 1
+    const col = PAL[Math.floor(r() * PAL.length)]
+    const hRun = kind === 2 ? 0.8 + r() * 0.1 : 0
+    for (let k = 0; k < run && x < W; k++) {
+      const w = kind === 1 ? 9 + r() * 14 : kind === 2 ? 15 + r() * 4 : 14 + r() * 20
+      const h = Hh * (kind === 2 ? hRun : kind === 1 ? 0.55 + r() * 0.3 : 0.62 + r() * 0.33)
+      const y = Hh - h
+      const shade = 0.85 + r() * 0.3
+      g.fillStyle = col
+      g.globalAlpha = 1
+      g.fillRect(x, y, w - 1, h)
+      g.fillStyle = shade > 1 ? '#ffffff' : '#000000'
+      g.globalAlpha = Math.abs(shade - 1) * 0.6
+      g.fillRect(x, y, w - 1, h)
+      g.globalAlpha = 1
+      // rounded spine: darker edges
+      g.fillStyle = 'rgba(0,0,0,0.28)'
+      g.fillRect(x, y, 2, h)
+      g.fillRect(x + w - 3, y, 2, h)
+      if (kind === 2) {
+        g.fillStyle = '#c9a54a'
+        for (const f of [0.12, 0.2, 0.78]) g.fillRect(x + 2, y + h * f, w - 5, 2)
+        g.fillStyle = '#e8d9a8'
+        g.fillRect(x + 4, y + h * 0.3, w - 9, h * 0.08)
+      } else if (kind === 0) {
+        if (r() < 0.7) {
+          g.fillStyle = 'rgba(214,190,120,0.8)'
+          g.fillRect(x + 2, y + h * 0.1, w - 5, 2)
+          g.fillRect(x + 2, y + h * 0.86, w - 5, 2)
+        }
+        g.fillStyle = 'rgba(230,215,170,0.55)'
+        g.fillRect(x + w * 0.35, y + h * 0.25, w * 0.25, h * 0.45)
+      } else {
+        g.fillStyle = r() < 0.5 ? 'rgba(255,255,255,0.75)' : 'rgba(0,0,0,0.6)'
+        g.fillRect(x + w * 0.3, y + h * 0.15, w * 0.35, h * 0.5)
+        g.fillRect(x + 2, y + h * 0.85, w - 5, h * 0.06)
+      }
+      x += w
+    }
+  }
+  const t = tex(c)
+  t.wrapS = THREE.RepeatWrapping
+  return t
+}
+
+// three large prints over the library shelves: Evans Hall's facade in line art, a Yale blue
+// "Ross Library" panel and a world map
+export function libraryPrintTex(kind) {
+  const W = 1024
+  const Hh = 724
+  const [c, g] = canvas(W, Hh)
+  if (kind === 0) {
+    g.fillStyle = '#f3efe4'
+    g.fillRect(0, 0, W, Hh)
+    g.strokeStyle = '#2b2e33'
+    g.lineWidth = 3
+    // roof canopy, two floors of curtain wall, the drums behind the glass
+    const top = 190
+    const base = 560
+    g.beginPath()
+    g.moveTo(60, top)
+    g.lineTo(964, top)
+    g.moveTo(80, top + 18)
+    g.lineTo(944, top + 18)
+    g.stroke()
+    g.lineWidth = 2
+    for (const y of [top + 18, 300, 410, base]) {
+      g.beginPath()
+      g.moveTo(110, y)
+      g.lineTo(914, y)
+      g.stroke()
+    }
+    g.lineWidth = 1.2
+    for (let x = 110; x <= 914; x += 23) {
+      g.beginPath()
+      g.moveTo(x, top + 18)
+      g.lineTo(x, base)
+      g.stroke()
+    }
+    g.lineWidth = 2.5
+    for (const [cx, w] of [[250, 150], [430, 120], [600, 120], [780, 150]]) {
+      for (const [y0, y1] of [[318, 405], [228, 296]]) {
+        g.beginPath()
+        g.ellipse(cx, (y0 + y1) / 2, w / 2, (y1 - y0) / 2, 0, 0, Math.PI * 2)
+        g.stroke()
+      }
+    }
+    g.beginPath()
+    g.moveTo(40, base + 30)
+    g.lineTo(984, base + 30)
+    g.stroke()
+    g.fillStyle = '#2b2e33'
+    g.font = '30px Georgia, serif'
+    g.textAlign = 'center'
+    g.fillText('Edward P. Evans Hall', W / 2, 650)
+    g.font = '20px Georgia, serif'
+    g.fillText('165 Whitney Avenue  ·  2014', W / 2, 684)
+  } else if (kind === 1) {
+    g.fillStyle = '#00356b'
+    g.fillRect(0, 0, W, Hh)
+    g.strokeStyle = 'rgba(255,255,255,0.35)'
+    g.lineWidth = 3
+    g.strokeRect(40, 40, W - 80, Hh - 80)
+    g.fillStyle = '#ffffff'
+    g.textAlign = 'center'
+    g.font = 'bold 150px Georgia, serif'
+    g.fillText('ROSS', W / 2, 330)
+    g.font = '96px Georgia, serif'
+    g.fillText('LIBRARY', W / 2, 450)
+    g.fillRect(W / 2 - 160, 500, 320, 3)
+    g.font = '34px Georgia, serif'
+    g.fillText('Yale School of Management', W / 2, 570)
+  } else {
+    g.fillStyle = '#e9e4d6'
+    g.fillRect(0, 0, W, Hh)
+    const px = (lon) => 32 + ((lon + 180) / 360) * (W - 64)
+    const py = (lat) => 40 + ((85 - lat) / 145) * (Hh - 80)
+    g.strokeStyle = 'rgba(60,70,80,0.18)'
+    g.lineWidth = 1
+    for (let lon = -180; lon <= 180; lon += 30) {
+      g.beginPath()
+      g.moveTo(px(lon), py(85))
+      g.lineTo(px(lon), py(-60))
+      g.stroke()
+    }
+    for (let lat = -60; lat <= 80; lat += 20) {
+      g.beginPath()
+      g.moveTo(px(-180), py(lat))
+      g.lineTo(px(180), py(lat))
+      g.stroke()
+    }
+    // continents as rough outlines in (lon, lat)
+    const LAND = [
+      [[-168, 66], [-140, 70], [-95, 72], [-80, 64], [-62, 58], [-55, 50], [-66, 44], [-76, 35], [-81, 25], [-90, 29], [-97, 26], [-105, 20], [-87, 15], [-78, 8], [-85, 12], [-105, 22], [-115, 31], [-124, 40], [-125, 49], [-135, 58], [-152, 58], [-165, 60]],
+      [[-78, 8], [-60, 10], [-50, 0], [-35, -6], [-40, -22], [-58, -38], [-66, -55], [-74, -50], [-71, -20], [-81, -5]],
+      [[-55, 82], [-20, 82], [-20, 70], [-45, 60], [-58, 74]],
+      [[-10, 36], [-9, 44], [-2, 48], [-5, 54], [5, 58], [10, 54], [20, 56], [28, 66], [20, 70], [40, 68], [60, 70], [100, 76], [140, 72], [180, 68], [160, 60], [142, 52], [130, 42], [122, 30], [120, 22], [108, 10], [100, 14], [98, 8], [92, 22], [80, 15], [76, 8], [72, 20], [58, 25], [50, 30], [36, 36], [28, 41], [20, 40], [12, 44], [8, 44], [3, 42], [-5, 36]],
+      [[-17, 15], [-10, 30], [-5, 36], [10, 37], [32, 31], [35, 28], [43, 12], [51, 12], [40, -15], [35, -24], [20, -35], [12, -18], [9, 4], [-8, 4], [-17, 12]],
+      [[114, -22], [130, -12], [142, -11], [153, -27], [146, -39], [130, -32], [116, -35]],
+      [[130, 33], [140, 35], [142, 43], [136, 37]],
+      [[-6, 50], [2, 51], [-3, 58], [-6, 56]],
+      [[95, 5], [105, -6], [120, -9], [125, -2], [110, 2]],
+    ]
+    g.fillStyle = '#8fa48a'
+    g.strokeStyle = '#5e6f5a'
+    g.lineWidth = 2
+    for (const poly of LAND) {
+      g.beginPath()
+      poly.forEach(([lo, la], i) => (i ? g.lineTo(px(lo), py(la)) : g.moveTo(px(lo), py(la))))
+      g.closePath()
+      g.fill()
+      g.stroke()
+    }
+    g.fillStyle = '#b3122e'
+    g.beginPath()
+    g.arc(px(-72.9), py(41.3), 7, 0, Math.PI * 2)
+    g.fill()
+    g.fillStyle = '#2b2e33'
+    g.font = '24px Georgia, serif'
+    g.fillText('New Haven', px(-72.9) + 12, py(41.3) - 10)
+    g.font = 'italic 28px Georgia, serif'
+    g.textAlign = 'center'
+    g.fillText('Global Network for Advanced Management', W / 2, Hh - 22)
+  }
+  return tex(c)
+}

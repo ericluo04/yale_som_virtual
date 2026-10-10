@@ -1,6 +1,7 @@
 import { Suspense, useLayoutEffect, useMemo } from 'react'
 import { useThree } from '@react-three/fiber'
 import * as THREE from 'three'
+import * as T from '../textures.js'
 import { COUNTERS, RECEPTION, SIGNAGE, DRUMS, MEETING, LIBRARY, STAIRS, BEIN, BEIN_CURTAIN, H, EAST, ellPt } from '../layout.js'
 import { slideTex, COURSE_KEYS } from '../slides.js'
 import Scenery, { METAL } from './Scenery.jsx'
@@ -454,12 +455,73 @@ const libLegs = [-8, -4, 4, 8].flatMap((z) => [
   ...[-1, 1].flatMap((sx) => [-1, 0, 1].map((k) => ({ p: [LIB_DESK_X + sx * 0.41, 0.36, z + k * 1.06], r: 0, s: [0.04, 0.72, 0.04] }))),
   ...[-1, 1].map((sx) => ({ p: [LIB_DESK_X + sx * 0.41, 0.69, z], r: 0, s: [0.03, 0.06, 2.1] })), // aprons
 ])
+// Upper library wall: a mezzanine ledge over the 2.4 m shelf run (white slab edge, glass
+// balustrade, steel handrail) and three framed prints on the plaster above it (textures.js
+// libraryPrintTex). Reading lamps on the study tables: a steel stem and a dark shade over a
+// warm emissive disc, no real light.
+const MEZ = { y: 3.3, depth: 1.0, z0: LIBRARY.z0 + 0.4, z1: LIBRARY.z1 - 0.4 }
+const mezLen = MEZ.z1 - MEZ.z0
+const mezZ = (MEZ.z0 + MEZ.z1) / 2
+const mezSlab = [{ p: [LIBRARY.x0 + 0.1 + MEZ.depth / 2, MEZ.y, mezZ], r: 0, s: [MEZ.depth, 0.28, mezLen] }]
+const mezRail = [{ p: [LIBRARY.x0 + 0.1 + MEZ.depth - 0.05, MEZ.y + 0.14 + 0.5, mezZ], r: 0, s: [0.02, 1.0, mezLen] }]
+const mezHand = [
+  { p: [LIBRARY.x0 + 0.1 + MEZ.depth - 0.05, MEZ.y + 1.17, mezZ], r: 0, s: [0.06, 0.05, mezLen] },
+  ...Array.from({ length: 12 }, (_, i) => ({ p: [LIBRARY.x0 + 0.1 + MEZ.depth - 0.05, MEZ.y + 0.66, MEZ.z0 + (mezLen * i) / 11], r: 0, s: [0.04, 1.04, 0.04] })),
+]
+const mezGlass = new THREE.MeshStandardMaterial({ color: '#d7ecf2', transparent: true, opacity: 0.16, roughness: 0.05, metalness: 0.2, depthWrite: false })
+const steelMat = new THREE.MeshStandardMaterial({ color: '#c9ced6', metalness: 0.9, roughness: 0.25 })
+const frameMat = new THREE.MeshStandardMaterial({ color: '#1e1f22', roughness: 0.5 })
+const PRINTS = [-8.4, 0, 8.4].map((z, k) => ({ z, k, w: k === 1 ? 3.0 : 3.4, h: k === 1 ? 2.12 : 2.4 }))
+const PRINT_Y = 5.75
+const printFrames = PRINTS.map((pr) => ({ p: [LIBRARY.x0 + 0.13, PRINT_Y, pr.z], r: 0, s: [0.05, pr.h + 0.12, pr.w + 0.12] }))
+function Prints() {
+  const mats = useMemo(() => PRINTS.map((pr) => new THREE.MeshStandardMaterial({ map: T.libraryPrintTex(pr.k), roughness: 0.6 })), [])
+  return PRINTS.map((pr, i) => (
+    <mesh key={i} position={[LIBRARY.x0 + 0.16, PRINT_Y, pr.z]} rotation={[0, Math.PI / 2, 0]} material={mats[i]}>
+      <planeGeometry args={[pr.w, pr.h]} />
+    </mesh>
+  ))
+}
+const LAMPS = [-8, -4, 4, 8].flatMap((z) => [-0.95, 0.95].map((dz) => [LIB_DESK_X, z + dz]))
+const lampGeos = {
+  base: new THREE.CylinderGeometry(0.07, 0.08, 0.02, 20).translate(0, 0.01, 0),
+  stem: new THREE.CylinderGeometry(0.008, 0.008, 0.36, 8).translate(0, 0.19, 0),
+  shade: new THREE.CylinderGeometry(0.035, 0.12, 0.13, 24, 1, true).translate(0, 0.42, 0),
+  bulb: new THREE.CircleGeometry(0.105, 24).rotateX(Math.PI / 2).translate(0, 0.365, 0),
+}
+const lampMats = {
+  shade: new THREE.MeshStandardMaterial({ color: '#244a36', roughness: 0.35, metalness: 0.3, side: THREE.DoubleSide }),
+  bulb: new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.82, 0.55).multiplyScalar(2.4), toneMapped: false }),
+}
+function Lamps() {
+  const set = (geo) => (mesh) => {
+    if (!mesh) return
+    const m = new THREE.Matrix4()
+    LAMPS.forEach(([x, z], i) => mesh.setMatrixAt(i, m.makeTranslation(x, 0.762, z)))
+    mesh.instanceMatrix.needsUpdate = true
+    mesh.computeBoundingSphere()
+  }
+  return (
+    <>
+      <instancedMesh ref={set()} args={[lampGeos.base, steelMat, LAMPS.length]} />
+      <instancedMesh ref={set()} args={[lampGeos.stem, steelMat, LAMPS.length]} />
+      <instancedMesh ref={set()} args={[lampGeos.shade, lampMats.shade, LAMPS.length]} castShadow />
+      <instancedMesh ref={set()} args={[lampGeos.bulb, lampMats.bulb, LAMPS.length]} />
+    </>
+  )
+}
 function Library() {
   return (
     <>
       <Boxes items={libWall} material={libWallMat} />
       <Boxes items={libTops} material={tableMats.top} />
       <Boxes items={libLegs} material={tableMats.top} />
+      <Boxes items={mezSlab} material={libWallMat} />
+      <Boxes items={mezRail} material={mezGlass} />
+      <Boxes items={mezHand} material={steelMat} />
+      <Boxes items={printFrames} material={frameMat} />
+      <Prints />
+      <Lamps />
     </>
   )
 }
