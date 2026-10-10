@@ -13,13 +13,13 @@ const PAUSE = 2.5 // seconds hanging out at the front of each room
 const TOUR_LENGTH = 1000
 
 // cloister loop, sized to clear the plants, banquettes and columns by about 0.25 m
-const RING = Array.from({ length: 120 }, (_, i) => {
+export const RING = Array.from({ length: 120 }, (_, i) => {
   const t = (i / 120) * Math.PI * 2
   const c = Math.cos(t)
   const s = Math.sin(t)
   return [23.4 * Math.sign(c) * Math.pow(Math.abs(c), 1 / 3), 22.9 * Math.sign(s) * Math.pow(Math.abs(s), 1 / 3)]
 })
-const nearestRing = (p) => {
+export const nearestRing = (p) => {
   let best = 0
   let bd = Infinity
   RING.forEach((q, i) => {
@@ -31,7 +31,7 @@ const nearestRing = (p) => {
   })
   return best
 }
-function ringPath(a, b) {
+export function ringPath(a, b) {
   const n = RING.length
   const fwd = (b - a + n) % n
   const step = fwd <= n / 2 ? 1 : -1
@@ -42,7 +42,7 @@ function ringPath(a, b) {
 }
 
 // for each classroom: the spot at the front of the room, and the door route out to the cloister
-const ROOMS = DRUMS.map((d) => {
+export const ROOMS = DRUMS.map((d) => {
   const { fc, back, t, half } = d.front
   const at = (depth, lat) => [fc[0] + back[0] * depth + t[0] * lat, fc[1] + back[1] * depth + t[1] * lat]
   const inside = at(1.6, 0)
