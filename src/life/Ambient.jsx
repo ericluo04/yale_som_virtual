@@ -3,54 +3,13 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { BENCHES } from '../layout.js'
 import { rand, timed, useLabubuRig } from './common.js'
+import { clampSprite, sprite } from './sprites.js'
 
 // Small scenes around the floor, cheap and mostly static:
 //   a Labubu asleep in a library lounge chair (Sleep, now and then a Yawn) with z's floating up
 //   one reading on the north-cloister banquette, turning a page every 3 s (SitRead)
 //   three queueing at the southeast stair down to the cafe, heads down in their phones (Phone)
 //   two chatting by the north courtyard glass, with speech bubbles
-
-// ---------- canvas sprites (z's and speech bubbles)
-function bubbleTex(text, { font = 'bold 44px system-ui, sans-serif', bubble = true } = {}) {
-  const c = document.createElement('canvas')
-  const g = c.getContext('2d')
-  g.font = font
-  const w = Math.ceil(g.measureText(text).width) + (bubble ? 56 : 8)
-  c.width = w
-  c.height = bubble ? 112 : 64
-  g.font = font
-  if (bubble) {
-    g.fillStyle = 'rgba(255,255,255,0.96)'
-    g.strokeStyle = '#00356b'
-    g.lineWidth = 5
-    const r = 30
-    g.beginPath()
-    g.moveTo(r, 4)
-    g.arcTo(w - 4, 4, w - 4, 84, r)
-    g.arcTo(w - 4, 84, 4, 84, r)
-    g.lineTo(w * 0.42, 84)
-    g.lineTo(w * 0.34, 108)
-    g.lineTo(w * 0.3, 84)
-    g.arcTo(4, 84, 4, 4, r)
-    g.arcTo(4, 4, w - 4, 4, r)
-    g.closePath()
-    g.fill()
-    g.stroke()
-  }
-  g.fillStyle = bubble ? '#1d2a44' : '#ffffff'
-  g.textBaseline = 'middle'
-  g.fillText(text, bubble ? 28 : 4, bubble ? 46 : 34)
-  const t = new THREE.CanvasTexture(c)
-  t.colorSpace = THREE.SRGBColorSpace
-  return { t, aspect: c.width / c.height }
-}
-function sprite(text, height, opts) {
-  const { t, aspect } = bubbleTex(text, opts)
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false }))
-  s.scale.set(height * aspect, height, 1)
-  s.renderOrder = 5
-  return s
-}
 
 // a seated or standing Labubu at a fixed spot
 function Still({ look, position, yaw, scale = 1, children, update }) {
@@ -227,12 +186,13 @@ function Chatters() {
     const who = k % 3 // 0 asks, 1 answers, 2 pause
     return { pair, who }
   }
-  useFrame(({ clock }) => {
+  useFrame(({ clock, camera }) => {
     const { pair, who } = speaking(clock.elapsedTime)
     bubbles.forEach((p, i) =>
       p.forEach((b, j) => {
         b.visible = i === pair && j === who
         b.position.set(CHAT[j].at[0], 1.62, CHAT[j].at[2])
+        if (b.visible) clampSprite(b, camera, 0.06)
       }),
     )
     void st
