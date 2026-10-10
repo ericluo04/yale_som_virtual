@@ -1,3 +1,4 @@
+import { COURT_HX, SKY } from '../layout.js'
 import { createStore } from './store.js'
 
 // All sound is synthesized with the Web Audio API, so nothing is downloaded.
@@ -550,7 +551,7 @@ function scheduleRoom(now, until) {
 let birdNext = 0
 let rustleNext = 0
 function nearCourtyard() {
-  return room.i < 0 && Math.abs(lx) < 30 && Math.abs(lz) < 28
+  return room.i < 0 && Math.abs(lx) < COURT_HX + 8.25 && Math.abs(lz) < 28
 }
 function scheduleCourtyard(now, until) {
   if (!nearCourtyard()) {
@@ -560,9 +561,10 @@ function scheduleCourtyard(now, until) {
   }
   if (birdNext < until) {
     const t = Math.max(birdNext, now)
-    // a point on the rim of the canopy's sky opening (27.5 x 25.5 m), 9 m up
+    // a point on the rim of the canopy's sky opening (43.5 x 25.5 m), 9 m up
     const side = Math.random() < 0.5
-    const x = side ? (Math.random() < 0.5 ? -13.75 : 13.75) : rand(-13.75, 13.75)
+    const rx = SKY.hx + 0.25
+    const x = side ? (Math.random() < 0.5 ? -rx : rx) : rand(-rx, rx)
     const z = side ? rand(-12.75, 12.75) : Math.random() < 0.5 ? -12.75 : 12.75
     const pn = roomPanner(x, z, 9, 6, 1)
     const f0 = rand(2800, 4200)

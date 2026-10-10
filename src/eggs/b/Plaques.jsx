@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Interactable, openDialogue, useDiscovery } from '../../interact/index.jsx'
 import { withAvatars } from '../../ui/portraits.js'
-import { BEIN, LIBRARY, ellPt } from '../../layout.js'
+import { BEIN, LIBRARY, ellPt, planX } from '../../layout.js'
 import { Box, Pill, canvasTex, onDrum, saved, seeded, std } from './common.jsx'
 
 // Egg: three small brushed-metal plaques. Hidden from the minimap until read, since finding them is the game.
@@ -23,7 +23,8 @@ const PLAQUES = [
     quote: 'I welcome our new computer overlords.',
     who: 'Ken Jennings, as quoted in Lecture 1',
     context: 'Jennings wrote it under his Final Jeopardy! answer in 2011, the night IBM Watson beat him.',
-    p: [-31, LIBRARY.z1 + 0.12], // outside face of the library's south wall, across from stair A
+    p: [planX(-31), LIBRARY.z1 + 0.12], // outside face of the library's south wall, across from stair A
+
     rot: 0,
   },
   {

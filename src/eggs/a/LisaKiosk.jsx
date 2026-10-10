@@ -3,11 +3,14 @@ import { useFrame } from '@react-three/fiber'
 import { Interactable, openDialogue, useDiscovery } from '../../interact/index.jsx'
 import { dialogueState } from '../../ui/dialogueStore.jsx'
 import { canvasTex, lineIndex, printMat, solidMat } from './util.js'
+import { SPAWN, planX } from '../../layout.js'
+
 
 // Egg: Lisa, the course's AI TA (zlisto/ai_lisa_ta). A kiosk in the west cloister by the MGT 409 room (2400),
 // at the edge of the hall so the walkway stays clear, screen turned toward the spawn point.
-const POS = [-27.4, 0, 19.4]
-const ROT = Math.atan2(-24.4 - POS[0], 22 - POS[2])
+// (x -27.4 on the round-3 floor, mapped onto the enlarged one)
+const POS = [planX(-27.4), 0, 19.4]
+const ROT = Math.atan2(SPAWN.x - POS[0], SPAWN.z - POS[2])
 const THINK_MS = 1100
 let thinkingUntil = 0 // the kiosk dots speed up while Lisa "thinks"
 

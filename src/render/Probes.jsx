@@ -11,6 +11,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { QUALITY } from './debugCam.js'
 import { shadowState } from './Lighting.jsx'
+import { planX } from '../layout.js'
 
 const params = new URLSearchParams(typeof location === 'undefined' ? '' : location.search)
 const ON = params.get('probes') !== '0'
@@ -19,8 +20,8 @@ const SIZE = 256
 const SPOTS = {
   north: [0, 2.2, -22.4],
   south: [0, 2.2, 22.4],
-  west: [-24.4, 2.2, 0],
-  east: [24.4, 2.2, 0],
+  west: [planX(-24.4), 2.2, 0],
+  east: [planX(24.4), 2.2, 0],
   courtyard: [0, -2.5, 0],
 }
 // a mirror-like surface reflects its real surroundings at intensity 1; the old 2.4 was

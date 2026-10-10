@@ -8,12 +8,42 @@ export const H = 7.2 // ceiling height
 export const ROOF = 14.8 // roof canopy above the level 2 floor (ground to roof about 19.5 m)
 export const EYE = 1.65
 export const R_PLAYER = 0.35
-export const SPAWN = { x: -24.4, z: 22 } // SW corner by Class of 1980, facing north (photo 1)
+// ---------- the enlarged floor (round 4)
+// Round 3 opened a 4.1 m front walkway, 1 m aisles and 2.2 m gaps between drums, and dropped the
+// rows that no longer fit. Lan wants the old rows back and a bigger building instead, so every drum
+// grows (keeping its rx : rz ratio) until the 267b2fa rows fit with those walkways, and the plan
+// grows round them. The cloister bands keep their width:
+//   x: the courtyard and both drum runs stretch by X_K; the east and west strips shift out by DX;
+//      the west corner block (library, stairs A and B, the corner drums) also widens by DXW
+//   z: the courtyard and cloisters stay; each drum row's band stretches to the new drum depth, and
+//      everything behind it (back hallway, meeting rooms) shifts out by the growth
+// Coordinates written in the round-3 plan go through planX / planZ / planPt to land on this floor.
+const lerpKnots = (v, a, b) => {
+  if (v <= a[0]) return b[0] + (v - a[0])
+  for (let i = 1; i < a.length; i++) if (v <= a[i]) return b[i - 1] + ((v - a[i - 1]) * (b[i] - b[i - 1])) / (a[i] - a[i - 1])
+  return b[b.length - 1] + (v - a[a.length - 1])
+}
+const DX = 8 // the courtyard's half width grows 21.75 -> 29.75 m, so both three-drum runs fit
+const DXW = 3.4 // the west corner block widens so the bigger corner drums keep 0.45 m off the west wall
+// south row band: drum fronts stay at z 25.4, backs move 44.0 -> 48.8 (rz 9.3 -> 11.7)
+// north row band: drum fronts stay at z -24.9, backs move -37.3 -> -41.5 (rz 6.2 -> 8.3)
+const X_OLD = [-40.75, -27, -21.75, 21.75, 28.75]
+const X_NEW = [-40.75 - DX - DXW, -27 - DX, -21.75 - DX, 21.75 + DX, 28.75 + DX]
+const Z_OLD = [-43, -37.3, -24.9, 25.4, 44.0, 51.5]
+const Z_NEW = [-47.2, -41.5, -24.9, 25.4, 48.8, 56.3]
+export const planX = (x) => lerpKnots(x, X_OLD, X_NEW)
+export const planZ = (z) => lerpKnots(z, Z_OLD, Z_NEW)
+export const planPt = (p) => [planX(p[0]), planZ(p[1])]
+
+export const SPAWN = { x: planX(-24.4), z: 22 } // SW corner by Class of 1980, facing north (photo 1)
 
 // corridors are 25% wider than the first pass (gaps 2.5 m, cloister ~7 m, back halls ~4.4 m)
-export const BOUNDS = { xMin: -40.75, xMax: 28.75, zMin: -43, zMax: 51.5 }
+export const BOUNDS = { xMin: planX(-40.75), xMax: planX(28.75), zMin: planZ(-43), zMax: planZ(51.5) }
 export const EAST = BOUNDS.xMax
-const CLOISTER_W = 24.4 // x of the west/east cloister centerlines (mirrored)
+export const COURT_HX = planX(21.75) // the courtyard glass's half width (x)
+// the roof canopy's sky opening (a rounded rectangle, World.jsx CourtyardFrame): it keeps its 8 m
+// overhang past the east and west glass, so it widens with the courtyard (27 x 25 m -> 43 x 25 m)
+export const SKY = { hx: 13.5 + DX, hz: 12.5, r: 2.5 }
 
 const TAU = Math.PI * 2
 const norm = (v) => {
@@ -28,7 +58,7 @@ export const arc = (c, rx, rz, a0, a1, n) =>
 
 // ---------- courtyard: rounded square, glass wiggles along the classroom (north/south) sides
 function courtyardPoints(n = 192) {
-  const hx = 21.75 // 43.5 m x 40 m between the glass walls
+  const hx = COURT_HX // 59.5 m x 40 m between the glass walls (was 43.5 x 40)
   const hz = 20
   const pts = []
   for (let i = 0; i < n; i++) {
@@ -38,7 +68,9 @@ function courtyardPoints(n = 192) {
     const x = hx * Math.sign(c) * Math.pow(Math.abs(c), 1 / 3)
     let z = hz * Math.sign(s) * Math.pow(Math.abs(s), 1 / 3)
     const w = Math.pow(Math.abs(s), 6)
-    z -= Math.sign(s) * w * 0.9 * (0.5 + 0.5 * Math.cos((TAU * x) / 14.5))
+    // one glass bulge per drum: the wiggle's period grows with the drum spacing
+    z -= Math.sign(s) * w * 0.9 * (0.5 + 0.5 * Math.cos((TAU * x) / (14.5 * (COURT_HX / 21.75))))
+
     pts.push([x, z])
   }
   return pts
@@ -79,25 +111,34 @@ const bandStart = (i) => ROW0 - 0.35 + i * ROW_STEP
 const SLIDE_ORDER = ['title', 'chart', 'content']
 // Walk-through gaps between neighbouring drums (Lan, round 3): at least 2.2 m clear between the
 // colliders of two drums, door fins included, so a player walks from the cloister to the back
-// corridor between any two classrooms. The plan's ovals touched or nearly touched (1.45 m between
-// the north drums, 0.35 m between their door fins). Each drum of the three-drum runs loses width
-// along the row (x) only: the south ovals 6.5 -> 6.15 m, the north drums 6.85 -> 6.3 m. The wood
-// door fins stand out 0.3 m (was 0.7), since at 0.7 they alone closed half of each gap.
-const RX_S = 6.15
-const RX_N = 6.3
+// corridor between any two classrooms. The wood door fins stand out 0.3 m (was 0.7), since at 0.7
+// they alone closed half of each gap.
+// Round 4: each drum is the plan's oval (267b2fa sizes) scaled up, rx : rz kept, by the least factor
+// (rounded up to 5 cm) at which the 267b2fa rows fit behind the 4.1 m front walkway with the 1 m
+// aisles: the corner ovals by 1.21 and 1.24, the south trio by 1.26, the north trio by 1.34. Each
+// drum's front edge stays where it was (south fronts z 25.4, north fronts z -24.9, corner fronts on
+// the west cloister), and it grows away from the courtyard. The trios' centres follow planX, which
+// leaves about 2.5 m (north) and 4 m (south) between neighbours.
 const FIN = 0.3
+const RX_S = 8.2 // 6.5 x 9.3 at 267b2fa
+const RZ_S = 11.7
+const RX_N = 9.15 // 6.85 x 6.2 at 267b2fa
+const RZ_N = 8.3
+const ZS = 25.4 + RZ_S // south trio centres
+const ZN = -24.9 - RZ_N // north trio centres
 export const DRUMS = [
-  // south row: a 16 x 20 m oval in the southwest corner, then three 13 x 19 m ovals (long axis N-S)
-  { id: '2400', course: 'mgt409', name: 'MBA Class of 1980 Classroom', c: [-32.3, 34.7], rx: 8, rz: 10, front: [1, 0] },
-  { id: '2410', course: 'mgt404', name: 'Bewkes Classroom', c: [-15, 34.7], rx: RX_S, rz: 9.3, front: [0, -1] },
-  { id: '2420', course: 'mgt403', name: 'Betts Classroom', c: [0, 34.7], rx: RX_S, rz: 9.3, front: [0, -1] },
-  { id: '2430', course: 'mgt887', name: 'Baker Classroom', c: [15, 34.7], rx: RX_S, rz: 9.3, front: [0, -1] },
-  // north row: a 15 x 16 m oval in the northwest corner, then three round 13.7 x 12.4 m drums
-  // (both rows' three-drum runs narrowed along x for the walk-through gaps, RX_S and RX_N above)
-  { id: '2200', course: 'mgt402', name: 'Blumetti Classroom', c: [-32.9, -32.6], rx: 7.3, rz: 7.9, front: [1, 0] },
-  { id: '2210', course: 'mgt538', name: 'Allison Foundation Classroom', c: [-15.3, -31.1], rx: RX_N, rz: 6.2, front: [0, 1] },
-  { id: '2220', course: 'mgt800', name: 'Jones Classroom', c: [0, -31.1], rx: RX_N, rz: 6.2, front: [0, 1] },
-  { id: '2230', course: 'mgt541', name: 'Nooyi Classroom', c: [15.3, -31.1], rx: RX_N, rz: 6.2, front: [0, 1] },
+  // south row: a 19.4 x 24.2 m oval in the southwest corner (was 16 x 20), then three 16.4 x 23.4 m
+  // ovals (was 13 x 18.6, long axis N-S)
+  { id: '2400', course: 'mgt409', name: 'MBA Class of 1980 Classroom', c: [planX(-24.3) - 9.7, 24.7 + 12.1], rx: 9.7, rz: 12.1, front: [1, 0] },
+  { id: '2410', course: 'mgt404', name: 'Bewkes Classroom', c: [planX(-15), ZS], rx: RX_S, rz: RZ_S, front: [0, -1] },
+  { id: '2420', course: 'mgt403', name: 'Betts Classroom', c: [0, ZS], rx: RX_S, rz: RZ_S, front: [0, -1] },
+  { id: '2430', course: 'mgt887', name: 'Baker Classroom', c: [planX(15), ZS], rx: RX_S, rz: RZ_S, front: [0, -1] },
+  // north row: an 18.1 x 19.5 m oval in the northwest corner (was 14.6 x 15.8), then three round
+  // 18.3 x 16.6 m drums (was 13.7 x 12.4)
+  { id: '2200', course: 'mgt402', name: 'Blumetti Classroom', c: [planX(-25.6) - 9.05, -24.7 - 9.75], rx: 9.05, rz: 9.75, front: [1, 0] },
+  { id: '2210', course: 'mgt538', name: 'Allison Foundation Classroom', c: [planX(-15.3), ZN], rx: RX_N, rz: RZ_N, front: [0, 1] },
+  { id: '2220', course: 'mgt800', name: 'Jones Classroom', c: [0, ZN], rx: RX_N, rz: RZ_N, front: [0, 1] },
+  { id: '2230', course: 'mgt541', name: 'Nooyi Classroom', c: [planX(15.3), ZN], rx: RX_N, rz: RZ_N, front: [0, 1] },
 ].map((d) => {
   const dir = norm(d.front)
   const phi = Math.atan2(dir[0], dir[1])
@@ -116,6 +157,7 @@ export const BEIN = { c: [EAST, 0], r: 12.5, terrace: 17, doorGap: 0.11, muralR:
 BEIN.col = ellPt(BEIN.c, BEIN.r + 2.6, BEIN.r + 2.6, 0.6) // terrace column
 
 // ---------- stairs (painting above each opening)
+// (centres written in the round-3 plan, mapped onto the enlarged floor)
 export const STAIRS = [
   { id: 'A', c: [-32.5, 19], w: 5, d: 3, face: [1, 0], seed: 1 },
   { id: 'B', c: [-32.5, -19], w: 5, d: 3, face: [1, 0], seed: 2 },
@@ -124,10 +166,11 @@ export const STAIRS = [
   { id: 'C', c: [24.6, -41], w: 3, d: 4, face: [0, 1], seed: 4 },
   { id: 'H', c: [24.6, 45], w: 3, d: 4, face: [0, -1], seed: 5 },
   { id: 'I', c: [-38, 48.5], w: 3, d: 4, face: [0, -1], seed: 6 },
-]
+].map((s) => ({ ...s, c: planPt(s.c) }))
 
-// ---------- library (west side)
-export const LIBRARY = { x0: -38.4, x1: -26.4, z0: -13.3, z1: 13.3, door: 1.2 }
+// ---------- library (west side): its glass stays on the west cloister, its back wall moves west
+// with the wider corner block (12 m deep -> 14.8 m)
+export const LIBRARY = { x0: planX(-38.4), x1: planX(-26.4), z0: -13.3, z1: 13.3, door: 1.2 }
 
 // ---------- walls: every straight piece is a box; mat 'none' = invisible collider
 export const WALLS = []
@@ -228,6 +271,7 @@ for (const d of DRUMS) {
       if (!foot.every(([a, b]) => inside([p[0] + tg[0] * a + ux[0] * b, p[1] + tg[1] * a + ux[1] * b]))) continue
       if (doorPts.some((q) => Math.hypot(p[0] - q[0], p[1] - q[1]) < 2.2)) continue
       W([p[0] - tg[0] * 0.6, p[1] - tg[1] * 0.6], [p[0] + tg[0] * 0.6, p[1] + tg[1] * 0.6], 'desk', { h: 0.95, t: 0.5, y0: y })
+
       for (const s of [-0.3, 0.3]) {
         CHAIRS.push({ x: p[0] + ux[0] * 0.65 + tg[0] * s, z: p[1] + ux[1] * 0.65 + tg[1] * s, y, rot: Math.atan2(ux[0], ux[1]), room: d.id })
       }
@@ -290,16 +334,17 @@ for (const s of STAIRS) {
 }
 
 // recycling pair against the west face of stair G's core (render/Fixtures.jsx)
-export const RECYCLE = [{ p: [22.73, 26.1], r: -Math.PI / 2 }]
+export const RECYCLE = [{ p: [STAIRS[2].c[0] - 1.87, 26.1], r: -Math.PI / 2 }]
 for (const { p } of RECYCLE) W([p[0], p[1] - 0.55], [p[0], p[1] + 0.55], 'none', { t: 0.55 })
 
 // small glass meeting rooms in strips behind each drum row
 export const MEETING = []
-const M_X1 = 22.6
+const M_X1 = planX(22.6)
 export const MEET_DOOR = 1.1 // glass door width
-// north bar (plan: z -43 to -39.3, east of the corner oval); south strip in front of the faculty wing
-for (const [side, zf, zb, M_X0] of [[1, 46, zMax, -35], [-1, -39.3, zMin, -22.7]]) {
-  const n = 9
+// north bar (plan: z -43 to -39.3, east of the corner oval); south strip in front of the faculty wing.
+// The enlarged floor makes both strips longer, so each holds 12 rooms (was 9) of about the old width.
+for (const [side, zf, zb, M_X0] of [[1, planZ(46), zMax, planX(-35)], [-1, planZ(-39.3), zMin, planX(-22.7)]]) {
+  const n = 12
   const w = (M_X1 - M_X0) / n
   for (let i = 0; i <= n; i++) W([M_X0 + i * w, zf], [M_X0 + i * w, zb], 'white', { t: 0.15 })
   for (let i = 0; i < n; i++) {
@@ -358,21 +403,20 @@ for (const p of BEIN_TABLES) {
   }
 }
 
-// cloister furniture: cognac benches, orange sofas, plants
-const CW = CLOISTER_W
+// cloister furniture: cognac benches, orange sofas, plants (round-3 plan positions, mapped)
 // scanned potted plants (render/Scenery.jsx), kept 1.2 m off each walkway centerline and 0.5 m off
 // Handsome Dan's loop: the west pair stands against the library glass, the east one by a column
-export const PLANTS = [[-25.95, -10.5], [8.8, -20.55], [-7, 20.55], [27.2, 7.75], [-25.95, 9.5]]
+export const PLANTS = [[-25.95, -10.5], [8.8, -20.55], [-7, 20.55], [27.2, 7.75], [-25.95, 9.5]].map(planPt)
 // curved cognac "banana" banquettes (photos 03-05): drawn in World.jsx, colliders here
 export const BENCHES = [
-  { c: [-CW - 0.3, -2], len: 4.2, rot: 0 },
-  { c: [-CW - 0.3, 6.5], len: 3.6, rot: Math.PI },
-  { c: [CW + 0.4, 3.5], len: 4.2, rot: Math.PI },
+  { c: [-24.7, -2], len: 4.2, rot: 0 },
+  { c: [-24.7, 6.5], len: 3.6, rot: Math.PI },
+  { c: [24.8, 3.5], len: 4.2, rot: Math.PI },
   { c: [-1.5, -21.8], len: 4.2, rot: Math.PI / 2 },
   { c: [7.5, -21.8], len: 3.6, rot: -Math.PI / 2 },
   { c: [4.5, 22.2], len: 4.2, rot: -Math.PI / 2 },
   { c: [-5.5, 22.2], len: 3.6, rot: Math.PI / 2 },
-]
+].map((b) => ({ ...b, c: planPt(b.c) }))
 for (const b of BENCHES) {
   const d = [Math.cos(b.rot), -Math.sin(b.rot)]
   W([b.c[0] - (d[1] * b.len) / 2, b.c[1] + (d[0] * b.len) / 2], [b.c[0] + (d[1] * b.len) / 2, b.c[1] - (d[0] * b.len) / 2], 'none', { h: 0.45, t: 0.9 })
@@ -380,19 +424,24 @@ for (const b of BENCHES) {
 for (const p of PLANTS) dot(p)
 
 // slim white round columns on the 7.6 m grid: a ring just inside the courtyard glass (rising
-// from the lawn to the roof) and a row along the east and west concourse
+// from the lawn to the roof) and a row along the east and west concourse. The wider courtyard
+// takes eight columns along each long side (was six), still about 7.8 m apart.
 let COLS = []
+const COL_X = COURT_HX - 2.45
 for (const v of [-19.3, -11.5, -3.8, 3.9, 11.6, 19.3]) {
-  COLS.push({ x: -19.3, z: v, y0: -5, court: true }, { x: 19.3, z: v, y0: -5, court: true })
-  if (Math.abs(v) < 19) COLS.push({ x: v, z: -18.4, y0: -5, court: true }, { x: v, z: 18.4, y0: -5, court: true })
-  if (Math.abs(v) < 15) COLS.push({ x: 26.6, z: v, y0: 0 })
+  COLS.push({ x: -COL_X, z: v, y0: -5, court: true }, { x: COL_X, z: v, y0: -5, court: true })
+  if (Math.abs(v) < 15) COLS.push({ x: planX(26.6), z: v, y0: 0 })
+}
+for (let k = 1; k < 7; k++) {
+  const x = -COL_X + (2 * COL_X * k) / 7
+  COLS.push({ x, z: -18.4, y0: -5, court: true }, { x, z: 18.4, y0: -5, court: true })
 }
 export const COLUMNS = COLS.filter((c) => !c.court || inPoly(c.x, c.z, COURTYARD))
 for (const c of COLUMNS) if (!c.court) dot([c.x, c.z])
 
 // lived-in props (drawn in render/Props.jsx): white-topped high counters against the drum
 // fronts, a reception desk inside the library door, signage screens on the west stair cores
-export const COUNTERS = [[-15.3, -24.1], [15.3, -24.1], [-15, 24.6], [15, 24.6]].map(([x, z]) => ({ x, z, w: 2.4, d: 0.6 }))
+export const COUNTERS = [[-15.3, -24.1], [15.3, -24.1], [-15, 24.6], [15, 24.6]].map(([x, z]) => ({ x: planX(x), z, w: 2.4, d: 0.6 }))
 for (const k of COUNTERS) W([k.x - k.w / 2, k.z], [k.x + k.w / 2, k.z], 'none', { t: k.d })
 export const RECEPTION = { x: LIBRARY.x1 - 1.6, z: -2.4, w: 2.8, d: 0.8 }
 W([RECEPTION.x, RECEPTION.z - RECEPTION.w / 2], [RECEPTION.x, RECEPTION.z + RECEPTION.w / 2], 'none', { t: RECEPTION.d })
@@ -405,16 +454,16 @@ P(arc(BEIN.c, BEIN_CURTAIN.r, BEIN_CURTAIN.r, Math.PI / 2 - BEIN_CURTAIN.half, M
 // ---------- scenery (render/Scenery.jsx draws scanned CC0 models; colliders here)
 // more plants in front of the drums, between the counters and the doors; the stair B one stands
 // against the south face of that core (z -20.5), west of the bin
-export const PLANTS_EXTRA = [[-18.6, -25.3], [3.4, -25.3], [11.9, -25.3], [-18.5, 26.2], [3.5, 26.2], [11.5, 26.2], [-33.4, -21.0], [27.9, 22.4]]
+export const PLANTS_EXTRA = [[-18.6, -25.3], [3.4, -25.3], [11.9, -25.3], [-18.5, 26.2], [3.5, 26.2], [11.5, 26.2], [-33.4, -21.0], [27.9, 22.4]].map(planPt)
 for (const p of PLANTS_EXTRA) dot(p)
 // waste bins at the four cloister corners, out of both walkways. The east pair stands against the
 // east wall; the west pair stood in open floor 3 m off the cloister (one beside the spawn point)
 // and now stands against the outer face of the stair A and B cores, facing the drums.
-export const BINS = [[-31.0, 20.85], [27.9, -21.5], [-31.0, -20.85], [27.9, 21.4]]
+export const BINS = [[-31.0, 20.85], [27.9, -21.5], [-31.0, -20.85], [27.9, 21.4]].map(planPt)
 for (const p of BINS) W(p, [p[0] + 0.01, p[1]], 'none', { t: 0.5 })
 // library lounge: four leather lounge chairs round a low table, one group each side of the door
 // (two chairs north of the table, two south), clear of the desk chairs and the reception desk
-export const LOUNGES = [{ x: -28.0, z: -6.4 }, { x: -28.0, z: 6.4 }]
+export const LOUNGES = [{ x: planX(-28.0), z: -6.4 }, { x: planX(-28.0), z: 6.4 }]
 for (const l of LOUNGES) W([l.x, l.z - 0.9], [l.x, l.z + 0.9], 'none', { t: 1.9 })
 // The library shelves, study desks and leather sofas, and the box chairs in the library, the
 // Beinecke room and the meeting rooms, are drawn as scanned models now. Their wall entries keep their colliders but stop
@@ -472,10 +521,11 @@ export function locate(x, z) {
   if (x < LIBRARY.x1 && z > LIBRARY.z0 && z < LIBRARY.z1) return 'Ross Library · 2100'
   if (x > EAST) return Math.hypot(x - EAST, z) < BEIN.r ? 'Beinecke Terrace Room · 2300' : 'Beinecke Terrace (outside)'
   for (const m of MEETING) if (Math.abs(x - m.x) < m.w / 2 && Math.abs(z - m.z) < m.d / 2) return `Meeting room · ${m.num}`
-  if (z > 44.3) return 'South back hallway · meeting rooms 2461+'
-  if (z < -37.4) return 'North back hallway · meeting rooms 2246+'
-  if (x < -20) return 'West cloister · Ross Library side'
-  if (x > 20) return 'East cloister · Beinecke side'
+  if (z > planZ(44.3)) return 'South back hallway · meeting rooms 2461+'
+  if (z < planZ(-37.4)) return 'North back hallway · meeting rooms 2246+'
+  if (x < planX(-20)) return 'West cloister · Ross Library side'
+  if (x > planX(20)) return 'East cloister · Beinecke side'
+
   return z < 0 ? 'North cloister' : 'South cloister'
 }
 

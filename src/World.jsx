@@ -8,7 +8,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import {
   H, EAST, BOUNDS, COURTYARD, DRUMS, DRUM_WALL, WALLS, CHAIRS, SCREENS, BOARDS, LECTERNS,
   STAIRS, MEETING, MEET_DOOR, BEIN, BEIN_TABLES, PLANTS, LIBRARY, RISE, inPoly, ellPt, tierOutline,
-  BENCHES, COLUMNS, ROOF, DESK_SURFACES,
+  BENCHES, COLUMNS, ROOF, DESK_SURFACES, SKY, planPt, planX,
 } from './layout.js'
 import * as T from './textures.js'
 import LabubuParty, { MeetingLabubus } from './LabubuParty.jsx'
@@ -686,12 +686,13 @@ function Level4({ M }) {
 // monitor and a chair in dark silhouette, and a warm lit back wall and ceiling strip in about
 // two of three of them. Unbaked and shadowless; only the courtyard view reaches it.
 const OFFICE = { module: 3.2, depth: 2.0, tier: 3.45 }
+// (round-3 plan coordinates, mapped onto the enlarged floor)
 const OFFICE_RUNS = [
   { a: [26.6, -14.4], b: [26.6, 14.4], out: [1, 0] },
   { a: [-26.6, -14.4], b: [-26.6, 14.4], out: [-1, 0] },
   { a: [-24, -38.6], b: [24, -38.6], out: [0, -1] },
   { a: [-24, 44.6], b: [24, 44.6], out: [0, 1] },
-]
+].map((r) => ({ ...r, a: planPt(r.a), b: planPt(r.b) }))
 function Level4Offices({ M }) {
   const parts = useMemo(() => {
     const r = rng(41)
@@ -767,7 +768,7 @@ function roundRect(hx, hz, r, n = 8) {
 }
 
 // What frames the view across the courtyard: stone paving round the lawn, slim white columns
-// from the lawn to the roof, and the deep white roof canopy that leaves a 27 x 25 m sky opening.
+// from the lawn to the roof, and the deep white roof canopy that leaves a 43 x 25 m sky opening.
 function CourtyardFrame({ M }) {
   const geos = useMemo(() => {
     const v = (pts) => pts.map(([x, z]) => new THREE.Vector2(x, -z))
@@ -775,7 +776,7 @@ function CourtyardFrame({ M }) {
     pave.holes.push(new THREE.Path(v(COURTYARD.map(([x, z]) => [x * 0.86, z * 0.85]))))
     const pg = new THREE.ShapeGeometry(pave)
     pg.rotateX(-Math.PI / 2)
-    const hole = roundRect(13.5, 12.5, 2.5)
+    const hole = roundRect(SKY.hx, SKY.hz, SKY.r)
     const can = new THREE.Shape(v(COURTYARD.map(([x, z]) => [x * 1.03, z * 1.03])))
     can.holes.push(new THREE.Path(v(hole)))
     const cg = new THREE.ShapeGeometry(can)

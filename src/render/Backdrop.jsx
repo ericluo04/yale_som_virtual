@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useLoader, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
-import { BOUNDS, EAST, BEIN } from '../layout.js'
+import { BOUNDS, EAST, BEIN, planX, planZ } from '../layout.js'
 import { Trees } from './Scenery.jsx'
 import Town from './Town.jsx'
 import { G, CURB, VERGE, WALK, S, ROAD, NS, OUT, EDGE, surface, corridor, splitRange, quadGeo } from './streetPlan.js'
@@ -211,14 +211,15 @@ const STREET = (() => {
   }
   const inner = (k) => EDGE[k][0] - (OUT[k] * VERGE) / 2 // verge centre on the building side
   const outer = (k) => EDGE[k][1] + (OUT[k] * VERGE) / 2
-  for (let z = -36; z <= 44; z += 16) add('W', inner('W'), z) // Whitney Avenue (6)
-  for (let x = -30; x <= 40; x += 14) add('N', x, inner('N')) // north street (6)
-  for (const z of [-36, -16, 18, 38]) add('E', inner('E'), z, 0.9) // either side of the terrace view (4)
-  for (let x = -40; x <= 40; x += 16) add('S', x, inner('S')) // south street (6)
-  for (const z of [-24, 26]) add('W', outer('W'), z, 0.8) // far verges, smaller (8)
-  for (const x of [-18, 30]) add('N', x, outer('N'), 0.8)
-  for (const z of [-28, 30]) add('E', outer('E'), z, 0.8)
-  for (const x of [-22, 18]) add('S', x, outer('S'), 0.8)
+  // positions along each street written for the round-3 floor, spread by planX / planZ
+  for (let z = -36; z <= 44; z += 16) add('W', inner('W'), planZ(z)) // Whitney Avenue (6)
+  for (let x = -30; x <= 40; x += 14) add('N', planX(x), inner('N')) // north street (6)
+  for (const z of [-36, -16, 18, 38]) add('E', inner('E'), planZ(z), 0.9) // either side of the terrace view (4)
+  for (let x = -40; x <= 40; x += 16) add('S', planX(x), inner('S')) // south street (6)
+  for (const z of [-24, 26]) add('W', outer('W'), planZ(z), 0.8) // far verges, smaller (8)
+  for (const x of [-18, 30]) add('N', planX(x), outer('N'), 0.8)
+  for (const z of [-28, 30]) add('E', outer('E'), planZ(z), 0.8)
+  for (const x of [-22, 18]) add('S', planX(x), outer('S'), 0.8)
   return out
 })()
 

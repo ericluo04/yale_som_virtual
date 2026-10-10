@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { openDialogue, useInteractable } from '../interact/index.jsx'
 import { dialogueState } from '../ui/dialogueStore.jsx'
-import { RING } from '../HandsomeDan.jsx'
+import { RING, RING_HX, RING_HZ } from '../HandsomeDan.jsx'
 import { collide } from '../layout.js'
 import { Walker, fromPoi, poiByName, toPoi } from './walk.js'
 import { angleTo, rand, timed, turnToward, useLabubuRig } from './common.js'
@@ -30,7 +30,7 @@ const LINES = [
 ]
 let lineIdx = 0
 
-// RING index: 0 east cloister (x 23.4, z 0), 30 south, 60 west, 90 north. The first stop is the first entry of
+// RING index: 0 east cloister (x RING_HX, z 0), 30 south, 60 west, 90 north. The first stop is the first entry of
 // the beat, picked so each roamer starts in view from the middle of its cloister.
 const CREW = [
   { name: 'Mocha', fur: '#6b4a3a', expression: 'grin', shirt: 'yale', start: 57, seed: 11, coffee: true, beat: ['glassW2', 'glassW', 'lisa'] },
@@ -209,8 +209,9 @@ function Roamer({ cfg, id }) {
         // walk beside the leader, 0.7 m on the outer side of the cloister (away from the courtyard glass and the
         // banquettes along it); stand facing it when it stops
         const ly = lead.pos[3] || 0
-        const ax = Math.abs(lead.pos[0]) / 23.4
-        const az = Math.abs(lead.pos[2]) / 22.9
+        const ax = Math.abs(lead.pos[0]) / RING_HX
+        const az = Math.abs(lead.pos[2]) / RING_HZ
+
         const out = ax > az ? [Math.sign(lead.pos[0]), 0] : [0, Math.sign(lead.pos[2])]
         const q = collide({ x: lead.pos[0] + out[0] * 0.7, z: lead.pos[2] + out[1] * 0.7 })
         base = [q.x, lead.pos[1], q.z]

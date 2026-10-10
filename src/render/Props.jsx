@@ -2,7 +2,7 @@ import { Suspense, useLayoutEffect, useMemo } from 'react'
 import { useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import * as T from '../textures.js'
-import { COUNTERS, RECEPTION, SIGNAGE, DRUMS, MEETING, LIBRARY, STAIRS, BEIN, BEIN_CURTAIN, H, EAST, ellPt } from '../layout.js'
+import { COUNTERS, RECEPTION, SIGNAGE, DRUMS, MEETING, LIBRARY, STAIRS, BEIN, BEIN_CURTAIN, H, EAST, ellPt, planX } from '../layout.js'
 import { slideTex, COURSE_KEYS } from '../slides.js'
 import Scenery, { METAL } from './Scenery.jsx'
 import Backdrop from './Backdrop.jsx'
@@ -226,11 +226,11 @@ const dirSign = (lines, head = 'Level 2') => (g, w, h) => {
 // centred where the old 1.0 m plates were, so the larger plates cover their baked contact shadows
 const SIGNS = [
   // library's north outer wall, read facing south: east (the library door, Beinecke) is on the left
-  { p: [-30.5, 2.0, LIBRARY.z0 - 0.105], rot: Math.PI, lines: [['left', 'Ross Library  2100'], ['left', 'Beinecke Terrace Room  2300']] },
+  { p: [planX(-30.5), 2.0, LIBRARY.z0 - 0.105], rot: Math.PI, lines: [['left', 'Ross Library  2100'], ['left', 'Beinecke Terrace Room  2300']] },
   // library's south outer wall, read facing north: east is on the right
-  { p: [-28.2, 2.0, LIBRARY.z1 + 0.105], rot: 0, lines: [['right', 'Ross Library  2100'], ['right', 'Beinecke Terrace Room  2300']] },
+  { p: [planX(-28.2), 2.0, LIBRARY.z1 + 0.105], rot: 0, lines: [['right', 'Ross Library  2100'], ['right', 'Beinecke Terrace Room  2300']] },
   // east column, read facing east toward the Beinecke door: north on the left, south on the right
-  { p: [26.36, 2.0, -3.8], rot: -Math.PI / 2, lines: [['up', 'Beinecke Terrace Room  2300'], ['left', 'Classrooms  2210 \u2013 2230'], ['right', 'Classrooms  2410 \u2013 2430']] },
+  { p: [planX(26.36), 2.0, -3.8], rot: -Math.PI / 2, lines: [['up', 'Beinecke Terrace Room  2300'], ['left', 'Classrooms  2210 \u2013 2230'], ['right', 'Classrooms  2410 \u2013 2430']] },
 ]
 function DirectionSigns() {
   return SIGNS.map((sg, i) => {

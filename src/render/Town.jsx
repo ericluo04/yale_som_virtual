@@ -16,7 +16,7 @@ import { useMemo } from 'react'
 import { useLoader } from '@react-three/fiber'
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
-import { BEIN, BOUNDS, TERRACE_TABLES, TERRACE_PLANTERS, ellPt } from '../layout.js'
+import { BEIN, BOUNDS, TERRACE_TABLES, TERRACE_PLANTERS, ellPt, planX, planZ } from '../layout.js'
 import { Model, Trees } from './Scenery.jsx'
 import { G, CURB, VERGE, WALK, NS, OUT, EDGE, CENTER, WALL_R, surface, corridor, rand, splitRange, quadGeo } from './streetPlan.js'
 
@@ -412,7 +412,7 @@ function ringTrees(ms, plan, near) {
     const d = 80 + r() * 110
     const x = CENTER[0] + Math.sin(a) * d
     const z = CENTER[1] + Math.cos(a) * d
-    if (Math.abs(x - CENTER[0]) < 52 && Math.abs(z - CENTER[1]) < 58) continue // the block itself
+    if (Math.abs(x - CENTER[0]) < 61.7 && Math.abs(z - CENTER[1]) < 62.5) continue // the block itself (52 x 58 before round 4)
     if (blocked(x, z)) continue
     const sc = 0.8 + r() * 0.7
     if (buildingGap(x, z) < NEAR_TREE) {
@@ -422,7 +422,7 @@ function ringTrees(ms, plan, near) {
     placed++
   }
   // conifers on the east lawn either side of the terrace (photo 10)
-  for (const [x, z, s] of [[48.2, -22, 1.1], [48.6, -27, 0.9], [48.0, 22, 1.0], [48.4, 27.5, 1.2], [47.6, 33, 0.85]]) conifer(ms, x, z, s, r)
+  for (const [x, z, s] of [[48.2, -22, 1.1], [48.6, -27, 0.9], [48.0, 22, 1.0], [48.4, 27.5, 1.2], [47.6, 33, 0.85]]) conifer(ms, planX(x), planZ(z), s, r)
 }
 
 // clipped hedges and shrub balls on the lawn along the building's base (photo 03)
@@ -446,8 +446,8 @@ function hedges(ms) {
   }
   run(xMin - 2.2, zMin + 3, xMin - 2.2, -4)
   run(xMin - 2.2, 6, xMin - 2.2, zMax - 3)
-  run(xMin + 3, zMin - 2.2, 26, zMin - 2.2)
-  run(xMin + 3, zMax + 2.2, 26, zMax + 2.2)
+  run(xMin + 3, zMin - 2.2, planX(26), zMin - 2.2)
+  run(xMin + 3, zMax + 2.2, planX(26), zMax + 2.2)
 }
 
 // ---------- street furniture
@@ -543,34 +543,38 @@ function furniture(plan, near) {
   const outer = (k) => EDGE[k][1] + (OUT[k] * VERGE) / 2
   const walkIn = (k) => EDGE[k][0] - OUT[k] * (VERGE + WALK / 2)
   // lantern posts between the street trees on the verges (photo 03)
-  for (let z = -28; z <= 36; z += 16) lampPost(ms, inner('W'), z)
-  for (let x = -23; x <= 33; x += 14) lampPost(ms, x, inner('N'))
-  for (const z of [-26, -6, 8, 28]) lampPost(ms, inner('E'), z)
-  for (let x = -32; x <= 40; x += 16) lampPost(ms, x, inner('S'))
-  for (const z of [-40, -12, 12, 40]) lampPost(ms, outer('W'), z)
-  for (const x of [-32, 4, 40]) lampPost(ms, x, outer('N'))
-  for (const z of [-40, 0, 40]) lampPost(ms, outer('E'), z)
-  for (const x of [-36, 6, 38]) lampPost(ms, x, outer('S'))
+  // positions along each street are written for the round-3 floor: X / Z (planX / planZ) spread
+  // them along the longer streets of the enlarged block
+  const X = planX
+  const Z = planZ
+  for (let z = -28; z <= 36; z += 16) lampPost(ms, inner('W'), Z(z))
+  for (let x = -23; x <= 33; x += 14) lampPost(ms, X(x), inner('N'))
+  for (const z of [-26, -6, 8, 28]) lampPost(ms, inner('E'), Z(z))
+  for (let x = -32; x <= 40; x += 16) lampPost(ms, X(x), inner('S'))
+  for (const z of [-40, -12, 12, 40]) lampPost(ms, outer('W'), Z(z))
+  for (const x of [-32, 4, 40]) lampPost(ms, X(x), outer('N'))
+  for (const z of [-40, 0, 40]) lampPost(ms, outer('E'), Z(z))
+  for (const x of [-36, 6, 38]) lampPost(ms, X(x), outer('S'))
   // benches facing the street, litter bins beside some
-  for (const z of [-14, 22]) bench(ms, walkIn('W') + 0.6, z, Math.PI / 2)
-  for (const x of [-22, 26]) bench(ms, x, walkIn('S') - 0.6, Math.PI)
-  bench(ms, -8, walkIn('N') + 0.6, 0)
-  bench(ms, walkIn('E') - 0.6, -8, -Math.PI / 2)
-  bench(ms, walkIn('E') - 0.6, 8, -Math.PI / 2)
-  for (const [x, z] of [[walkIn('W') + 0.7, -16.2], [walkIn('W') + 0.7, 24.2], [-24.2, walkIn('S') - 0.7], [walkIn('E') - 0.7, -10.2], [-10.2, walkIn('N') + 0.7]]) litterBin(ms, x, z)
+  for (const z of [-14, 22]) bench(ms, walkIn('W') + 0.6, Z(z), Math.PI / 2)
+  for (const x of [-22, 26]) bench(ms, X(x), walkIn('S') - 0.6, Math.PI)
+  bench(ms, X(-8), walkIn('N') + 0.6, 0)
+  bench(ms, walkIn('E') - 0.6, Z(-8), -Math.PI / 2)
+  bench(ms, walkIn('E') - 0.6, Z(8), -Math.PI / 2)
+  for (const [x, z] of [[walkIn('W') + 0.7, Z(-16.2)], [walkIn('W') + 0.7, Z(24.2)], [X(-24.2), walkIn('S') - 0.7], [walkIn('E') - 0.7, Z(-10.2)], [X(-10.2), walkIn('N') + 0.7]]) litterBin(ms, x, z)
   // Whitney Avenue bus stop, a bike rack beside it and another on the south street
   busShelter(ms, walkIn('W') + 0.2, 4, Math.PI / 2)
   bikeRack(ms, walkIn('W') + 0.3, 11.5, 0, 3)
   bike(ms, walkIn('W') + 0.3, 11.05, Math.PI / 2, '#8c2a2a')
   bike(ms, walkIn('W') + 0.3, 11.95, Math.PI / 2 + 0.05, '#20406a')
-  bikeRack(ms, 8, walkIn('S') - 0.3, Math.PI / 2, 4)
-  bike(ms, 6.2, walkIn('S') - 0.3, 0.04, '#2e2e2e')
-  bike(ms, 7.1, walkIn('S') - 0.3, -0.03, '#3c6b45')
-  bike(ms, 9.8, walkIn('S') - 0.3, 0, '#b8b8b8')
-  bike(ms, 9.0, walkIn('S') - 0.3, 3.1, '#c46a1c')
+  bikeRack(ms, X(8), walkIn('S') - 0.3, Math.PI / 2, 4)
+  bike(ms, X(8) - 1.8, walkIn('S') - 0.3, 0.04, '#2e2e2e')
+  bike(ms, X(8) - 0.9, walkIn('S') - 0.3, -0.03, '#3c6b45')
+  bike(ms, X(8) + 1.8, walkIn('S') - 0.3, 0, '#b8b8b8')
+  bike(ms, X(8) + 1.0, walkIn('S') - 0.3, 3.1, '#c46a1c')
   mailbox(ms, walkIn('W') + 0.9, -4, Math.PI / 2)
-  mailbox(ms, 14, walkIn('S') - 0.9, 0)
-  for (const [x, z] of [[inner('W'), -44], [-46, inner('S')], [outer('W'), 2], [44, inner('N')]]) hydrant(ms, x, z)
+  mailbox(ms, X(14), walkIn('S') - 0.9, 0)
+  for (const [x, z] of [[inner('W'), Z(-44)], [X(-46), inner('S')], [outer('W'), 2], [X(44), inner('N')]]) hydrant(ms, x, z)
   // signals on the corners nearest the building, arms over Whitney Avenue
   const [nz0, nz1] = surface('N')
   const [sz0, sz1] = surface('S')
@@ -590,8 +594,8 @@ const CARS = (() => {
   const zN = EDGE.N[1] + 1.3 // far side of the north street, facing west
   const names = ['sedan', 'suv', 'van', 'sedan-sports', 'hatchback-sports', 'taxi']
   const spots = [
-    ...[-40, -31.5, -23, -6, 2.5, 19, 27.5, 44].map((z) => ({ p: [xW, G, z], r: 0 })),
-    ...[-30, -21, 4, 22].map((x) => ({ p: [x, G, zN], r: -Math.PI / 2 })),
+    ...[-40, -31.5, -23, -6, 2.5, 19, 27.5, 44].map((z) => ({ p: [xW, G, planZ(z)], r: 0 })),
+    ...[-30, -21, 4, 22].map((x) => ({ p: [planX(x), G, zN], r: -Math.PI / 2 })),
   ]
   const by = Object.fromEntries(names.map((n) => [n, []]))
   spots.forEach((s, i) => by[names[(i * 5) % names.length]].push({ ...s, r: s.r + ((i * 7) % 3 - 1) * 0.015, s: CAR_SCALE }))

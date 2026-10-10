@@ -3,11 +3,13 @@ import { Interactable, openDialogue, toast, useDiscovery } from '../../interact/
 import { withAvatars } from '../../ui/portraits.js'
 import Labubu from '../../Labubu.jsx'
 import { Box, Pill, canvasTex, saved, std } from './common.jsx'
+import { planX } from '../../layout.js'
+
 
 // Egg: the Campus Customs pop-up stand (the merch business in HW3 to HW6), against the east
 // cloister wall between the big poster (z 13.2 to 16.4) and stair G (z 23 to 27).
 // The group's local +z is the customer side; rotation -90 deg turns it to face west, into the cloister.
-const POS = [27.85, 0, 19.7]
+const POS = [planX(27.85), 0, 19.7] // x 27.85 on the round-3 floor; the east wall moved out with it
 const LS = 'evans.eggsB.merch.v1'
 const TEES = [
   { id: 'blue', name: 'Yale Blue MGT 409 crest tee', color: '#00356b' },

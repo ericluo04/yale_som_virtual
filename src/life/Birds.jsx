@@ -1,16 +1,17 @@
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { ROOF } from '../layout.js'
+import { ROOF, SKY } from '../layout.js'
 import { rand, smooth, timed } from './common.js'
 
-// Eight swallows circle above the courtyard's sky opening (the canopy leaves a 27 x 25 m hole at ROOF), and now
+// Eight swallows circle above the courtyard's sky opening (the canopy leaves a 43 x 25 m hole at ROOF), and now
 // and then one glides down to sit on the canopy rim for a few seconds. Each bird is one flat quad, seen from
 // below, textured from a 4-frame sprite sheet drawn on a canvas (wings up, spread, down and swept back, and
 // folded); the frame steps with the wingbeat. Wingspan 0.5 m. One InstancedMesh with a per-instance frame.
 const N = 8
 const RIM_Y = ROOF + 0.3 // top of the canopy fascia round the opening
-const PERCH = [[13.75, 3.5], [13.75, -6], [-13.75, 5], [-13.75, -2.5], [4, 12.75], [-7, 12.75], [8, -12.75], [-3, -12.75]]
+// perches on the rim, written for the round-3 27.5 x 25.5 m rim and stretched along x to the wider one
+const PERCH = [[13.75, 3.5], [13.75, -6], [-13.75, 5], [-13.75, -2.5], [4, 12.75], [-7, 12.75], [8, -12.75], [-3, -12.75]].map(([x, z]) => [(x * (SKY.hx + 0.25)) / 13.75, z])
 
 // ---------- the sprite sheet: 4 frames of a swallow silhouette from below, head up, 256 px each
 const FRAMES = 4

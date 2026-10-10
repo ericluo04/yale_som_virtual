@@ -1,4 +1,4 @@
-import { CHAIRS, DRUMS, RISE, collide } from '../layout.js'
+import { CHAIRS, DRUMS, RISE, collide, planPt } from '../layout.js'
 import { RING, ROOMS, nearestRing, ringPath } from '../HandsomeDan.jsx'
 
 // Paths for Labubus that move around the floor: Dan's cloister loop (RING), spurs from it to points of
@@ -9,8 +9,12 @@ import { RING, ROOMS, nearestRing, ringPath } from '../HandsomeDan.jsx'
 
 // ---------- points of interest (all on level 2, y = 0), each with a spur from the nearest ring point
 //   look: the yaw the Labubu faces while it stops there
-const poi = (name, spur, look) => {
+// Spurs are written in round-3 plan coordinates (the positions in the comments) and mapped onto the
+// enlarged floor by planPt (layout.js).
+const poi = (name, spur0, look) => {
+  const spur = spur0.map(planPt)
   const at = spur[spur.length - 1]
+
   return { name, spur, at, look, ring: nearestRing(spur[0]) }
 }
 export const POIS = [

@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { BENCHES } from '../layout.js'
+import { BENCHES, LOUNGES, planX } from '../layout.js'
 import { openDialogue, useInteractable } from '../interact/index.jsx'
 import { rand, timed, turnToward, useLabubuRig } from './common.js'
 import { clampSprite, sprite } from './sprites.js'
@@ -34,7 +34,7 @@ function Still({ look, position, yaw, scale = 1, children, update }) {
 
 // ---------- the sleeper: library lounge chair (render/Scenery.jsx loungeChairs: the north-west chair of the
 // south lounge group, facing the low table)
-const SLEEP_AT = [-28.62, 0.42 - 0.11, 7.52]
+const SLEEP_AT = [LOUNGES[1].x - 0.62, 0.42 - 0.11, LOUNGES[1].z + 1.12]
 function Sleeper() {
   const zs = useMemo(() => [0, 1, 2].map(() => sprite('z', 0.16, { font: 'bold 56px Georgia, serif', bubble: false })), [])
   const st = useMemo(() => ({ nextYawn: 9, yawnUntil: 0 }), [])
@@ -141,9 +141,9 @@ function phone() {
   return g
 }
 const QUEUE = [
-  { at: [25.2, 0, 22.25], look: { fur: '#efe3cf', expression: 'grin', shirt: '#a6192e' } },
-  { at: [25.35, 0, 21.45], look: { fur: '#3a3a3e', expression: 'happy', shirt: 'yale' } },
-  { at: [25.6, 0, 20.65], look: { fur: '#8cc3ff', expression: 'mischief', shirt: 'stripes', pants: '#1f7a8c', overalls: true } },
+  { at: [planX(25.2), 0, 22.25], look: { fur: '#efe3cf', expression: 'grin', shirt: '#a6192e' } },
+  { at: [planX(25.35), 0, 21.45], look: { fur: '#3a3a3e', expression: 'happy', shirt: 'yale' } },
+  { at: [planX(25.6), 0, 20.65], look: { fur: '#8cc3ff', expression: 'mischief', shirt: 'stripes', pants: '#1f7a8c', overalls: true } },
 ]
 function Queuer({ q, i }) {
   return (
@@ -175,8 +175,8 @@ const LINES = [
   ['my agent ordered 40 coffees', 'deploy it anyway'],
 ]
 const CHAT = [
-  { at: [11.2, 0, -20.85], look: { fur: '#ff9ccc', expression: 'grin', shirt: '#2f6b4f' } },
-  { at: [12.25, 0, -21.05], look: { fur: '#6b4a3a', expression: 'surprised', shirt: 'yale' } },
+  { at: [planX(11.2), 0, -20.85], look: { fur: '#ff9ccc', expression: 'grin', shirt: '#2f6b4f' } },
+  { at: [planX(12.25), 0, -21.05], look: { fur: '#6b4a3a', expression: 'surprised', shirt: 'yale' } },
 ]
 function Chatters() {
   const bubbles = useMemo(() => LINES.map((pair) => pair.map((t) => sprite(t, 0.3))), [])
@@ -225,7 +225,7 @@ function Chatters() {
 // lawn, a sketchbook on her lap and a pencil in her right paw. The page is a canvas drawing of the courtyard that
 // fills in stroke by stroke over 30 s, holds for 3 s and starts again on a fresh page. Press E and she shows you
 // the page and says a line about drawing Evans Hall.
-const SKETCH_AT = [-1.2, -0.11, 21.0] // the Sit clip puts the seat 0.11 above the root: on the floor
+const SKETCH_AT = [planX(-1.2), -0.11, 21.0] // the Sit clip puts the seat 0.11 above the root: on the floor
 const SKETCH_LOOK = { fur: '#f2efe9', expression: 'happy', shirt: '#7a9e7e' }
 const SKETCH_T = 30
 // facing the lawn, turned 50 degrees west, so from the cloister walkway east of her you look over her shoulder
@@ -375,7 +375,7 @@ function Sketcher() {
 }
 
 // ---------- the race: two hop down the west cloister side by side, one start every 40 s, direction alternating
-const RACE = { every: 40, z0: -16.5, z1: 16.5, lanes: [-22.95, -23.8] }
+const RACE = { every: 40, z0: -16.5, z1: 16.5, lanes: [planX(-22.95), planX(-23.8)] } // x on the round-3 floor, mapped
 const RACERS = [
   { fur: '#7fb2ff', expression: 'mischief', shirt: '#ffffff' },
   { fur: '#c98f6b', expression: 'grin', shirt: 'yale' },

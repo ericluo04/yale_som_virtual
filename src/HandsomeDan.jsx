@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { preloadModel, useClipPlayer, useRigInstance } from './characters/rig.js'
 import { turnToward } from './life/common.js'
-import { BENCHES, DRUMS, PLANTS, PLANTS_EXTRA, ellPt } from './layout.js'
+import { BENCHES, COURT_HX, DRUMS, PLANTS, PLANTS_EXTRA, ellPt } from './layout.js'
 
 // Handsome Dan, Yale's bulldog. He tours a loop of 1000 randomly chosen classrooms:
 // walk the cloister to the next room, go in through a door, pause at the front, head back out.
@@ -17,12 +17,15 @@ const SPEED = 1.8 // m/s
 const PAUSE = 2.5 // seconds hanging out at the front of each room
 const TOUR_LENGTH = 1000
 
-// cloister loop, sized to clear the plants, banquettes and columns by about 0.25 m
+// cloister loop, sized to clear the plants, banquettes and columns by about 0.25 m: 1.65 m outside
+// the courtyard glass east and west (x 23.4 on the round-3 floor, 31.4 now), 2.9 m north and south
+export const RING_HX = COURT_HX + 1.65
+export const RING_HZ = 22.9
 export const RING = Array.from({ length: 120 }, (_, i) => {
   const t = (i / 120) * Math.PI * 2
   const c = Math.cos(t)
   const s = Math.sin(t)
-  return [23.4 * Math.sign(c) * Math.pow(Math.abs(c), 1 / 3), 22.9 * Math.sign(s) * Math.pow(Math.abs(s), 1 / 3)]
+  return [RING_HX * Math.sign(c) * Math.pow(Math.abs(c), 1 / 3), RING_HZ * Math.sign(s) * Math.pow(Math.abs(s), 1 / 3)]
 })
 export const nearestRing = (p) => {
   let best = 0
@@ -89,7 +92,8 @@ function legPath(from, to) {
 // stops on the loop: plants within 3.2 m of it (sniffed at most every 90 s each), banquettes (a sit at most
 // every 40 s each, and only while you are near), and at least 20 s of walking between two stops
 // A plant's stop is the nearest loop point within 3.2 m whose straight walk to the pot clears every banquette
-// by 0.5 m (the plant at (8.8, -20.55) stands behind one).
+// by 0.5 m (the plant at (12.0, -20.55) stands behind one).
+
 const BENCH_SEGS = BENCHES.map((b) => {
   const d = [Math.cos(b.rot), -Math.sin(b.rot)]
   return [[b.c[0] - (d[1] * b.len) / 2, b.c[1] + (d[0] * b.len) / 2], [b.c[0] + (d[1] * b.len) / 2, b.c[1] - (d[0] * b.len) / 2]]
