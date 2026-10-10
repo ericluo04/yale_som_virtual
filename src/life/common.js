@@ -194,10 +194,11 @@ function ping(v, t, f, dur, gain, type = 'sine') {
   return o
 }
 export const sfx = {
-  // a soft two-note bell for a cast; `fail` drops it to a low wobble
-  cast(x, y, z, fail = false) {
+  // a soft two-note bell for a cast; `fail` drops it to a low wobble; `level` scales the volume
+  cast(x, y, z, fail = false, level = 1) {
     const v = voice(x, y, z)
     if (!v) return
+    sound.stats.castChimes = (sound.stats.castChimes || 0) + 1 // dev counter for headless checks
     const t = v.ctx.currentTime
     if (fail) {
       const o = ping(v, t, 330, 0.35, 0.05, 'triangle')
@@ -205,8 +206,8 @@ export const sfx = {
       return
     }
     const base = 1318.5 * (0.9 + Math.random() * 0.2)
-    ping(v, t, base, 0.9, 0.035)
-    ping(v, t + 0.07, base * 1.5, 0.8, 0.025)
-    ping(v, t, base * 2.76, 0.3, 0.008)
+    ping(v, t, base, 0.9, 0.035 * level)
+    ping(v, t + 0.07, base * 1.5, 0.8, 0.025 * level)
+    ping(v, t, base * 2.76, 0.3, 0.008 * level)
   },
 }

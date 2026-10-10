@@ -13,10 +13,14 @@ import { fx } from './fx.jsx'
 //   McGonagall, Transfiguration: one teacup on a stand turns into a small bird and back, one student at a time
 //   Snape, Lumos: wand tips light with a soft pulsing white glow that lights the students' faces from below
 //   Lockhart, Expelliarmus: a student disarms a classmate, the wand arcs to the grass and its owner fetches it
-// Every student casts on its own seeded rhythm, every 5 to 9 s (the Cast clip). One cast in five fizzles: a
-// small grey puff and a surprised face. The professor plays Point when a student starts a cast, and between
-// casts loops Lecture, WandRaise and Point, with a Nod every other loop. The effects stay small on purpose:
-// Lan asked that the lawn not be full of flashes.
+// Every student casts on its own seeded rhythm, every 12 to 20 s (the Cast clip; 5 to 9 s until round four,
+// when Lan found the casts too frequent). One cast in five fizzles: a small grey puff and a surprised face,
+// with no sound. Only one cast in four per class chimes, at half volume, and the Lumos class is silent. The
+// professor plays Point when a student starts a cast, and between casts loops Lecture, WandRaise and Point,
+// with a Nod every other loop. The effects stay small on purpose: Lan asked that the lawn not be full of flashes.
+const CAST_EVERY = [12, 20] // seconds between one student's casts
+const CHIME_EVERY = 4 // one cast in four per class plays the chime
+const CHIME_LEVEL = 0.5
 const Y = -5
 const S = 1.1 // student scale (1 is about 1.15 m to the ear tips)
 const PAVER_LIFT = 0.45
@@ -237,7 +241,7 @@ function Student({ g, s, G }) {
     r() // nearby seeds: the first draws are nearly equal, so discard two
     const yaw = angleTo(s.p, g.P)
     const f = [Math.sin(yaw), Math.cos(yaw)]
-    return { r, yaw, f, next: 1.5 + s.i * 1.3 + r() * 3, castAt: -1, fail: false, surprisedUntil: 0, effect: null, pos: [...s.p], task: null }
+    return { r, yaw, f, next: 1.5 + s.i * 2.5 + r() * 6, castAt: -1, fail: false, surprisedUntil: 0, effect: null, pos: [...s.p], task: null }
   }, [s, g])
   const w = useMemo(() => wand(), [])
   const extra = useMemo(() => {
@@ -319,7 +323,7 @@ function Student({ g, s, G }) {
         } else if (k.phase === 'home') {
           if (go(s.p, 1.3)) {
             st.task = null
-            st.next = t + 2 + r() * 3
+            st.next = Math.max(st.next, t + 2 + r() * 3)
             rig.play('Idle', { fade: 0.3 })
           }
         }
@@ -372,9 +376,11 @@ function Student({ g, s, G }) {
           const q = G.students[st.target]
           if (q && !q.task) q.disarm = { t: t + 0.18, from: st.pos }
         }
-        sfx.cast(p[0], p[1], p[2], st.fail)
+        // fizzles stay silent; a clean cast chimes once in four per class, never in the Lumos class
+        G.casts++
+        if (!st.fail && g.spell !== 'lumos' && G.casts % CHIME_EVERY === 1) sfx.cast(p[0], p[1], p[2], false, CHIME_LEVEL)
         st.castAt = -1
-        st.next = t + 5 + r() * 4
+        st.next = t + CAST_EVERY[0] + r() * (CAST_EVERY[1] - CAST_EVERY[0])
       }
       // a classmate's Expelliarmus lands: a small flash at the paw, and the wand leaves it in an arc
       if (st.disarm && t > st.disarm.t) {
@@ -583,7 +589,7 @@ function TeacherModel({ g, G }) {
 }
 
 function Group({ g }) {
-  const G = useMemo(() => ({ students: [], pointAt: -10, pointTo: null, cup: { caster: -1, busyUntil: 0, turnAt: -1, backAt: -1 } }), [])
+  const G = useMemo(() => ({ casts: 0, students: [], pointAt: -10, pointTo: null, cup: { caster: -1, busyUntil: 0, turnAt: -1, backAt: -1 } }), [])
   return (
     <group>
       <Suspense fallback={null}>
