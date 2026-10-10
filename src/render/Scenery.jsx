@@ -2,6 +2,7 @@ import { useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import { OFF } from './debugCam.js'
+import { rng } from '../textures.js'
 import * as THREE from 'three'
 import {
   COUNTERS, PLANTS, PLANTS_EXTRA, BINS, LOUNGES, LIBRARY, BEIN_TABLES, DRUMS, MEETING, BENCHES, ellPt,
@@ -333,15 +334,32 @@ const PAVING = (() => {
   const set = { map: tex('paving_color_2k.jpg', true, 1 / 3), normalMap: tex('paving_normal_2k.jpg', false, 1 / 3), roughnessMap: tex('paving_rough_2k.jpg', false, 1 / 3) }
   return set
 })()
+// Lawn: ambientCG Grass 005 (mown grass) at 2K with its normal map, tiled every 3 m, anisotropy 8
+// and mipmaps, for the World's canvas speckle that shimmered at grazing angles
+const LAWN = (() => {
+  const set = { map: tex('lawn_color_2k.jpg', true, 1 / 3), normalMap: tex('lawn_normal_2k.jpg', false, 1 / 3), roughnessMap: tex('lawn_rough.jpg', false, 1 / 3) }
+  for (const t of Object.values(set)) t.anisotropy = 8
+  return set
+})()
 function Surfaces() {
   const { scene } = useThree()
   useLayoutEffect(() => {
     const done = new Set()
+    let lawnDone = false
     const pass = () => {
       let pending = 0
       scene.traverse((o) => {
         if (!o.isMesh) return
         for (const mat of Array.isArray(o.material) ? o.material : [o.material]) {
+          if (mat.userData.key === 'lawn' && mat.userData.scenery) lawnDone = true
+          if (mat.userData.key === 'lawn' && !mat.userData.scenery) {
+            lawnDone = true
+            Object.assign(mat, LAWN, { roughness: 1 })
+            mat.normalScale = new THREE.Vector2(0.8, 0.8)
+            mat.color.set('#d4dccb') // Grass 005 is a touch yellow against photo 02
+            mat.userData.scenery = true
+            mat.needsUpdate = true
+          }
           if (mat.color?.getHexString() === 'e4e0d8' && !mat.userData.scenery) {
             Object.assign(mat, PAVING, { roughness: 1 })
             mat.color.set('#ffffff')
@@ -367,17 +385,53 @@ function Surfaces() {
           }
         }
       })
-      return pending
+      // the baked building (and its lawn) can arrive after the first passes
+      return pending + (lawnDone ? 0 : 1)
     }
     // the 1K images load asynchronously; look again until none is left unloaded
     let tries = 0
     const id = setInterval(() => {
-      if (pass() === 0 || ++tries > 40) clearInterval(id)
+      if (pass() === 0 || ++tries > 120) clearInterval(id)
     }, 500)
     pass()
     return () => clearInterval(id)
   }, [scene])
   return null
+}
+
+// Lawn pavers: the World's white cafe slabs floated 0.37 m over the lawn. They become grey stone
+// pavers, 3 cm thick and 1 cm proud of the grass, at the same spots (same seed and ring)
+// plain honed stone
+const paverMat = new THREE.MeshStandardMaterial({ color: '#b7b2a8', roughness: 0.92 })
+const paverGeo = new THREE.BoxGeometry(1, 1, 1)
+const PAVERS = (() => {
+  const r = rng(4)
+  const out = []
+  for (let i = 0; i < 14; i++) {
+    const a = r() * TAU
+    out.push([Math.sin(a) * 12, Math.cos(a) * 14])
+  }
+  return out
+})()
+function LawnPavers() {
+  const ref = useRef()
+  const { scene, gl } = useThree()
+  useLayoutEffect(() => {
+    const m = new THREE.Matrix4()
+    PAVERS.forEach(([x, z], i) => ref.current.setMatrixAt(i, m.compose(new THREE.Vector3(x, -5.005, z), new THREE.Quaternion(), new THREE.Vector3(0.9, 0.03, 0.9))))
+    ref.current.instanceMatrix.needsUpdate = true
+    ref.current.computeBoundingSphere()
+    const hidden = []
+    scene.traverse((o) => {
+      if (o.isInstancedMesh && o.material?.userData?.key === 'board' && o.count === PAVERS.length) {
+        o.visible = false
+        hidden.push(o)
+      }
+    })
+    gl.shadowMap.needsUpdate = true
+    return () => hidden.forEach((o) => (o.visible = true))
+  }, [scene, gl])
+  return <instancedMesh ref={ref} args={[paverGeo, paverMat, PAVERS.length]} receiveShadow />
 }
 
 // Scuffs: soft grime on the floor where feet gather, at classroom and meeting-room doors and
@@ -442,6 +496,7 @@ export default function Scenery() {
       <PatchWorld />
       <Surfaces />
       <Scuffs />
+      <LawnPavers />
       <Wind />
       <Trees items={COURT_TREES} />
       <Model name="plant_a" items={plantA} />

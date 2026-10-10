@@ -43,5 +43,6 @@ Downloaded at 1K, then compressed with glTF-Transform (WebP textures at 512 or 1
 | `tex/facade_brick_*.jpg` | Facade 018 A by ambientCG, https://ambientcg.com/view?id=Facade018A | CC0 1.0 | neighbour buildings; colour at 2K, normal and roughness at 1K |
 | `tex/facade_brown_*.jpg` | Facade 020 A by ambientCG, https://ambientcg.com/view?id=Facade020A | CC0 1.0 | as above |
 | `tex/fabric_*.jpg` | Fabric 030 by ambientCG, https://ambientcg.com/view?id=Fabric030 | CC0 1.0 | Beinecke curtain weave; normal and roughness at 512 px |
+| `tex/lawn_*.jpg` | Grass 005 by ambientCG, https://ambientcg.com/view?id=Grass005 | CC0 1.0 | courtyard lawn; colour and normal at 2K, roughness at 1K |
 
 No CC0 water cooler was found on Poly Haven, Kenney or Quaternius, so none is placed.
