@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { Effect, EffectAttribute } from 'postprocessing'
-import { DepthCopy } from './depthCopy.js'
+import { sceneDepth } from './depthCopy.js'
 
 // Screen-space reflections on the glossy surfaces, which today means the clear-coated blue
 // drums (photos 01-05 show them mirroring the soffit, the columns and the courtyard glass).
@@ -141,8 +141,7 @@ class GlossySSREffect extends Effect {
     this.uniforms.get('maskDepth').value = this.target.depthTexture
     this.uniforms.get('maskNormal').value = this.target.texture
     this.maskMat = new THREE.MeshNormalMaterial()
-    this.depth = new DepthCopy()
-    this.uniforms.get('sceneDepth').value = this.depth.texture
+    this.uniforms.get('sceneDepth').value = sceneDepth
     this.frame = 0
     this.clearColor = new THREE.Color()
   }
@@ -156,13 +155,8 @@ class GlossySSREffect extends Effect {
     })
   }
 
-  setDepthTexture(depthTexture) {
-    this.depth.source = depthTexture
-  }
-
   update(renderer) {
     if (this.frame++ % 120 === 0) this.tag()
-    this.depth.copy(renderer)
     const { scene, camera, target } = this
     this.uniforms.get('proj').value.copy(camera.projectionMatrix)
     this.uniforms.get('invProj').value.copy(camera.projectionMatrixInverse)
@@ -193,13 +187,11 @@ class GlossySSREffect extends Effect {
 
   setSize(width, height) {
     this.target.setSize(width, height)
-    this.depth.setSize(width, height)
   }
 
   dispose() {
     this.target.dispose()
     this.maskMat.dispose()
-    this.depth.dispose()
     super.dispose()
   }
 }
