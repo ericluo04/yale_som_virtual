@@ -4,34 +4,90 @@ import * as THREE from 'three'
 import { ROOF } from '../layout.js'
 import { rand, smooth, timed } from './common.js'
 
-// Eight small birds circle above the courtyard's sky opening (the canopy leaves a 27 x 25 m hole at ROOF),
-// flapping two triangle wings, and now and then one glides down to sit on the canopy rim for a few seconds.
-// Two InstancedMeshes (left and right wings), 16 matrices per frame.
+// Eight swallows circle above the courtyard's sky opening (the canopy leaves a 27 x 25 m hole at ROOF), and now
+// and then one glides down to sit on the canopy rim for a few seconds. Each bird is one flat quad, seen from
+// below, textured from a 4-frame sprite sheet drawn on a canvas (wings up, spread, down and swept back, and
+// folded); the frame steps with the wingbeat. Wingspan 0.5 m. One InstancedMesh with a per-instance frame.
 const N = 8
 const RIM_Y = ROOF + 0.3 // top of the canopy fascia round the opening
 const PERCH = [[13.75, 3.5], [13.75, -6], [-13.75, 5], [-13.75, -2.5], [4, 12.75], [-7, 12.75], [8, -12.75], [-3, -12.75]]
 
-const WING = (() => {
-  // one wing in the bird's frame: root along the body (z), tip out along +x
-  const g = new THREE.BufferGeometry()
-  g.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0.09, 0, 0, -0.07, 0.24, 0, -0.03], 3))
-  g.computeVertexNormals()
+// ---------- the sprite sheet: 4 frames of a swallow silhouette from below, head up, 256 px each
+const FRAMES = 4
+// per frame: wing half-span (px), how far back the tips sweep (px), how wide the wing is at the root (px)
+const POSE = [
+  [78, 26, 30], // wings raised: foreshortened from below
+  [122, 34, 34], // spread
+  [104, 62, 28], // downstroke, swept back
+  [36, 104, 16], // folded along the body (glide end, perched)
+]
+function swallowSheet() {
+  const c = document.createElement('canvas')
+  c.width = 256 * FRAMES
+  c.height = 256
+  const g = c.getContext('2d')
+  g.fillStyle = '#ffffff'
+  POSE.forEach(([span, sweep, root], f) => {
+    const x0 = 256 * f + 128
+    const y0 = 104 // shoulders
+    // each part is filled on its own (one combined path leaves winding holes where the parts overlap)
+    // body: head and chest
+    g.beginPath()
+    g.ellipse(x0, y0, 13, 30, 0, 0, Math.PI * 2)
+    g.fill()
+    // the deeply forked tail
+    g.beginPath()
+    g.moveTo(x0 - 9, y0 + 20)
+    g.lineTo(x0 - 24, y0 + 120)
+    g.lineTo(x0 - 5, y0 + 64)
+    g.lineTo(x0, y0 + 60)
+    g.lineTo(x0 + 5, y0 + 64)
+    g.lineTo(x0 + 24, y0 + 120)
+    g.lineTo(x0 + 9, y0 + 20)
+    g.closePath()
+    g.fill()
+    // wings: leading edge bowed forward to a pointed tip, trailing edge curved back to the body
+    for (const s of [-1, 1]) {
+      g.beginPath()
+      g.moveTo(x0 + s * 6, y0 - 8)
+      g.quadraticCurveTo(x0 + s * span * 0.55, y0 - 18, x0 + s * span, y0 + sweep)
+      g.quadraticCurveTo(x0 + s * span * 0.45, y0 + root * 0.6, x0 + s * 6, y0 + root)
+      g.closePath()
+      g.fill()
+    }
+  })
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  t.anisotropy = 4
+  return t
+}
+const SPAN = 0.5 // m
+const QUAD = (() => {
+  // 256 px of the frame = 0.5 m / (2 * 122 / 256) so the spread wings span 0.5 m; lies flat, head toward +z
+  const size = SPAN / ((2 * 122) / 256)
+  const g = new THREE.PlaneGeometry(size, size)
+  g.rotateX(Math.PI / 2)
   return g
 })()
-const MAT = new THREE.MeshStandardMaterial({ color: '#2e2f33', roughness: 0.8, side: THREE.DoubleSide })
 
 const M = new THREE.Matrix4()
-const W = new THREE.Matrix4()
 const Q = new THREE.Quaternion()
 const E = new THREE.Euler()
-const L = new THREE.Matrix4()
-const Rm = new THREE.Matrix4()
-const S = new THREE.Vector3(1.9, 1.9, 1.9) // a 0.9 m wingspan: crow-sized, so they read from the cloister
-const MIRROR = new THREE.Matrix4().makeScale(-1, 1, 1)
+const ONE = new THREE.Vector3(1, 1, 1)
+const CYCLE = [0, 1, 2, 1] // wingbeat: up, spread, down, spread
 
 export default function Birds() {
-  const left = useRef()
-  const right = useRef()
+  const mesh = useRef()
+  const { mat, frame } = useMemo(() => {
+    const m = new THREE.MeshBasicMaterial({ color: '#25262b', map: swallowSheet(), alphaTest: 0.5, side: THREE.DoubleSide })
+    m.onBeforeCompile = (sh) => {
+      sh.vertexShader = 'attribute float aFrame;\n' + sh.vertexShader.replace('#include <uv_vertex>', '#include <uv_vertex>\n  vMapUv.x = (vMapUv.x + aFrame) / 4.0;')
+    }
+    m.customProgramCacheKey = () => 'life-swallow'
+    const a = new THREE.InstancedBufferAttribute(new Float32Array(N), 1)
+    a.setUsage(THREE.DynamicDrawUsage)
+    return { mat: m, frame: a }
+  }, [])
   const birds = useMemo(() => {
     const r = rand(99)
     return Array.from({ length: N }, (_, i) => ({
@@ -48,8 +104,9 @@ export default function Birds() {
     }))
   }, [])
   useLayoutEffect(() => {
-    for (const m of [left.current, right.current]) m.frustumCulled = false
-  }, [])
+    mesh.current.frustumCulled = false
+    mesh.current.geometry.setAttribute('aFrame', frame)
+  }, [frame])
   const circle = (b, t, out) => {
     const a = b.a0 + t * b.w
     out.set(Math.cos(a) * b.R, b.h + 0.4 * Math.sin(t * 0.7 + b.ph), Math.sin(a) * b.R)
@@ -91,20 +148,19 @@ export default function Birds() {
           }
         }
         b.yaw = yaw
-        M.compose(b.pos, Q.setFromEuler(E.set(0, yaw, 0)), S)
-        W.makeRotationZ(flap)
-        left.current.setMatrixAt(i, L.multiplyMatrices(M, W))
-        right.current.setMatrixAt(i, Rm.multiplyMatrices(M, MIRROR).multiply(W))
+        // bank into the turn a little; the frame follows the wingbeat (folded while perched, spread in a glide)
+        M.compose(b.pos, Q.setFromEuler(E.set(0, yaw, b.perch ? 0 : -Math.sign(b.w) * 0.25)), ONE)
+        mesh.current.setMatrixAt(i, M)
+        let f
+        if (flap <= -1.2) f = 3
+        else if (Math.abs(flap) < 0.2 && b.perch) f = 1
+        else f = CYCLE[Math.floor((((t * b.flap + b.ph) / (Math.PI * 2)) % 1) * 4)]
+        frame.setX(i, f)
       })
-      left.current.instanceMatrix.needsUpdate = true
-      right.current.instanceMatrix.needsUpdate = true
+      mesh.current.instanceMatrix.needsUpdate = true
+      frame.needsUpdate = true
       if (import.meta.env.DEV) (window.__life ||= {}).birds = birds.map((b) => [b.pos.x, b.pos.y, b.pos.z, !!b.perch])
     }),
   )
-  return (
-    <>
-      <instancedMesh ref={left} args={[WING, MAT, N]} />
-      <instancedMesh ref={right} args={[WING, MAT, N]} />
-    </>
-  )
+  return <instancedMesh ref={mesh} args={[QUAD, mat, N]} />
 }
