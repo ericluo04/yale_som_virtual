@@ -47,8 +47,8 @@ export function wrap(g, text, maxW) {
 // Swap the open dialogue to a waiting line for `ms` (body class `cls` shows animated dots via eggsA.css),
 // then to script[index]. The swap goes through dialogueState directly so pointer-lock bookkeeping in
 // openDialogue is untouched. If the player closes the dialogue meanwhile, nothing happens.
-export function waitThen(ms, { speaker, text = '', cls = 'egg-thinking' }, script, index = 0, during) {
-  const hold = [{ speaker, text, next: 0 }] // Space while waiting keeps you on this line
+export function waitThen(ms, { speaker, avatar, text = '', cls = 'egg-thinking' }, script, index = 0, during) {
+  const hold = [{ speaker, avatar, text, next: 0 }] // Space while waiting keeps you on this line
   document.body.classList.add(cls)
   dialogueState.set({ script: hold, index: 0 })
   during?.()

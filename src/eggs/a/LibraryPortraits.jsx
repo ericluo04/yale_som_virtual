@@ -4,6 +4,7 @@ import { Counter, Interactable, openDialogue, removeHudItem, setHudItem, useDisc
 import { LIBRARY } from '../../layout.js'
 import { canvasTex, lineIndex, printMat, solidMat, waitThen } from './util.js'
 import { BOOKS, drawBook, drawBoss } from './portraitArt.js'
+import { withAvatars } from '../../ui/portraits.js'
 
 // Egg: the multi-agent desk from lecture 10 (a Harry Potter boss agent with seven book specialists), metered as
 // in lecture 11. Seven portraits and a larger Boss Agent frame hang on the north wall of Ross Library.
@@ -46,7 +47,7 @@ function bossScript() {
           onChoice: () => {
             flash.t0 = performance.now() / 1000
             flash.hits = x.hits
-            waitThen((STEP * 7 + 0.6) * 1000, { speaker: 'Boss Agent', text: 'router: asking book_1 ... book_7', cls: 'egg-routing' }, s, lineIndex(s, `a${i}`))
+            waitThen((STEP * 7 + 0.6) * 1000, { speaker: 'Boss Agent', avatar: { kind: 'boss' }, text: 'router: asking book_1 ... book_7', cls: 'egg-routing' }, s, lineIndex(s, `a${i}`))
           },
         })),
         { text: 'That is all, thank you', next: 'end' },
@@ -116,7 +117,7 @@ export default function LibraryPortraits() {
   useEffect(() => () => removeHudItem('counters', 'egg-library'), [])
 
   const talk = (i) => {
-    openDialogue(portraitScript(BOOKS[i]))
+    openDialogue(withAvatars(portraitScript(BOOKS[i])))
     if (talked.has(i)) return
     const next = new Set(talked).add(i)
     setTalked(next)
@@ -132,7 +133,7 @@ export default function LibraryPortraits() {
           </group>
         </Interactable>
       ))}
-      <Interactable position={[BOSS_X, 0, WALL_Z + 0.5]} radius={2.1} label="the Boss Agent" verb="Ask" marker="npc" onInteract={() => openDialogue(bossScript())}>
+      <Interactable position={[BOSS_X, 0, WALL_Z + 0.5]} radius={2.1} label="the Boss Agent" verb="Ask" marker="npc" onInteract={() => openDialogue(withAvatars(bossScript()))}>
         <group position={[0, 1.85, -0.5]}>
           <Frame w={BOSS_W} h={1.6} mat={boss.mat} frameMat={boss.frame} />
         </group>

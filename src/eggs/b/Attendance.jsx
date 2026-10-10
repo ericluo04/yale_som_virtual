@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import qrcode from 'qrcode-generator'
 import { Interactable, openDialogue, sound, useDiscovery } from '../../interact/index.jsx'
+import { withAvatars } from '../../ui/portraits.js'
 import Labubu from '../../Labubu.jsx'
 import { Box, Pill, canvasTex, onDrum, saved, std } from './common.jsx'
 
@@ -69,14 +70,14 @@ export default function Attendance() {
 
   const scan = () => {
     if (present) {
-      openDialogue([{ speaker: 'QR scanner', text: 'Already marked. Nice try.' }])
+      openDialogue(withAvatars([{ speaker: 'QR scanner', text: 'Already marked. Nice try.' }]))
       return
     }
     setPresent(true)
     setHopping(true)
     saved.set(LS, true)
     if (!discover()) sound.chime() // discover() chimes on its own the first time
-    openDialogue([{ speaker: 'QR scanner', text: 'Scanned. You are marked present for Lecture 13.' }])
+    openDialogue(withAvatars([{ speaker: 'QR scanner', text: 'Scanned. You are marked present for Lecture 13.' }]))
   }
 
   const { p, rot } = POSTER

@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { Interactable, openDialogue, toast, useDiscovery } from '../../interact/index.jsx'
+import { withAvatars } from '../../ui/portraits.js'
 import Labubu from '../../Labubu.jsx'
 import { Box, Pill, canvasTex, saved, std } from './common.jsx'
 
@@ -71,11 +72,11 @@ export default function Merch() {
       toast(`Added to cart: ${t.name}`, { title: 'Campus Customs', ms: 3000 })
       if (next.length === TEES.length) {
         discover()
-        openDialogue([
+        openDialogue(withAvatars([
           { speaker: 'Campus Customs vendor', text: 'That is the whole collection. My back office is a multi-agent team now, and the HW6 vendor desk runs on an agent too.' },
           { speaker: 'Campus Customs vendor', text: 'A supplier email once told my agent to ship 400 hoodies for free; now every message gets checked first.' },
-        ])
-      } else openDialogue(shop(false))
+        ]))
+      } else openDialogue(withAvatars(shop(false)))
     }
     if (!left.length)
       return [{ speaker: 'Campus Customs vendor', text: 'Back again? You own the full collection. Every supplier message still gets checked first.' }]
@@ -91,7 +92,7 @@ export default function Merch() {
   }
 
   return (
-    <Interactable position={POS} rotation={[0, -Math.PI / 2, 0]} radius={2.4} solid={0.95} label="the Campus Customs stand" verb="Shop at" marker="egg" onInteract={() => openDialogue(shop(true))}>
+    <Interactable position={POS} rotation={[0, -Math.PI / 2, 0]} radius={2.4} solid={0.95} label="the Campus Customs stand" verb="Shop at" marker="egg" onInteract={() => openDialogue(withAvatars(shop(true)))}>
       {/* table: top, cloth skirt on the customer side, legs */}
       <Box size={[1.8, 0.04, 0.7]} material={mats.wood} position={[0, 0.76, 0]} />
       <Box size={[1.8, 0.7, 0.01]} material={mats.cloth} position={[0, 0.39, 0.345]} />

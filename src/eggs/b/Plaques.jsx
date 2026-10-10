@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Interactable, openDialogue, useDiscovery } from '../../interact/index.jsx'
+import { withAvatars } from '../../ui/portraits.js'
 import { BEIN, LIBRARY, ellPt } from '../../layout.js'
 import { Box, Pill, canvasTex, onDrum, saved, seeded, std } from './common.jsx'
 
@@ -114,10 +115,12 @@ function Plaque({ plaque, index, read, onRead }) {
         marker={read ? 'egg' : false}
         onInteract={() => {
           onRead(plaque.id)
-          openDialogue([
-            { speaker: 'Plaque', text: `“${plaque.quote}” (${plaque.who})` },
-            { speaker: 'Plaque', text: plaque.context },
-          ])
+          openDialogue(
+            withAvatars([
+              { speaker: 'Plaque', text: `“${plaque.quote}” (${plaque.who})` },
+              { speaker: 'Plaque', text: plaque.context },
+            ]),
+          )
         }}
       />
     </>
