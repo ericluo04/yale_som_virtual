@@ -12,12 +12,12 @@ const SPEED = 1.8 // m/s
 const PAUSE = 2.5 // seconds hanging out at the front of each room
 const TOUR_LENGTH = 1000
 
-// cloister centerline loop
+// cloister loop, sized to clear the plants, banquettes and columns by about 0.25 m
 const RING = Array.from({ length: 120 }, (_, i) => {
   const t = (i / 120) * Math.PI * 2
   const c = Math.cos(t)
   const s = Math.sin(t)
-  return [24.4 * Math.sign(c) * Math.pow(Math.abs(c), 1 / 3), 21.4 * Math.sign(s) * Math.pow(Math.abs(s), 1 / 3)]
+  return [23.4 * Math.sign(c) * Math.pow(Math.abs(c), 1 / 3), 22.9 * Math.sign(s) * Math.pow(Math.abs(s), 1 / 3)]
 })
 const nearestRing = (p) => {
   let best = 0
@@ -43,8 +43,9 @@ function ringPath(a, b) {
 
 // for each classroom: the spot at the front of the room, and the door route out to the cloister
 const ROOMS = DRUMS.map((d) => {
-  const { fc, back } = d.front
-  const inside = [fc[0] + back[0] * 1.6, fc[1] + back[1] * 1.6]
+  const { fc, back, t, half } = d.front
+  const at = (depth, lat) => [fc[0] + back[0] * depth + t[0] * lat, fc[1] + back[1] * depth + t[1] * lat]
+  const inside = at(1.6, 0)
   const routes = d.doors.map((a) => {
     const p = ellPt(d.c, d.rx, d.rz, a)
     const n = [p[0] - d.c[0], p[1] - d.c[1]]
@@ -55,7 +56,11 @@ const ROOMS = DRUMS.map((d) => {
     return { inner, outer, ring, cost: Math.hypot(RING[ring][0] - outer[0], RING[ring][1] - outer[1]) }
   })
   const exit = routes.reduce((a, b) => (b.cost < a.cost ? b : a))
-  return { inside, ...exit }
+  // walk along the front of the room to the door: the front row of desks wraps round to the
+  // door side, so go behind the lectern (+t side) or in front of the professor (-t side)
+  const sgn = Math.sign((exit.inner[0] - fc[0]) * t[0] + (exit.inner[1] - fc[1]) * t[1])
+  const via = sgn > 0 ? [at(1.0, half - 1)] : [at(0.5, -1), at(1.0, -(half - 1))]
+  return { inside, via, ...exit }
 })
 
 function tour(seed) {
@@ -73,7 +78,7 @@ function tour(seed) {
 function legPath(from, to) {
   const A = ROOMS[from]
   const Bb = ROOMS[to]
-  return [A.inside, A.inner, A.outer, ...ringPath(A.ring, Bb.ring), Bb.outer, Bb.inner, Bb.inside]
+  return [A.inside, ...A.via, A.inner, A.outer, ...ringPath(A.ring, Bb.ring), Bb.outer, Bb.inner, ...[...Bb.via].reverse(), Bb.inside]
 }
 
 preloadModel('handsome_dan')
