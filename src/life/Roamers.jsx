@@ -205,9 +205,13 @@ function Roamer({ cfg, id }) {
       }
       let base = null
       if (lead) {
-        // walk beside the leader, 0.8 m to its left; stand facing it when it stops
+        // walk beside the leader, 0.7 m on the outer side of the cloister (away from the courtyard glass and the
+        // banquettes along it); stand facing it when it stops
         const ly = lead.pos[3] || 0
-        const q = collide({ x: lead.pos[0] + Math.cos(ly) * 0.8, z: lead.pos[2] - Math.sin(ly) * 0.8 })
+        const ax = Math.abs(lead.pos[0]) / 23.4
+        const az = Math.abs(lead.pos[2]) / 22.9
+        const out = ax > az ? [Math.sign(lead.pos[0]), 0] : [0, Math.sign(lead.pos[2])]
+        const q = collide({ x: lead.pos[0] + out[0] * 0.7, z: lead.pos[2] + out[1] * 0.7 })
         base = [q.x, lead.pos[1], q.z]
         if (!clip) {
           if (lead.moving) {

@@ -2,7 +2,7 @@ import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { BENCHES } from '../layout.js'
-import { rand, timed, useLabubuRig } from './common.js'
+import { rand, smooth, timed, turnToward, useLabubuRig } from './common.js'
 import { clampSprite, sprite } from './sprites.js'
 
 // Small scenes around the floor, cheap and mostly static:
@@ -10,6 +10,8 @@ import { clampSprite, sprite } from './sprites.js'
 //   one reading on the north-cloister banquette, turning a page every 3 s (SitRead)
 //   three queueing at the southeast stair down to the cafe, heads down in their phones (Phone)
 //   two chatting by the north courtyard glass, with speech bubbles
+//   one photographing the courtyard from the south glass, phone raised, the flash firing every few seconds
+//   two racing each other down the west cloister in hops, once every 40 s, then cheering at the far end
 
 // a seated or standing Labubu at a fixed spot
 function Still({ look, position, yaw, scale = 1, children, update }) {
@@ -218,9 +220,149 @@ function Chatters() {
   )
 }
 
+// ---------- the photographer: south cloister, at the courtyard glass between the banquettes, facing the lawn
+const PHOTO_AT = [-1.2, 0, 21.0]
+const FLASH_MAT = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0, toneMapped: false, depthWrite: false, blending: THREE.AdditiveBlending })
+function flashGlow() {
+  // a soft round glow, drawn once
+  const c = document.createElement('canvas')
+  c.width = c.height = 64
+  const g = c.getContext('2d')
+  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32)
+  gr.addColorStop(0, 'rgba(255,255,255,1)')
+  gr.addColorStop(0.25, 'rgba(255,250,235,0.85)')
+  gr.addColorStop(1, 'rgba(255,240,220,0)')
+  g.fillStyle = gr
+  g.fillRect(0, 0, 64, 64)
+  const t = new THREE.CanvasTexture(c)
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, color: '#ffffff', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }))
+  sp.renderOrder = 6
+  return sp
+}
+function cameraPhone() {
+  // on the right arm bone, in the paw, held upright; the flash (a small emissive disc) faces away from the Labubu
+  const g = phone()
+  const flash = new THREE.Mesh(new THREE.CircleGeometry(0.009, 12), FLASH_MAT)
+  flash.position.set(0.022, 0.045, -0.0075)
+  flash.rotation.y = Math.PI
+  g.add(flash)
+  return g
+}
+function Photographer() {
+  const glow = useMemo(flashGlow, [])
+  const ph = useMemo(cameraPhone, [])
+  const st = useMemo(() => ({ next: 2.5, t0: -10 }), [])
+  const rig = useLabubuRig({ fur: '#f2efe9', expression: 'grin', shirt: '#ff4fa3' })
+  const root = useRef()
+  // rest orientations of the bones the pose overrides (a keyed Blender pose is relative to the rest pose)
+  const rest = useMemo(() => {
+    rig.bones.armR?.add(ph)
+    const out = {}
+    for (const k of ['armR', 'armL', 'head']) if (rig.bones[k]) out[k] = rig.bones[k].quaternion.clone()
+    return out
+  }, [rig, ph])
+  const _w = useMemo(() => new THREE.Vector3(), [])
+  const _e = useMemo(() => new THREE.Euler(), [])
+  const _q = useMemo(() => new THREE.Quaternion(), [])
+  const pose = (k, x, y, z) => rig.bones[k] && rig.bones[k].quaternion.copy(rest[k]).multiply(_q.setFromEuler(_e.set(x, y, z)))
+  useFrame(
+    timed((state, dt) => {
+      const t = state.clock.elapsedTime
+      rig.play('Idle')
+      rig.tick(dt, state, 30)
+      // phone raised in both paws in front of the chin (higher and the head swallows it), a little sway while framing
+      pose('armR', 1.75, 0, 0.42 + 0.03 * Math.sin(t * 0.8))
+      pose('armL', 1.7, 0, -0.45)
+      pose('head', -0.1, 0, 0)
+      // a double flash every 3.5 to 6 s: 100 ms, a 120 ms gap, then 120 ms fading out over 260 ms
+      if (t > st.next) {
+        st.t0 = t
+        st.next = t + 3.5 + Math.random() * 2.5
+      }
+      const u = t - st.t0
+      const k = u < 0.1 ? 1 - (u / 0.1) * 0.3 : u > 0.22 && u < 0.34 ? 1 : u >= 0.34 && u < 0.6 ? 1 - smooth((u - 0.34) / 0.26) : 0
+      FLASH_MAT.opacity = k
+      glow.material.opacity = k
+      if (import.meta.env.DEV) (window.__life ||= {}).flash = [t, st.next, k, glow.position.x, glow.position.y, glow.position.z]
+      ph.children.at(-1).getWorldPosition(_w)
+      glow.position.copy(_w)
+      const sz = 0.25 + 0.5 * k
+      glow.scale.set(sz, sz, 1)
+    }),
+  )
+  return (
+    <>
+      <group ref={root} position={PHOTO_AT} rotation={[0, Math.PI, 0]}>
+        <primitive object={rig.object} />
+      </group>
+      <primitive object={glow} />
+    </>
+  )
+}
+
+// ---------- the race: two hop down the west cloister side by side, one start every 40 s, direction alternating
+const RACE = { every: 40, z0: -16.5, z1: 16.5, lanes: [-22.95, -23.8] }
+const RACERS = [
+  { fur: '#7fb2ff', expression: 'mischief', shirt: '#ffffff' },
+  { fur: '#c98f6b', expression: 'grin', shirt: 'yale' },
+]
+function Racer({ i, race }) {
+  const rig = useLabubuRig(RACERS[i])
+  const root = useRef()
+  useFrame(
+    timed((state, dt) => {
+      const t = state.clock.elapsedTime
+      const o = root.current
+      const R = race(t)
+      const dir = R.dir
+      const len = RACE.z1 - RACE.z0
+      const T = R.times[i] // this racer's time for the course
+      const u = Math.min(1, Math.max(0, R.u / T))
+      const from = dir > 0 ? RACE.z0 : RACE.z1
+      const z = from + dir * len * u
+      // hops of about 1.4 m: the Hop clip (1 s) plays at the matching rate; the root arcs inside the clip
+      const hopping = R.u > 0 && u < 1
+      o.position.set(RACE.lanes[i], 0, z)
+      turnToward(o, dir > 0 ? 0 : Math.PI, dt * 8)
+      if (hopping) rig.play('Hop', { timeScale: (len / T) / 1.4, fade: 0.15 })
+      else if (u >= 1) rig.play(R.winner === i ? 'Dance' : 'Idle', { fade: 0.3 })
+      else rig.play('Idle', { fade: 0.3 })
+      rig.setFace(u >= 1 && R.winner !== i ? 'surprised' : RACERS[i].expression)
+      rig.tick(dt, state, 34)
+    }),
+  )
+  return (
+    <group ref={root} position={[RACE.lanes[i], 0, RACE.z0]}>
+      <primitive object={rig.object} />
+    </group>
+  )
+}
+function Race() {
+  // each race: a 3 s ready pause, then both hop the 33 m course in 10 to 12.5 s (seeded per race)
+  const race = useMemo(() => {
+    const cache = new Map()
+    return (t) => {
+      const n = Math.floor(t / RACE.every)
+      if (!cache.has(n)) {
+        const r = rand(500 + n)
+        const times = [10 + r() * 2.5, 10 + r() * 2.5]
+        cache.set(n, { times, winner: times[0] < times[1] ? 0 : 1, dir: n % 2 ? -1 : 1 })
+        if (cache.size > 4) cache.delete(cache.keys().next().value)
+      }
+      return { ...cache.get(n), u: (t % RACE.every) - 3 }
+    }
+  }, [])
+  return (
+    <>
+      <Racer i={0} race={race} />
+      <Racer i={1} race={race} />
+    </>
+  )
+}
+
 export default function Ambient() {
   if (import.meta.env.DEV && typeof window !== 'undefined')
-    Object.assign((window.__life ||= {}), { sleeper: SLEEP_AT, reader: READ_AT, queue: QUEUE[1].at, chat: CHAT[0].at })
+    Object.assign((window.__life ||= {}), { sleeper: SLEEP_AT, reader: READ_AT, queue: QUEUE[1].at, chat: CHAT[0].at, photo: PHOTO_AT })
   return (
     <>
       <Sleeper />
@@ -229,6 +371,8 @@ export default function Ambient() {
         <Queuer key={i} q={q} i={i} />
       ))}
       <Chatters />
+      <Photographer />
+      <Race />
     </>
   )
 }
