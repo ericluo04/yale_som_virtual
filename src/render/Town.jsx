@@ -17,7 +17,7 @@ import { useLoader } from '@react-three/fiber'
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { BEIN, BOUNDS, TERRACE_TABLES, TERRACE_PLANTERS, ellPt } from '../layout.js'
-import { Model } from './Scenery.jsx'
+import { Model, Trees } from './Scenery.jsx'
 import { G, CURB, VERGE, WALK, NS, OUT, EDGE, CENTER, WALL_R, surface, corridor, rand, splitRange, quadGeo } from './streetPlan.js'
 
 const BASE = import.meta.env.BASE_URL
@@ -373,15 +373,34 @@ function conifer(ms, x, z, s, r) {
   ms.geo(cyl(0.1 * s, 0.14 * s, 1.4 * s, 5), at(x, G + 0.7 * s, z), '#4b3a2c')
   const tiers = [[1.7, 2.6, 1.9], [1.4, 2.4, 3.2], [1.05, 2.2, 4.4], [0.7, 1.9, 5.5]]
   tiers.forEach(([rad, h, y], i) => {
-    const g = new THREE.ConeGeometry(rad * s, h * s, 9, 1, true)
+    // 28 sides and a ragged hem: the 9-sided cones read as paper party hats from the terrace
+    const g = new THREE.ConeGeometry(rad * s, h * s, 28, 3, true)
     const p = g.attributes.position
-    for (let k = 0; k < p.count; k++) if (p.getY(k) < 0) p.setXYZ(k, p.getX(k) * (0.8 + r() * 0.4), p.getY(k) - r() * 0.25, p.getZ(k) * (0.8 + r() * 0.4))
+    const ph = r() * TAU
+    for (let k = 0; k < p.count; k++) {
+      // jitter by angle (whole-number frequencies), so the duplicated seam vertices move together
+      const ang = Math.atan2(p.getZ(k), p.getX(k))
+      const hem = p.getY(k) < -0.49 * h * s
+      const f = 0.93 + 0.07 * Math.sin(3 * ang + ph) + 0.04 * Math.sin(7 * ang + 2 * ph)
+      p.setXYZ(k, p.getX(k) * f, p.getY(k) - (hem ? 0.15 + 0.12 * Math.sin(5 * ang + ph) : 0), p.getZ(k) * f)
+    }
     g.computeVertexNormals()
     ms.geo(g, at(x, G + y * s, z, r() * TAU), ['#1f3320', '#243b22', '#203722', '#284326'][i])
   })
 }
-function ringTrees(ms, plan) {
+// Ring trees within NEAR_TREE m of the building (its box plus the terrace) are Sapling trees
+// (Scenery.jsx Trees), the rest stay low-poly; from the terrace and the meeting rooms the near
+// ones read as faceted balls (Lan, round 3). Sapling heights as grown: maple 9.1 m, aspen 16.9 m,
+// birch 13.6 m, scaled to the 7 to 12 m of the low-poly crowns.
+const NEAR_TREE = 60
+const buildingGap = (x, z) => {
+  const dx = Math.max(BOUNDS.xMin - x, 0, x - (BOUNDS.xMax + BEIN.terrace))
+  const dz = Math.max(BOUNDS.zMin - z, 0, z - BOUNDS.zMax)
+  return Math.hypot(dx, dz)
+}
+function ringTrees(ms, plan, near) {
   const r = rand(57)
+  const kinds = ['maple', 'aspen', 'maple', 'birch']
   const blocked = (x, z) =>
     plan.some((b) => x > b.x0 - 3 && x < b.x1 + 3 && z > b.z0 - 3 && z < b.z1 + 3) ||
     ['W', 'E'].some((k) => { const [a, b] = corridor(k); return x > a - 2 && x < b + 2 }) ||
@@ -395,7 +414,11 @@ function ringTrees(ms, plan) {
     const z = CENTER[1] + Math.cos(a) * d
     if (Math.abs(x - CENTER[0]) < 52 && Math.abs(z - CENTER[1]) < 58) continue // the block itself
     if (blocked(x, z)) continue
-    lowTree(ms, x, z, 0.8 + r() * 0.7, r)
+    const sc = 0.8 + r() * 0.7
+    if (buildingGap(x, z) < NEAR_TREE) {
+      const v = kinds[near.length % kinds.length]
+      near.push({ p: [x, G, z], r: r() * TAU, s: (v === 'maple' ? 1.05 : v === 'birch' ? 0.72 : 0.6) * (0.75 + sc * 0.3), v })
+    } else lowTree(ms, x, z, sc, r)
     placed++
   }
   // conifers on the east lawn either side of the terrace (photo 10)
@@ -414,7 +437,7 @@ function hedges(ms) {
       const x = ax + ((bx - ax) * (t + 1.6)) / len
       const z = az + ((bz - az) * (t + 1.6)) / len
       if (r() < 0.22) {
-        for (const d of [-0.9, 0.9]) ms.geo(new THREE.IcosahedronGeometry(0.6 + r() * 0.2, 1), at(x + Math.sin(yaw) * d, G + 0.5, z + Math.cos(yaw) * d), greens[(r() * 4) | 0])
+        for (const d of [-0.9, 0.9]) ms.geo(new THREE.IcosahedronGeometry(0.6 + r() * 0.2, 3), at(x + Math.sin(yaw) * d, G + 0.5, z + Math.cos(yaw) * d), greens[(r() * 4) | 0])
         continue
       }
       const h = 0.85 + r() * 0.25
@@ -514,7 +537,7 @@ function busShelter(ms, x, z, yaw) {
   ms.box(x + 2.1, y + 2.6, z + 0.55, 0.5, 0.35, 0.02, '#1f4f8f', yaw, x, z)
 }
 
-function furniture(plan) {
+function furniture(plan, near) {
   const ms = new Mesher()
   const inner = (k) => EDGE[k][0] - (OUT[k] * VERGE) / 2
   const outer = (k) => EDGE[k][1] + (OUT[k] * VERGE) / 2
@@ -556,7 +579,7 @@ function furniture(plan) {
   signal(ms, wx, sz0 - 1.2, Math.PI, 6)
   signal(ms, EDGE.E[0] - 0.6, nz1 + 1.2, 0, 5)
   signal(ms, EDGE.E[0] - 0.6, sz0 - 1.2, 0, 5)
-  ringTrees(ms, plan)
+  ringTrees(ms, plan, near)
   return ms.build()
 }
 
@@ -575,35 +598,45 @@ const CARS = (() => {
   return by
 })()
 
-// ---------- Beinecke terrace furniture: white cafe tables, grey mesh chairs, planters, steel rail
-function terrace() {
-  const ms = new Mesher()
-  const top = cyl(0.42, 0.42, 0.025, 24)
+// ---------- Beinecke terrace: concrete planters and a steel rail (merged), and scanned cafe
+// furniture and potted plants (Poly Haven round table, dining chairs, potted plants 01 and 02,
+// as indoors). The primitive tables, box chairs and icosahedron shrubs read low-poly from the
+// Terrace Room (Lan, round 3).
+const TERRACE_FURNITURE = (() => {
+  const tables = []
+  const chairs = []
   for (const { a, p } of TERRACE_TABLES) {
     const [x, z] = p
-    ms.geo(top, at(x, 0.73, z), C.white)
-    ms.geo(cyl(0.03, 0.03, 0.7, 8), at(x, 0.38, z), '#c9ccd0')
-    ms.box(x, 0.03, z, 0.66, 0.03, 0.06, '#c9ccd0', a)
-    ms.box(x, 0.03, z, 0.06, 0.03, 0.66, '#c9ccd0', a)
+    tables.push({ p: [x, 0, z], r: a, s: [0.62, 0.74, 0.62] }) // a 0.87 m cafe table, 0.74 m high
     // two chairs along the ring, one toward the rail; each faces the table
     for (const [da, dr] of [[0.052, 0], [-0.052, 0], [0, 0.72]]) {
       const [cx, cz] = ellPt(BEIN.c, 14.8 + dr, 14.8 + dr, a + da)
-      const yaw = Math.atan2(x - cx, z - cz) + Math.PI
-      ms.box(cx, 0.46, cz, 0.46, 0.04, 0.44, '#4b4f55', yaw)
-      ms.geo(BOX, at(cx, 0.73, cz, yaw, M4().makeTranslation(0, 0, 0.21).multiply(M4().makeRotationX(-0.12)).multiply(M4().makeScale(0.44, 0.44, 0.025))), '#5a5e64')
-      for (const [lx, lz] of [[-0.2, -0.19], [0.2, -0.19], [-0.2, 0.19], [0.2, 0.19]]) ms.box(cx + lx, 0.22, cz + lz, 0.02, 0.44, 0.02, '#b9bdc2', yaw, cx, cz)
+      chairs.push({ p: [cx, 0, cz], r: Math.atan2(x - cx, z - cz), s: 1 })
     }
   }
+  // three plants per planter, their pots sunk below the soil (planter top 0.6 m; pot heights
+  // about 0.45 m for potted plant 01 and 0.34 m for 02, as scanned)
+  const plantA = []
+  const plantB = []
+  for (const { a, p } of TERRACE_PLANTERS) {
+    const r = rand(Math.round(a * 100))
+    for (let i = 0; i < 3; i++) {
+      const along = (i - 1) * 0.5
+      const x = p[0] + Math.cos(a) * along
+      const z = p[1] - Math.sin(a) * along
+      if (i === 1) plantA.push({ p: [x, 0.14, z], r: r() * TAU, s: 1.0 + r() * 0.1 })
+      else plantB.push({ p: [x, 0.26, z], r: r() * TAU, s: 1.0 })
+    }
+  }
+  return { tables, chairs, plantA, plantB }
+})()
+function terrace() {
+  const ms = new Mesher()
   for (const { a, p } of TERRACE_PLANTERS) {
     const [x, z] = p
     const yaw = a // local x along the rail
     ms.box(x, 0.3, z, 1.6, 0.6, 0.55, '#9e9b94', yaw)
     ms.box(x, 0.59, z, 1.5, 0.03, 0.45, '#4a3a2a', yaw)
-    const r = rand(Math.round(a * 100))
-    for (let i = 0; i < 3; i++) {
-      const g = new THREE.IcosahedronGeometry(0.32 + r() * 0.12, 1)
-      ms.geo(g, at(x, 0.85, z, yaw, M4().makeTranslation((i - 1) * 0.48, r() * 0.1, 0)), ['#4f7a3a', '#5d8640', '#476f35'][i])
-    }
   }
   // steel cap rail and posts on the glass balustrade (World.jsx draws the glass at r = 17)
   const { c, terrace: R } = BEIN
@@ -780,7 +813,8 @@ export default function Town() {
     )
     const trimMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 })
     const furnMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.2 })
-    return { plan, walls, trim: trim.build(), facades, trimMat, furnMat, furn: furniture(plan), ter: terrace() }
+    const near = []
+    return { plan, walls, trim: trim.build(), facades, trimMat, furnMat, furn: furniture(plan, near), near, ter: terrace() }
   }, [tiles])
   return (
     <group>
@@ -789,6 +823,11 @@ export default function Town() {
       <mesh geometry={town.furn} material={town.furnMat} castShadow receiveShadow />
       <mesh geometry={town.ter} material={town.furnMat} castShadow receiveShadow />
       {Object.entries(CARS).map(([name, items]) => items.length > 0 && <Model key={name} name={`car_${name}`} items={items} />)}
+      <Trees items={town.near} />
+      <Model name="round_table" items={TERRACE_FURNITURE.tables} />
+      <Model name="dining_chair" items={TERRACE_FURNITURE.chairs} />
+      <Model name="plant_a" items={TERRACE_FURNITURE.plantA} />
+      <Model name="plant_b" items={TERRACE_FURNITURE.plantB} />
       <DistanceWall />
     </group>
   )
