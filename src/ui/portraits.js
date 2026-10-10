@@ -419,7 +419,7 @@ async function character(spec) {
 async function draw(spec) {
   switch (spec.kind) {
     case 'lisa':
-      return frame((g) => drawLisa(g, 64, 62, 0.92))
+      return frame((g) => drawLisa(g, 64, 54, 0.8))
     case 'boss':
       return art(512, 683, drawBoss, 76, 60, 360)
     case 'book':
