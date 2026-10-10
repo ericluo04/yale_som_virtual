@@ -2,6 +2,7 @@ import { useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import { OFF } from './debugCam.js'
+import Lawn from './Lawn.jsx'
 import { rng, bookTileTex } from '../textures.js'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { unbakedFill } from './Baked.jsx'
@@ -529,6 +530,7 @@ export default function Scenery() {
       <LawnPavers />
       <Wind />
       <Trees items={COURT_TREES} />
+      <Lawn />
       <Model name="plant_a" items={plantA} />
       <Model name="plant_b" items={plantB} />
       <Model name="trash_bin" items={bins} material={greyBin} />
