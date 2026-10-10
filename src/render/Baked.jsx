@@ -15,6 +15,7 @@ import { useGLTF, useTexture } from '@react-three/drei'
 import * as THREE from 'three'
 import manifest from './bakedManifest.json'
 import { EXPORT } from './exportGLB.js'
+import Probes from './Probes.jsx'
 
 const params = new URLSearchParams(typeof location === 'undefined' ? '' : location.search)
 export const BAKED = params.get('bake') !== '0' && !EXPORT
@@ -83,6 +84,7 @@ export default function BakedBuilding({ M }) {
         o.material = coveMat
         return
       }
+      // each drum shell gets its own material so Probes.jsx can give it its own reflection
       const ck = /^drum_/.test(o.userData.role) ? o.userData.role : `${key}|${atlas}`
       if (!cache.has(ck)) cache.set(ck, bakedMaterial(byKey(key), lms[atlas], aos[atlas]))
       o.material = cache.get(ck)
@@ -94,6 +96,7 @@ export default function BakedBuilding({ M }) {
   return (
     <>
       <primitive object={root} />
+      <Probes root={root} />
     </>
   )
 }
