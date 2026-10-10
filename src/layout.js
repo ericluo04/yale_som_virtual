@@ -341,8 +341,10 @@ P(arc(BEIN.c, BEIN_CURTAIN.r, BEIN_CURTAIN.r, Math.PI / 2 - BEIN_CURTAIN.half, M
 // more plants in front of the drums, between the counters and the doors
 export const PLANTS_EXTRA = [[-18.6, -25.3], [3.4, -25.3], [11.9, -25.3], [-18.5, 26.2], [3.5, 26.2], [11.5, 26.2], [-27.4, -22.6], [27.9, 22.4]]
 for (const p of PLANTS_EXTRA) dot(p)
-// waste bins at the four cloister corners, out of both walkways
-export const BINS = [[-27.6, -23.9], [27.9, -21.5], [-27.5, 24.0], [27.9, 21.4]]
+// waste bins at the four cloister corners, out of both walkways. The east pair stands against the
+// east wall; the west pair stood in open floor 3 m off the cloister (one beside the spawn point)
+// and now stands against the outer face of the stair A and B cores, facing the drums.
+export const BINS = [[-31.0, 20.85], [27.9, -21.5], [-31.0, -20.85], [27.9, 21.4]]
 for (const p of BINS) W(p, [p[0] + 0.01, p[1]], 'none', { t: 0.5 })
 // library lounge: four leather lounge chairs round a low table, one group each side of the door
 // (two chairs north of the table, two south), clear of the desk chairs and the reception desk
