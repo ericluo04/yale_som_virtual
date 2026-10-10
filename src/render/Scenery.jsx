@@ -4,7 +4,7 @@ import { useGLTF } from '@react-three/drei'
 import { OFF } from './debugCam.js'
 import * as THREE from 'three'
 import {
-  COUNTERS, PLANTS, PLANTS_EXTRA, BINS, LOUNGES, LIBRARY, BEIN_TABLES, ellPt,
+  COUNTERS, PLANTS, PLANTS_EXTRA, BINS, LOUNGES, LIBRARY, BEIN_TABLES, DRUMS, MEETING, BENCHES, ellPt,
 } from '../layout.js'
 
 // Scanned CC0 models (Poly Haven, Kenney; see CREDITS.md) placed through the floor. Every model
@@ -278,10 +278,130 @@ function PatchWorld() {
   return null
 }
 
+// 2K surfaces. The World's carpet (concourse and classrooms) and plaster load 1K ambientCG maps
+// through pbr.js; their texture sources are swapped for the 2K scans of the same sets once the
+// 1K images have arrived. Every clone shares its source, so one swap covers every tiling. The
+// courtyard paving trades its canvas stones for the PavingStones 128 scan.
+const UPGRADES = {
+  'tex/carpet_normal.jpg': 'carpet_normal_2k.jpg',
+  'tex/carpet_rough.jpg': 'carpet_rough_2k.jpg',
+  'tex/plaster_normal.jpg': 'plaster_normal_2k.jpg',
+  'tex/plaster_rough.jpg': 'plaster_rough_2k.jpg',
+}
+const imgLoader = new THREE.ImageLoader()
+const PAVING = (() => {
+  const set = { map: tex('paving_color_2k.jpg', true, 1 / 3), normalMap: tex('paving_normal_2k.jpg', false, 1 / 3), roughnessMap: tex('paving_rough_2k.jpg', false, 1 / 3) }
+  return set
+})()
+function Surfaces() {
+  const { scene } = useThree()
+  useLayoutEffect(() => {
+    const done = new Set()
+    const pass = () => {
+      let pending = 0
+      scene.traverse((o) => {
+        if (!o.isMesh) return
+        for (const mat of Array.isArray(o.material) ? o.material : [o.material]) {
+          if (mat.color?.getHexString() === 'e4e0d8' && !mat.userData.scenery) {
+            Object.assign(mat, PAVING, { roughness: 1 })
+            mat.color.set('#ffffff')
+            mat.userData.scenery = true
+            mat.needsUpdate = true
+          }
+          for (const slot of ['normalMap', 'roughnessMap']) {
+            const t = mat[slot]
+            if (!t) continue
+            const src = t.source
+            const url = src.data?.src || ''
+            const key = Object.keys(UPGRADES).find((k) => url.endsWith(k))
+            if (!key) {
+              if (!src.data && !done.has(src)) pending++
+              continue
+            }
+            if (done.has(src)) continue
+            done.add(src)
+            imgLoader.load(`${BASE}scenery/tex/${UPGRADES[key]}`, (img) => {
+              src.data = img
+              src.needsUpdate = true
+            })
+          }
+        }
+      })
+      return pending
+    }
+    // the 1K images load asynchronously; look again until none is left unloaded
+    let tries = 0
+    const id = setInterval(() => {
+      if (pass() === 0 || ++tries > 40) clearInterval(id)
+    }, 500)
+    pass()
+    return () => clearInterval(id)
+  }, [scene])
+  return null
+}
+
+// Scuffs: soft grime on the floor where feet gather, at classroom and meeting-room doors and
+// under the banquettes. A canvas alpha mask on a dark, slightly glossier film (worn carpet reads
+// darker and smoother).
+const scuffTex = (() => {
+  const c = document.createElement('canvas')
+  c.width = c.height = 256
+  const g = c.getContext('2d')
+  g.fillStyle = '#000' // alphaMap reads the green channel: black is clear, grey builds up grime
+  g.fillRect(0, 0, 256, 256)
+  let sd = 5
+  const r = () => ((sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296)
+  for (let i = 0; i < 260; i++) {
+    const x = 128 + (r() - 0.5) * 170
+    const y = 128 + (r() - 0.5) * 170
+    const rad = 6 + r() * 26
+    const gr = g.createRadialGradient(x, y, 0, x, y, rad)
+    const a = 0.04 + r() * 0.05
+    gr.addColorStop(0, `rgba(255,255,255,${a})`)
+    gr.addColorStop(1, 'rgba(255,255,255,0)')
+    g.fillStyle = gr
+    g.fillRect(x - rad, y - rad, rad * 2, rad * 2)
+  }
+  const t = new THREE.CanvasTexture(c)
+  return t
+})()
+const scuffMat = new THREE.MeshStandardMaterial({
+  color: '#5a554c', alphaMap: scuffTex, transparent: true, opacity: 0.7, depthWrite: false, roughness: 0.8,
+  polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+})
+const scuffGeo = (() => {
+  const g = new THREE.PlaneGeometry(1, 1)
+  g.rotateX(-Math.PI / 2)
+  return g
+})()
+const SCUFFS = [
+  ...DRUMS.flatMap((d) => d.doors.map((a) => {
+    const p = ellPt(d.c, d.rx + 0.9, d.rz + 0.9, a)
+    return { p: [p[0], 0.003, p[1]], r: a, s: [2.6, 1, 2.0] }
+  })),
+  ...MEETING.map((m) => ({ p: [m.door.hinge[0] + 0.55, 0.003, m.door.hinge[1] + (m.z > 0 ? -0.8 : 0.8)], r: 0, s: [1.8, 1, 1.5] })),
+  ...BENCHES.map((b) => ({ p: [b.c[0], 0.003, b.c[1]], r: b.rot + Math.PI / 2, s: [b.len + 0.8, 1, 2.0] })),
+  { p: [LIBRARY.x1 + 0.9, 0.003, 0], r: 0, s: [2.2, 1, 3.0] },
+]
+function Scuffs() {
+  const ref = useRef()
+  useLayoutEffect(() => {
+    const m = new THREE.Matrix4()
+    const q = new THREE.Quaternion()
+    const up = new THREE.Vector3(0, 1, 0)
+    SCUFFS.forEach((sc, i) => ref.current.setMatrixAt(i, m.compose(new THREE.Vector3(...sc.p), q.setFromAxisAngle(up, sc.r), new THREE.Vector3(...sc.s))))
+    ref.current.instanceMatrix.needsUpdate = true
+    ref.current.computeBoundingSphere()
+  }, [])
+  return <instancedMesh ref={ref} args={[scuffGeo, scuffMat, SCUFFS.length]} receiveShadow renderOrder={1} />
+}
+
 export default function Scenery() {
   return (
     <>
       <PatchWorld />
+      <Surfaces />
+      <Scuffs />
       <Wind />
       <Trees items={COURT_TREES} />
       <Model name="plant_a" items={plantA} />

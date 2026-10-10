@@ -9,8 +9,9 @@ import { Trees } from './Scenery.jsx'
 //     so its horizon of low buildings and autumn trees stays at eye level. It is an 8-bit JPG tone
 //     mapped from the 2K HDR (6.5 MB as .hdr, 0.43 MB as .jpg). It covers the World's pure-sky HDRI,
 //     which stays as scene.background underneath.
-//  2. near: the street outside at ground level (5 m below floor 2): lawn, sidewalks, Whitney Avenue
-//     to the west and a street to the north, street trees, and low brick neighbours across the road.
+//  2. near: the street outside at ground level (5 m below floor 2): lawn, raised sidewalks with
+//     kerbs, Whitney Avenue to the west and a street to the north, street trees, and low brick
+//     neighbours across the road with photo-scanned facades.
 const BASE = import.meta.env.BASE_URL
 const G = -5 // ground level relative to the floor 2 slab
 const SKY_R = 450
@@ -57,21 +58,6 @@ function speckle(g, w, h, n, colors, size) {
     g.fillRect(rnd() * w, rnd() * h, size, size)
   }
 }
-const grassTex = () =>
-  canvasTex(256, 256, (g, w, h) => {
-    g.fillStyle = '#5c7f3a'
-    g.fillRect(0, 0, w, h)
-    speckle(g, w, h, 9000, ['#4f7232', '#6a8e43', '#577a36', '#738f4a', '#466a2c'], 2)
-  })
-const concreteTex = () =>
-  canvasTex(256, 256, (g, w, h) => {
-    g.fillStyle = '#c3bfb6'
-    g.fillRect(0, 0, w, h)
-    speckle(g, w, h, 5000, ['#b8b4ab', '#cdc9c0', '#aeaaa1'], 2)
-    g.strokeStyle = '#8f8b84'
-    g.lineWidth = 2
-    g.strokeRect(1, 1, w - 2, h - 2) // one 1.5 m slab per tile: the joints
-  })
 // asphalt: kerb-side white lines and a double yellow centre line (as on Whitney Ave, photo 03).
 // v runs across the road, so the stripes are rows of the canvas
 const roadTex = () =>
@@ -87,44 +73,23 @@ const roadTex = () =>
     g.fillRect(0, h / 2 + 3, w, 4)
   })
 
-// Brick facade with sash windows, one bay (4 m wide, one 3.6 m storey) per tile. Colours sampled
-// from the brick and brownstone around Whitney Avenue in the reference photos (21, exterior 03).
-const facadeTex = (brick, mortar, trim) =>
-  canvasTex(256, 232, (g, w, h) => {
-    g.fillStyle = mortar
-    g.fillRect(0, 0, w, h)
-    const bh = 7
-    const bw = 22
-    for (let y = 0, row = 0; y < h; y += bh, row++) {
-      for (let x = row % 2 ? -bw / 2 : 0; x < w; x += bw) {
-        const k = 0.88 + rnd() * 0.24
-        const c = new THREE.Color(brick).multiplyScalar(k)
-        g.fillStyle = `#${c.getHexString()}`
-        g.fillRect(x + 1, y + 1, bw - 2, bh - 2)
-      }
-    }
-    // window: stone lintel and sill, white frame, glass with a sky reflection gradient
-    const wx = w * 0.3
-    const ww = w * 0.4
-    const wy = h * 0.2
-    const wh = h * 0.58
-    g.fillStyle = trim
-    g.fillRect(wx - 8, wy - 12, ww + 16, 12)
-    g.fillRect(wx - 6, wy + wh, ww + 12, 8)
-    g.fillStyle = '#e9e6de'
-    g.fillRect(wx, wy, ww, wh)
-    const gr = g.createLinearGradient(0, wy, 0, wy + wh)
-    gr.addColorStop(0, '#8ea3b4')
-    gr.addColorStop(0.55, '#3e4a55')
-    gr.addColorStop(1, '#2a3038')
-    g.fillStyle = gr
-    g.fillRect(wx + 5, wy + 5, ww - 10, wh / 2 - 7)
-    g.fillRect(wx + 5, wy + wh / 2 + 2, ww - 10, wh / 2 - 7)
-    g.fillStyle = '#e9e6de'
-    g.fillRect(wx + ww / 2 - 2, wy, 4, wh)
-  })
+// photo textures (ambientCG, CC0): lawn, concrete sidewalk slabs, two brick facades
+const texLoader = new THREE.TextureLoader()
+function photo(file, srgb) {
+  const t = texLoader.load(`${BASE}scenery/tex/${file}`)
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  t.anisotropy = 8
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace
+  return t
+}
+const photoSet = (name, repeat) => {
+  const set = { map: photo(`${name}_color.jpg`, true), normalMap: photo(`${name}_normal.jpg`), roughnessMap: photo(`${name}_rough.jpg`) }
+  for (const t of Object.values(set)) t.repeat.set(repeat, repeat)
+  return set
+}
 
-// box whose side UVs run in metres / bay size, so the facade texture tiles bay by bay
+// box whose side UVs run in metres: one facade tile (six storeys by six bays) spans about 20 m
+const FACADE_TILE = 20
 function buildingGeo(w, h, d) {
   const g = new THREE.BoxGeometry(w, h, d)
   const uv = g.attributes.uv
@@ -133,22 +98,21 @@ function buildingGeo(w, h, d) {
   for (let f = 0; f < 6; f++)
     for (let i = 0; i < 4; i++) {
       const k = f * 4 + i
-      uv.setXY(k, (uv.getX(k) * faceW[f]) / 4, (uv.getY(k) * faceH[f]) / 3.6)
+      uv.setXY(k, (uv.getX(k) * faceW[f]) / FACADE_TILE, (uv.getY(k) * faceH[f]) / FACADE_TILE)
     }
   return g
 }
 
 // neighbours across the street: [x, z, width (x), depth (z), height, palette]
 const NEIGHBOURS = [
-  [-82, -18, 16, 44, 15.5, 0], // brownstone museum block across Whitney Avenue (Peabody, guess)
-  [-79, 31, 12, 26, 11, 1],
-  [-6, -79, 34, 14, 10.8, 1], // across the north street
-  [36, -77, 20, 12, 8.5, 0],
+  [-82, -18, 16, 44, 16.5, 0], // brownstone block across Whitney Avenue (where the Peabody stands)
+  [-79, 31, 12, 26, 13.2, 1],
+  [-6, -79, 34, 14, 13.2, 1], // across the north street
+  [36, -77, 20, 12, 9.9, 0],
+  [62, 52, 14, 18, 9.9, 1], // low blocks east, seen past the Beinecke terrace
+  [66, -46, 12, 16, 9.9, 0],
 ]
-const PALETTES = [
-  ['#7a4f3c', '#b9ac98', '#cfc5b2'],
-  ['#8d4a35', '#b3a593', '#d8d2c4'],
-]
+const FACADES = ['facade_brown', 'facade_brick']
 
 // street trees: the Sapling maples mostly, a few birches and aspens, 9 to 11 m tall
 const STREET = (() => {
@@ -167,20 +131,19 @@ const STREET = (() => {
   return out
 })()
 
+const CURB = 0.14 // sidewalk and kerb height above the road and lawn
+
 function Street() {
   const m = useMemo(() => {
     const std = (o) => new THREE.MeshStandardMaterial({ roughness: 1, ...o })
-    const grass = grassTex()
-    grass.repeat.set(1 / 3, 1 / 3) // world-space UVs below: one tile per 3 m
-    const conc = concreteTex()
-    conc.repeat.set(1 / 1.5, 1 / 1.5)
     return {
-      grass: std({ map: grass }),
-      conc: std({ map: conc }),
+      grass: std(photoSet('grass', 1 / 2.5)), // world-space UVs below: one tile per 2.5 m
+      walk: std(photoSet('sidewalk', 1 / 3)),
+      kerb: std({ color: '#b9b5ac', roughness: 0.9 }),
       road: std({ map: roadTex(), roughness: 0.95 }),
       roof: std({ color: '#5b5d60' }),
       cornice: std({ color: '#cfc7b6', roughness: 0.9 }),
-      facades: PALETTES.map(([b, mo, t]) => std({ map: facadeTex(b, mo, t), roughness: 0.92 })),
+      facades: FACADES.map((f) => std({ ...photoSet(f, 1), roughness: 1 })),
     }
   }, [])
   const geos = useMemo(() => {
@@ -201,8 +164,8 @@ function Street() {
     }
     return {
       ground,
-      walkNS: strip(2 * S, 3, 1.5, 1.5), // runs along z once rotated
-      walkEW: strip(2 * S, 3, 1.5, 1.5),
+      walk: strip(2 * S, 3, 1, 1), // runs along x; rotated for the north-south runs
+      kerb: new THREE.BoxGeometry(2 * S, CURB, 3),
       roadNS: strip(2 * S, 12, 12, 12),
       roadEW: strip(2 * S, 10, 10, 10),
       boxes: NEIGHBOURS.map(([, , w, d, h]) => buildingGeo(w, h, d)),
@@ -213,17 +176,24 @@ function Street() {
   const rx = wx - 7.5 // Whitney Avenue centre
   const nz = zMin - 8.5
   const rz = nz - 6.5
+  // a raised sidewalk: textured top plus a plain concrete body whose edge is the kerb
+  const Walk = ({ p, ns }) => (
+    <group position={p} rotation={[0, ns ? Math.PI / 2 : 0, 0]}>
+      <mesh geometry={geos.walk} material={m.walk} position={[0, CURB + 0.002, 0]} receiveShadow />
+      <mesh geometry={geos.kerb} material={m.kerb} position={[0, CURB / 2, 0]} receiveShadow />
+    </group>
+  )
   return (
     <group>
       <mesh geometry={geos.ground} material={m.grass} position={[0, G, 0]} receiveShadow />
-      {/* west: lawn, sidewalk, Whitney Avenue, far sidewalk */}
-      <mesh geometry={geos.walkNS} material={m.conc} position={[wx, G + 0.02, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow />
+      {/* west: lawn, sidewalk, Whitney Avenue (no parked cars), far sidewalk */}
+      <Walk p={[wx, G, 0]} ns />
       <mesh geometry={geos.roadNS} material={m.road} position={[rx, G + 0.01, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow />
-      <mesh geometry={geos.walkNS} material={m.conc} position={[rx - 7.5, G + 0.02, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow />
+      <Walk p={[rx - 7.5, G, 0]} ns />
       {/* north: sidewalk, street, far sidewalk */}
-      <mesh geometry={geos.walkEW} material={m.conc} position={[0, G + 0.02, nz]} receiveShadow />
+      <Walk p={[0, G - 0.001, nz]} />
       <mesh geometry={geos.roadEW} material={m.road} position={[0, G + 0.012, rz]} receiveShadow />
-      <mesh geometry={geos.walkEW} material={m.conc} position={[0, G + 0.02, rz - 6.5]} receiveShadow />
+      <Walk p={[0, G - 0.001, rz - 6.5]} />
       {NEIGHBOURS.map(([x, z, w, d, h, pal], i) => (
         <group key={i} position={[x, G, z]}>
           <mesh geometry={geos.boxes[i]} material={[m.facades[pal], m.facades[pal], m.roof, m.roof, m.facades[pal], m.facades[pal]]} position={[0, h / 2, 0]} castShadow receiveShadow />

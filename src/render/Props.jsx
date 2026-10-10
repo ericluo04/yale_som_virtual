@@ -1,6 +1,6 @@
 import { Suspense, useMemo } from 'react'
 import * as THREE from 'three'
-import { COUNTERS, RECEPTION, SIGNAGE, DRUMS, ellPt } from '../layout.js'
+import { COUNTERS, RECEPTION, SIGNAGE, DRUMS, MEETING, LIBRARY, ellPt } from '../layout.js'
 import { slideTex, COURSE_KEYS } from '../slides.js'
 import Scenery, { METAL } from './Scenery.jsx'
 import Backdrop from './Backdrop.jsx'
@@ -92,6 +92,107 @@ function ExitSigns() {
   ))
 }
 
+// ---------- wayfinding: brushed-aluminium plates with a bevelled edge and a printed face
+// face drawn on a canvas at 512 px per metre so the type stays crisp up close
+function plateTex(w, h, draw) {
+  const PX = 512
+  const c = document.createElement('canvas')
+  c.width = Math.round(w * PX)
+  c.height = Math.round(h * PX)
+  const g = c.getContext('2d')
+  g.fillStyle = '#2f3237'
+  g.fillRect(0, 0, c.width, c.height)
+  g.fillStyle = '#f4f3ef'
+  g.textBaseline = 'middle'
+  draw(g, c.width, c.height)
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  t.anisotropy = 8
+  t.repeat.set(1 / w, 1 / h) // the extruded face's UVs are its shape coordinates in metres
+  return t
+}
+const plateEdge = new THREE.MeshStandardMaterial({ color: '#aeb3b8', metalness: 0.8, roughness: 0.35 })
+const plateGeos = new Map()
+function plateGeo(w, h) {
+  const k = `${w}x${h}`
+  if (!plateGeos.has(k)) {
+    const r = Math.min(w, h) * 0.08
+    const sh = new THREE.Shape()
+    sh.moveTo(r, 0)
+    sh.lineTo(w - r, 0)
+    sh.quadraticCurveTo(w, 0, w, r)
+    sh.lineTo(w, h - r)
+    sh.quadraticCurveTo(w, h, w - r, h)
+    sh.lineTo(r, h)
+    sh.quadraticCurveTo(0, h, 0, h - r)
+    sh.lineTo(0, r)
+    sh.quadraticCurveTo(0, 0, r, 0)
+    const g = new THREE.ExtrudeGeometry(sh, { depth: 0.01, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.004, bevelSegments: 2, curveSegments: 6 })
+    g.translate(-w / 2, -h / 2, 0)
+    plateGeos.set(k, g)
+  }
+  return plateGeos.get(k)
+}
+function Plate({ p, rot, w, h, draw }) {
+  const mat = useMemo(() => {
+    const t = plateTex(w, h, draw) // UVs were generated before the geometry was centred
+    return new THREE.MeshStandardMaterial({ map: t, roughness: 0.5, metalness: 0.1 })
+  }, [w, h, draw])
+  return <mesh geometry={plateGeo(w, h)} material={[mat, plateEdge]} position={p} rotation={[0, rot, 0]} castShadow />
+}
+
+// room-number plates beside every meeting-room door, on the corridor side
+const roomPlate = (num) => (g, w, h) => {
+  g.font = `bold ${h * 0.42}px Helvetica, Arial, sans-serif`
+  g.fillText(String(num), w * 0.1, h * 0.38)
+  g.font = `${h * 0.17}px Helvetica, Arial, sans-serif`
+  g.fillStyle = '#c9ccd1'
+  g.fillText('Meeting room', w * 0.1, h * 0.75)
+}
+function RoomPlates() {
+  return MEETING.map((m) => {
+    const [hx, hz] = m.door.hinge
+    const south = m.z > 0
+    return <Plate key={m.num} p={[hx - 0.22, 1.5, hz + (south ? -0.06 : 0.06)]} rot={south ? Math.PI : 0} w={0.26} h={0.16} draw={roomPlate(m.num)} />
+  })
+}
+
+// directional signs: one destination per line, arrow on the side it points to
+const ARROW = { left: '\u2190', right: '\u2192', up: '\u2191' }
+const dirSign = (lines) => (g, w, h) => {
+  const lh = h / lines.length
+  lines.forEach(([dir, text], i) => {
+    const y = lh * (i + 0.5)
+    g.font = `${lh * 0.36}px Helvetica, Arial, sans-serif`
+    g.fillStyle = '#f4f3ef'
+    if (dir === 'right') {
+      g.textAlign = 'right'
+      g.fillText(`${text}   ${ARROW.right}`, w * 0.94, y)
+    } else {
+      g.textAlign = 'left'
+      g.fillText(`${ARROW[dir]}   ${text}`, w * 0.06, y)
+    }
+    if (i) {
+      g.fillStyle = '#5a5e64'
+      g.fillRect(w * 0.04, lh * i - 1, w * 0.92, 2)
+    }
+  })
+}
+const SIGNS = [
+  // library's north outer wall, read facing south: east (the library door, Beinecke) is on the left
+  { p: [-30.5, 2.1, LIBRARY.z0 - 0.105], rot: Math.PI, lines: [['left', 'Ross Library  2100'], ['left', 'Beinecke Terrace Room  2300']] },
+  // library's south outer wall, read facing north: east is on the right
+  { p: [-28.2, 2.1, LIBRARY.z1 + 0.105], rot: 0, lines: [['right', 'Ross Library  2100'], ['right', 'Beinecke Terrace Room  2300']] },
+  // east column, read facing east toward the Beinecke door: north on the left, south on the right
+  { p: [26.36, 2.1, -3.8], rot: -Math.PI / 2, lines: [['up', 'Beinecke Terrace Room  2300'], ['left', 'Classrooms  2210 \u2013 2230'], ['right', 'Classrooms  2410 \u2013 2430']] },
+]
+function DirectionSigns() {
+  return SIGNS.map((sg, i) => {
+    const h = 0.17 * sg.lines.length
+    return <Plate key={i} p={sg.p} rot={sg.rot} w={1.0} h={h} draw={dirSign(sg.lines)} />
+  })
+}
+
 export default function Props() {
   return (
     <>
@@ -101,6 +202,8 @@ export default function Props() {
       <Reception />
       <Signage />
       <ExitSigns />
+      <RoomPlates />
+      <DirectionSigns />
       <Suspense fallback={null}>
         {!OFF.has('scenery') && <Scenery />}
         {!OFF.has('backdrop') && <Backdrop />}
