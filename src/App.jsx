@@ -13,6 +13,7 @@ import { DPR, HUD, NOLOCK, OFF, QUALITY, STATS } from './render/debugCam.js'
 import { InteractScene, ui } from './interact/index.jsx'
 import { useStore } from './interact/store.js'
 import InteractUI from './ui/InteractUI.jsx'
+import { trackerState } from './ui/Tracker.jsx'
 import { sound } from './interact/sound.js'
 import EggsA from './eggs/eggsA.jsx'
 import EggsB from './eggs/eggsB.jsx'
@@ -75,6 +76,8 @@ export default function App() {
   const lockRef = useRef()
   const mapRef = useRef()
   const onLock = useCallback((v) => setLocked(v), [])
+  // dev only: window.__lock(true) shows the locked HUD (aim dot) in a headless browser
+  if (import.meta.env.DEV) window.__lock = setLocked
   const onWhere = useCallback((w) => setWhere(w), [])
   // phones have no pointer lock, so they get a joystick + drag-to-look instead
   const [isTouch] = useState(() => matchMedia('(pointer: coarse)').matches) // phones + tablets; touchscreen laptops still get mouse mode
@@ -87,6 +90,7 @@ export default function App() {
   }
   const frozen = useStore(ui, (s) => s.frozen) // a dialogue is open: keep the start overlay away
   const awaitLock = useStore(ui, (s) => s.awaitLock) // lock refused or pending: a hint, not the card
+  const trackerOpen = useStore(trackerState, (s) => s.open)
   const playing = locked || touchOn || frozen || awaitLock
   // the start card: a click, tap, Enter or Space walks in and starts the audio
   const enter = () => {
@@ -170,7 +174,9 @@ export default function App() {
       {HUD && <button className="maptoggle" onClick={() => setShowMap((s) => !s)}>
         {showMap ? 'hide map' : 'map'}
       </button>}
-      {playing && <div className="crosshair" />}
+      {/* the aim dot shows only while the view is steering: pointer locked (or touch mode), no
+          dialogue, no tracker panel; the start card and the "click to look" hint get none */}
+      {(locked || touchOn) && !frozen && !trackerOpen && <div className="crosshair" />}
       {awaitLock && !locked && !frozen && <div className="lockhint">click to look</div>}
       <InteractUI />
       {touchOn && <TouchControls touchRef={touchRef} onPause={() => setTouch(false)} />}
@@ -235,7 +241,10 @@ export default function App() {
                   <kbd>N</kbd> sound
                 </span>
                 <span>
-                  <kbd>T</kbd> eggs
+                  <kbd>B</kbd> music
+                </span>
+                <span>
+                  <kbd>T</kbd> easter eggs
                 </span>
                 <span>
                   <kbd>Esc</kbd> pause
