@@ -2,6 +2,9 @@ import { Suspense, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { preloadModel, useClipPlayer, useRigInstance } from './characters/rig.js'
 import { DRUMS, ellPt } from './layout.js'
+import { FRISBEE } from './life/Frisbee.jsx'
+import { fx } from './life/fx.jsx'
+import { LIFE_ON, sfx } from './life/common.js'
 
 // Handsome Dan, Yale's bulldog. He tours a loop of 1000 randomly chosen classrooms:
 // walk the cloister to the next room, go in through a door, pause at the front, head back out.
@@ -96,9 +99,126 @@ function DanModel() {
     return { order, leg: 0, path: legPath(order[0], order[1]), seg: 0, u: 0, pause: 0 }
   }, [])
 
-  useFrame((_, rawDt) => {
+  const ep = useMemo(() => ({ phase: null, t: 0, saved: null, target: -1 }), [])
+  const jaw = useMemo(() => {
+    let j = null
+    object.traverse((b) => b.isBone && b.name === 'jaw' && (j = b))
+    return j
+  }, [object])
+  const headBone = useMemo(() => {
+    let j = null
+    object.traverse((b) => b.isBone && b.name === 'head' && (j = b))
+    return j
+  }, [object])
+
+  // The frisbee episode (src/life/Frisbee.jsx): when a disc lies on the lawn and Dan is out on the cloister loop,
+  // he apparates down to the lawn, sniffs the disc, carries it in his mouth to the nearest player, and apparates
+  // back to the exact spot of his tour, which then carries on.
+  const episode = (t, dt) => {
+    const o = root.current
+    const here = [o.position.x, o.position.y, o.position.z]
+    const pop = (p) => {
+      fx.sparks([p[0], p[1] + 0.45, p[2]], { count: 160, colors: ['#ffffff', '#4a8fe7', '#ffd36e'], speed: 2.4, life: 0.7 })
+      sfx.pop(p[0], p[1] + 0.4, p[2])
+    }
+    const runTo = (gx, gz, stopAt) => {
+      const dx = gx - o.position.x
+      const dz = gz - o.position.z
+      const d = Math.hypot(dx, dz)
+      if (d > stopAt + 0.02) {
+        const k = Math.min(2.6 * dt, d - stopAt) / d
+        o.position.x += dx * k
+        o.position.z += dz * k
+        let a = Math.atan2(dx, dz) - o.rotation.y
+        a = Math.atan2(Math.sin(a), Math.cos(a))
+        o.rotation.y += a * Math.min(1, dt * 8)
+        play('Walk', { timeScale: (2.6 / STRIDE) * 0.8 })
+        return false
+      }
+      return true
+    }
+    if (ep.phase === 'out') {
+      if (t - ep.t > 0.35) {
+        // land 3.5 m from the disc, on the lawn side away from the glass
+        const p = FRISBEE.pos
+        const l = Math.hypot(p.x, p.z) || 1
+        o.position.set(p.x - (p.x / l) * 3.5, -5, p.z - (p.z / l) * 3.5)
+        o.visible = true
+        pop([o.position.x, -5, o.position.z])
+        ep.phase = 'toDisc'
+      }
+    } else if (ep.phase === 'toDisc') {
+      if (runTo(FRISBEE.pos.x, FRISBEE.pos.z, 0.55)) {
+        ep.phase = 'sniff'
+        ep.t = t
+      }
+    } else if (ep.phase === 'sniff') {
+      play('Idle')
+      if (t - ep.t > 1.7) {
+        // pick it up by the rim
+        if (jaw) {
+          jaw.add(FRISBEE.mesh)
+          FRISBEE.mesh.position.set(0, 0.17, -0.01)
+          FRISBEE.mesh.rotation.set(Math.PI / 2, 0, 0)
+        }
+        FRISBEE.mode = 'dan'
+        const P = FRISBEE.players
+        ep.target = P.reduce((b, q) => (Math.hypot(q.pos[0] - o.position.x, q.pos[1] - o.position.z) < Math.hypot(P[b].pos[0] - o.position.x, P[b].pos[1] - o.position.z) ? q.i : b), 0)
+        ep.phase = 'carry'
+      }
+    } else if (ep.phase === 'carry') {
+      const q = FRISBEE.players[ep.target]
+      q.yaw = Math.atan2(o.position.x - q.pos[0], o.position.z - q.pos[1])
+      if (runTo(q.pos[0], q.pos[1], 1.0)) {
+        FRISBEE.give(ep.target)
+        ep.phase = 'linger'
+        ep.t = t
+      }
+    } else if (ep.phase === 'linger') {
+      play('Idle')
+      if (t - ep.t > 1.4) {
+        pop(here)
+        o.visible = false
+        ep.phase = 'back'
+        ep.t = t
+      }
+    } else if (ep.phase === 'back' && t - ep.t > 0.35) {
+      o.position.set(...ep.saved.p)
+      o.rotation.y = ep.saved.r
+      o.visible = true
+      pop(ep.saved.p)
+      ep.phase = null
+    }
+    DAN.x = o.position.x
+    DAN.z = o.position.z
+  }
+  if (import.meta.env.DEV && typeof window !== 'undefined') (window.__life ||= {}).dan = () => [root.current.position.x, root.current.position.y, root.current.position.z, root.current.rotation.y, ep.phase, FRISBEE.claimed, FRISBEE.request]
+
+  useFrame(({ clock }, rawDt) => {
     const dt = Math.min(rawDt, 0.05)
     const st = state
+    const t = clock.elapsedTime
+    if (ep.phase) {
+      episode(t, dt)
+      // sniffing: nose down to the grass on top of the Idle clip
+      if (ep.phase === 'sniff' && headBone) headBone.rotateX(-0.45 - 0.08 * Math.sin(t * 14))
+      return
+    }
+    // start an episode when the disc is waiting on the grass and Dan is out on the cloister loop
+    if (LIFE_ON && FRISBEE.request && !FRISBEE.claimed && st.pause <= 0) {
+      const p = root.current.position
+      const r = RING[nearestRing([p.x, p.z])]
+      if (Math.hypot(r[0] - p.x, r[1] - p.z) < 0.3) {
+        FRISBEE.claimed = true
+        ep.saved = { p: [p.x, p.y, p.z], r: root.current.rotation.y }
+        ep.phase = 'out'
+        ep.t = t
+        fx.sparks([p.x, 0.45, p.z], { count: 160, colors: ['#ffffff', '#4a8fe7', '#ffd36e'], speed: 2.4, life: 0.7 })
+        sfx.pop(p.x, 0.4, p.z)
+        root.current.visible = false
+        return
+      }
+    }
     let moving = true
     if (st.pause > 0) {
       st.pause -= dt
