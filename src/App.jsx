@@ -9,6 +9,7 @@ import { NOLOCK, QUALITY } from './render/debugCam.js'
 import { InteractScene, ui } from './interact/index.jsx'
 import { useStore } from './interact/store.js'
 import InteractUI from './ui/InteractUI.jsx'
+import EggsA from './eggs/eggsA.jsx'
 
 export default function App() {
   const [locked, setLocked] = useState(false)
@@ -44,6 +45,7 @@ export default function App() {
         <World />
         <Player lockRef={lockRef} mapRef={mapRef} touchRef={touchRef} onLock={onLock} onWhere={onWhere} />
         <InteractScene />
+        <EggsA />
       </Canvas>
 
       <div className="where">

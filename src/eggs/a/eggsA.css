@@ -1,0 +1,36 @@
+/* Egg set A (Froggy, Lisa, library portraits, dump trap). Only body-class switches on the shared dialogue. */
+
+/* waitThen(): three bouncing dots in place of text while Lisa thinks or the boss agent routes */
+body.egg-thinking .dlg-text::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin: 0.6em 0 0 22px;
+  border-radius: 50%;
+  animation: egg-dots 1s steps(1) infinite;
+}
+body.egg-thinking .dlg-next {
+  visibility: hidden;
+}
+body.egg-routing .dlg-text {
+  font-family: var(--ui-mono, monospace);
+  font-size: 15px;
+}
+body.egg-routing .dlg-next {
+  visibility: hidden;
+}
+@keyframes egg-dots {
+  0% {
+    background: #ff4fa355;
+    box-shadow: -18px 0 0 #ff4fa3, 18px 0 0 #ff4fa355;
+  }
+  33% {
+    background: #ff4fa3;
+    box-shadow: -18px 0 0 #ff4fa355, 18px 0 0 #ff4fa355;
+  }
+  66% {
+    background: #ff4fa355;
+    box-shadow: -18px 0 0 #ff4fa355, 18px 0 0 #ff4fa3;
+  }
+}
