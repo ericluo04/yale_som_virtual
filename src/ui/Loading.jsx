@@ -6,7 +6,8 @@ import { createStore, useStore } from '../interact/store.js'
 // Full-screen loading panel. Progress comes from drei's useProgress, which listens to
 // THREE.DefaultLoadingManager: useGLTF, the HDRI, the Draco decoder and the raw
 // TextureLoader calls in pbr.js and World.jsx all report through it. useProgress resets its
-// percentage per loading wave, so the bar uses loaded / total and never moves backwards.
+// percentage per loading wave, so the bar is built from loaded / total (below) and never
+// moves backwards.
 // The panel leaves once loading has been idle for 400 ms, the shaders have compiled and two
 // frames have rendered, then fades over 400 ms into the start card.
 
@@ -85,12 +86,21 @@ export default function Loading() {
   const ready = useStore(gate, (s) => s.ready)
   const [phase, setPhase] = useState('in') // in -> out (fading) -> gone
   const [line, setLine] = useState(0)
-  const pctRef = useRef(0)
+  const prog = useRef({ pct: 0, loaded: 0 })
   const bytes = useBytes(phase !== 'gone')
 
-  const raw = total ? (loaded / total) * 100 : 0
-  pctRef.current = Math.max(pctRef.current, raw)
-  const pct = Math.round(pctRef.current)
+  // Each finished asset moves the bar by its share of the distance still left, with the share
+  // taken from loaded / total at that moment. The bar never moves back, equals loaded / total
+  // while the total holds, and reaches 100 only when every known asset has loaded. The old
+  // running maximum of loaded / total stuck at 100% after a small first wave (100% beside
+  // "66 of 101").
+  const pr = prog.current
+  if (loaded < pr.loaded) pr.loaded = loaded
+  if (loaded > pr.loaded && total > pr.loaded) {
+    pr.pct += ((100 - pr.pct) * (loaded - pr.loaded)) / (total - pr.loaded)
+    pr.loaded = loaded
+  }
+  const pct = total && loaded >= total ? 100 : Math.min(99, Math.floor(pr.pct))
 
   // dev: keep every reported item so a headless check can compare it with the network log
   useEffect(() => {
