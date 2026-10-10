@@ -412,7 +412,7 @@ function ringTrees(ms, plan, near) {
     const d = 80 + r() * 110
     const x = CENTER[0] + Math.sin(a) * d
     const z = CENTER[1] + Math.cos(a) * d
-    if (Math.abs(x - CENTER[0]) < 61.7 && Math.abs(z - CENTER[1]) < 62.5) continue // the block itself (52 x 58 before round 4)
+    if (Math.abs(x - CENTER[0]) < 63.7 && Math.abs(z - CENTER[1]) < 62.5) continue // the block itself (52 x 58 before round 4)
     if (blocked(x, z)) continue
     const sc = 0.8 + r() * 0.7
     if (buildingGap(x, z) < NEAR_TREE) {
@@ -609,12 +609,12 @@ const CARS = (() => {
 const TERRACE_FURNITURE = (() => {
   const tables = []
   const chairs = []
-  for (const { a, p } of TERRACE_TABLES) {
+  for (const { a, rr, p } of TERRACE_TABLES) {
     const [x, z] = p
     tables.push({ p: [x, 0, z], r: a, s: [0.62, 0.74, 0.62] }) // a 0.87 m cafe table, 0.74 m high
-    // two chairs along the ring, one toward the rail; each faces the table
-    for (const [da, dr] of [[0.052, 0], [-0.052, 0], [0, 0.72]]) {
-      const [cx, cz] = ellPt(BEIN.c, 14.8 + dr, 14.8 + dr, a + da)
+    // two chairs along the ring (0.76 m either side), one toward the rail; each faces the table
+    for (const [da, dr] of [[0.76 / rr, 0], [-0.76 / rr, 0], [0, 0.72]]) {
+      const [cx, cz] = ellPt(BEIN.c, rr + dr, rr + dr, a + da)
       chairs.push({ p: [cx, 0, cz], r: Math.atan2(x - cx, z - cz), s: 1 })
     }
   }
@@ -642,15 +642,15 @@ function terrace() {
     ms.box(x, 0.3, z, 1.6, 0.6, 0.55, '#9e9b94', yaw)
     ms.box(x, 0.59, z, 1.5, 0.03, 0.45, '#4a3a2a', yaw)
   }
-  // steel cap rail and posts on the glass balustrade (World.jsx draws the glass at r = 17)
+  // steel cap rail and posts on the glass balustrade (World.jsx draws the glass at r = BEIN.terrace)
   const { c, terrace: R } = BEIN
   const curve = new THREE.CatmullRomCurve3(Array.from({ length: 33 }, (_, i) => {
     const [x, z] = ellPt(c, R, R, (i / 32) * Math.PI)
     return new THREE.Vector3(x, 1.07, z)
   }))
   ms.geo(new THREE.TubeGeometry(curve, 96, 0.03, 6), M4(), '#c9ced6')
-  for (let i = 0; i <= 34; i++) {
-    const [x, z] = ellPt(c, R, R, (i / 34) * Math.PI)
+  for (let i = 0; i <= 42; i++) {
+    const [x, z] = ellPt(c, R, R, (i / 42) * Math.PI)
     ms.box(x, 0.53, z, 0.05, 1.06, 0.05, '#aeb4bb')
   }
   return ms.build()

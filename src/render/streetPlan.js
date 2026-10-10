@@ -13,7 +13,8 @@ export const VERGE = 1.6
 export const WALK = 2.6
 export const S = 350 // half size of the ground plane; roads run to its edge
 // road centres written for the round-3 floor; planX / planZ keep each road as far from the enlarged building
-export const ROAD = { W: { c: planX(-58.75), w: 12 }, N: { c: planZ(-58), w: 10 }, E: { c: planX(59), w: 10 }, S: { c: planZ(67), w: 10 } }
+// (the east street moves 4 m further, with the terrace rail, BEIN.terrace 17 -> 21)
+export const ROAD = { W: { c: planX(-58.75), w: 12 }, N: { c: planZ(-58), w: 10 }, E: { c: planX(59) + 4, w: 10 }, S: { c: planZ(67), w: 10 } }
 export const NS = ['W', 'E'] // roads that run north-south (along z)
 export const OUT = { W: -1, N: -1, E: 1, S: 1 } // outward sign along the road's cross axis
 // kerb lines [inner (building side), outer]

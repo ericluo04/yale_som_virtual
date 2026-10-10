@@ -153,7 +153,9 @@ export const DRUMS = [
 })
 
 // ---------- Beinecke Terrace Room (semi-oval bulging east) + outdoor terrace
-export const BEIN = { c: [EAST, 0], r: 12.5, terrace: 17, doorGap: 0.11, muralR: 3.6, muralHalf: 0.85 }
+// The terrace rail stands at 21 m (was 17) so the outdoor terrace is 8.5 m deep: room for the orientation
+// party (PARTY below) between the cafe tables at its two ends (round 4)
+export const BEIN = { c: [EAST, 0], r: 12.5, terrace: 21, doorGap: 0.11, muralR: 3.6, muralHalf: 0.85 }
 BEIN.col = ellPt(BEIN.c, BEIN.r + 2.6, BEIN.r + 2.6, 0.6) // terrace column
 
 // ---------- stairs (painting above each opening)
@@ -402,17 +404,24 @@ for (const [side, zf, zb, M_X0] of [[1, planZ(46), zMax, planX(-35)], [-1, planZ
   P(arc(c, muralR, muralR, Math.PI / 2 - muralHalf, Math.PI / 2 + muralHalf, 20), 'none', { t: 0.2 })
   dot(BEIN.col) // terrace column
 }
-// outdoor Beinecke terrace (render/Town.jsx): white cafe tables on the 4.5 m ring between the
-// glass and the rail, clear of the door (east, angle pi/2) and of the column (angle 0.6), and
-// concrete planters against the rail
-export const TERRACE_TABLES = [0.2, 1.0, 1.28, 1.86, 2.16, 2.94].map((a) => ({ a, p: ellPt(BEIN.c, 14.8, 14.8, a) }))
-export const TERRACE_PLANTERS = [0.05, 1.4, 1.74, 3.09].map((a) => ({ a, p: ellPt(BEIN.c, 16.45, 16.45, a) }))
+// outdoor Beinecke terrace (render/Town.jsx): cafe tables at the two ends of the terrace, two on the
+// 14.6 m ring and two on the 18.4 m ring at each end. Each table with its three chairs reaches about
+// 0.5 m from its centre, so the inner ring keeps 1.6 m off the glass (r 12.5), and the column (angle
+// 0.6, r 15.1) stays 2.3 m from the nearest table. Concrete planters stand against the rail.
+// Each entry: a = the angle on BEIN.c (ellPt convention), rr = the ring radius.
+export const TERRACE_TABLES = [[0.2, 14.6], [0.45, 14.6], [0.2, 18.4], [0.42, 18.4], [Math.PI - 0.2, 14.6], [Math.PI - 0.45, 14.6], [Math.PI - 0.2, 18.4], [Math.PI - 0.42, 18.4]].map(
+  ([a, rr]) => ({ a, rr, p: ellPt(BEIN.c, rr, rr, a) }),
+)
+export const TERRACE_PLANTERS = [0.05, 0.8, Math.PI - 0.8, Math.PI - 0.05].map((a) => ({ a, p: ellPt(BEIN.c, BEIN.terrace - 0.55, BEIN.terrace - 0.55, a) }))
 for (const { p } of TERRACE_TABLES) W(p, [p[0] + 0.01, p[1]], 'none', { t: 1.9 })
 for (const { a, p } of TERRACE_PLANTERS) {
   const t = [Math.cos(a) * 0.8, -Math.sin(a) * 0.8]
   W([p[0] - t[0], p[1] - t[1]], [p[0] + t[0], p[1] + t[1]], 'none', { t: 0.6 })
 }
-export const BEIN_TABLES = [[7.5, -5], [7.5, 5], [4.5, -8.5], [4.5, 8.5], [10, 0], [9.5, -8], [9.5, 8]].map(([dx, z]) => [EAST + dx, z])
+// Terrace Room tables (round 4): every table with its six chairs (about 1.35 m round its centre)
+// stays at least 1.1 m inside the glass (r 12.5); the two that stood at r 12.4 sat half outside.
+// Four on the 9.6 m ring, two on the 6.4 m ring beside the mural, one 8.8 m in front of the door.
+export const BEIN_TABLES = [[1.07, 9.6], [Math.PI - 1.07, 9.6], [0.42, 9.6], [Math.PI - 0.42, 9.6], [0.72, 6.4], [Math.PI - 0.72, 6.4], [Math.PI / 2, 8.8]].map(([a, rr]) => ellPt(BEIN.c, rr, rr, a))
 for (const p of BEIN_TABLES) {
   W(p, [p[0] + 0.01, p[1]], 'none', { t: 1.5 })
   for (let i = 0; i < 6; i++) {
