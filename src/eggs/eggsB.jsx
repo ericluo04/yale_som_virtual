@@ -1,5 +1,6 @@
 import Ticker from './b/Ticker.jsx'
 import Merch from './b/Merch.jsx'
+import Plaques from './b/Plaques.jsx'
 
 // Egg set B, mounted once inside <Canvas> next to <InteractScene />.
 export default function EggsB() {
@@ -7,6 +8,7 @@ export default function EggsB() {
     <>
       <Ticker />
       <Merch />
+      <Plaques />
     </>
   )
 }
