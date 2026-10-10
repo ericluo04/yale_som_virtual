@@ -295,6 +295,42 @@ function useMaterials() {
       }
       m.customProgramCacheKey = () => `${key}|plasterDetail`
     }
+    // Carpet moire: the concourse colour map carries strong cross stripes (row means vary by 9
+    // levels of 255), which aliased into bands across the cloister floor. The normal map drops to
+    // 0.35, and the colour fades toward the map's mean as a texel shrinks under a pixel, with a
+    // fine +-6% value noise in its place, so the stripes stay underfoot and go flat at distance.
+    for (const m of [M.carpet, M.roomCarpet, M.tierCarpet]) {
+      m.normalScale = new THREE.Vector2(0.35, 0.35)
+      const prev = m.onBeforeCompile
+      const key = m.customProgramCacheKey()
+      m.onBeforeCompile = (sh, r) => {
+        prev?.(sh, r)
+        sh.fragmentShader = sh.fragmentShader
+          .replace(
+            '#include <common>',
+            `#include <common>
+            float cpHash( vec2 p ) { return fract( sin( dot( p, vec2( 127.1, 311.7 ) ) ) * 43758.5453 ); }
+            float cpNoise( vec2 p ) {
+              vec2 i = floor( p ), f = fract( p );
+              f = f * f * ( 3.0 - 2.0 * f );
+              return mix( mix( cpHash( i ), cpHash( i + vec2( 1.0, 0.0 ) ), f.x ), mix( cpHash( i + vec2( 0.0, 1.0 ) ), cpHash( i + 1.0 ), f.x ), f.y );
+            }`,
+          )
+          .replace(
+            '#include <map_fragment>',
+            `#ifdef USE_MAP
+              vec4 sampledDiffuseColor = texture2D( map, vMapUv );
+              vec3 cpMean = textureLod( map, vMapUv, 10.0 ).rgb;
+              float cpTexels = length( fwidth( vMapUv ) ) * 1024.0; // map texels under one pixel
+              float cpFade = smoothstep( 1.5, 6.0, cpTexels );
+              float cpN = cpNoise( vMapUv * 160.0 ) * 0.6 + cpNoise( vMapUv * 410.0 ) * 0.4;
+              sampledDiffuseColor.rgb = mix( sampledDiffuseColor.rgb, cpMean * ( 0.94 + 0.12 * cpN ), cpFade * 0.8 );
+              diffuseColor *= sampledDiffuseColor;
+            #endif`,
+          )
+      }
+      m.customProgramCacheKey = () => `${key}|carpetFade`
+    }
     // the bake exporter (render/exportGLB.js) and the baked loader find materials by key
     for (const [k, m] of Object.entries(M)) (Array.isArray(m) ? m : [m]).forEach((x, i) => (x.userData.key = Array.isArray(m) ? `${k}${i}` : k))
     M.ceiling.userData.oneSided = true // only the underside is ever seen; bake that face alone
