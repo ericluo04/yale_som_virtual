@@ -4,11 +4,15 @@ import * as THREE from 'three'
 import { RIM_GLSL, useRigInstance } from '../characters/rig.js'
 import { angleTo, rand, sfx, smooth, timed, turnToward, useLabubuRig } from './common.js'
 import { fx } from './fx.jsx'
+import { SCHOOL_GROUPS } from './courtyardLayout.js'
 
-// Spell school on the courtyard lawn: four classes, one per lawn quadrant, each a professor on a low floating
-// paver facing four or five Labubu students in a half circle. The professor stands on the glass side of the
-// class, so from the nearest cloister you see the students' faces. North cloister: Flitwick (west) and
-// McGonagall (east). South cloister: Snape (west) and Lockhart (east).
+// Spell school on the courtyard lawn: each class a professor on a low floating paver facing Labubu students in a
+// half circle. The professor stands on the glass side of the class, so from the nearest cloister you see the
+// students' faces. Round 4 spread the classes out (positions in courtyardLayout.js): Flitwick near the north-east
+// glass, McGonagall by the fountain's east side; Snape's Lumos class sits on a blanket near the south glass
+// (CourtyardLumos.jsx) and Lockhart's class casts across the lawn from the west edge (CourtyardRange.jsx), both
+// built from the pieces exported at the end of this file. The Snape and Lockhart branches below stay for any
+// group configured with those spells.
 //   Flitwick, Wingardium Leviosa: each student's feather or small book rises 1.5 m, wobbles and settles
 //   McGonagall, Transfiguration: one teacup on a stand turns into a small bird and back, one student at a time
 //   Snape, Lumos: wand tips light with a soft pulsing white glow that lights the students' faces from below
@@ -26,19 +30,14 @@ const S = 1.1 // student scale (1 is about 1.15 m to the ear tips)
 const PAVER_LIFT = 0.45
 const FLICK = 10 / 30 // seconds into Cast when the wand snaps forward
 
-// professor spot, a point the class lies toward, the student count and the spell; every student stands at least
-// 1.8 m from the courtyard trees (render/Scenery.jsx COURT_TREES). Each class sits in a clear pane of the glass
-// seen from the middle of its cloister (camera 0, 1.65, +-21): from the south, the birch at (6, 10) hides anything
-// near (8, 8), so Lockhart's class stands east of it, between the right mullion and the edge of the view.
-const GROUPS = [
-  { who: 'flitwick', spell: 'leviosa', P: [-9, -12], toward: [-8.2, -8], n: 5, scale: 1.3 },
-  { who: 'mcgonagall', spell: 'transfig', P: [9, -12], toward: [7.4, -8.3], n: 4 },
-  { who: 'snape', spell: 'lumos', P: [-10, 10], toward: [-9.5, 9.13], n: 5 },
-  { who: 'lockhart', spell: 'expelliarmus', P: [11.5, 11.5], toward: [11.16, 10.56], n: 4 },
-].map((g, gi) => {
+// professor spot, a point the class lies toward, the student count, the arc radius and half-width: life/courtyardLayout.js
+// SCHOOL_GROUPS (round 4: Flitwick moves to the north-east as a tight group, McGonagall to a clearing east of the
+// fountain with three students; Snape's Lumos class and Lockhart's long-range class are CourtyardLumos.jsx and
+// CourtyardRange.jsx). Every student stands at least 1.8 m from the courtyard trees (render/Scenery.jsx COURT_TREES).
+const GROUPS = SCHOOL_GROUPS.map((g, gi) => {
   const yaw = angleTo(g.P, g.toward)
-  const spread = g.n === 5 ? 1.25 : 1.0 // half-width of the arc in radians
-  const R = 2.7
+  const spread = g.spread ?? (g.n === 5 ? 1.25 : 1.0) // half-width of the arc in radians
+  const R = g.R ?? 2.7
   const students = Array.from({ length: g.n }, (_, i) => {
     const a = yaw + spread * ((2 * i) / (g.n - 1) - 1)
     return { gi, i, p: [g.P[0] + R * Math.sin(a), g.P[1] + R * Math.cos(a)] }
@@ -607,3 +606,6 @@ export default function SpellSchool() {
   if (import.meta.env.DEV && typeof window !== 'undefined') (window.__life ||= {}).school = GROUPS.map((g) => ({ who: g.who, P: g.P, students: g.students.map((s) => s.p) }))
   return GROUPS.map((g) => <Group key={g.gi} g={g} />)
 }
+
+// shared with the round 4 courtyard classes (CourtyardRange.jsx, CourtyardLumos.jsx)
+export { TeacherModel, lumosMaterials, wand, WAND_TIP, glowTex, lookOf, CAST_EVERY, CHIME_EVERY, CHIME_LEVEL, S as STUDENT_SCALE, FLICK, Y as LAWN_Y }
