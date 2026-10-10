@@ -123,7 +123,7 @@ export default function Minimap({ drawRef }) {
       g.strokeStyle = '#0b0b0d'
       for (const e of allInteractables()) {
         const o = e.ref.current
-        if (o.marker === false || o.enabled === false) continue
+        if (o.marker === false || o.marker === 'egg' || o.enabled === false) continue // no egg spoilers (Tracker.jsx)
         const p = resolvePos(o.position)
         if (!p) continue
         g.fillStyle = (MARKERS[o.marker] ?? MARKERS.interact).color
@@ -158,7 +158,7 @@ export default function Minimap({ drawRef }) {
       <div className="map-legend">
         <span><i style={{ background: '#fff' }} />you</span>
         <span><i style={{ background: '#4a90ff' }} />Handsome Dan</span>
-        {Object.values(MARKERS).map((m) => (
+        {Object.values(MARKERS).filter((m) => m !== MARKERS.egg).map((m) => (
           <span key={m.label}>
             <i className="dia" style={{ background: m.color }} />
             {m.label}
