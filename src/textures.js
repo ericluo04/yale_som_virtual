@@ -123,6 +123,48 @@ export function courtyardFacadeTex() {
   return tex(c, [1, 1])
 }
 
+// buttoned leather cushion, one 0.6 x 0.6 m tile as a normal map: soft bulge between seams
+// across the tile edges (v), three by three buttons pulled into dimples
+export function tuftNormalTex() {
+  const N = 256
+  const h = new Float32Array(N * N)
+  const btn = [1 / 6, 1 / 2, 5 / 6]
+  for (let y = 0; y < N; y++)
+    for (let x = 0; x < N; x++) {
+      const u = x / N
+      const v = y / N
+      const dv = Math.min(v, 1 - v) // distance to the seam
+      let z = Math.min(1, dv / 0.08) ** 0.5 * 0.6 // bulge rising from the seam
+      for (const bu of btn)
+        for (const bv of btn) {
+          const d2 = ((u - bu) ** 2 + (v - bv) ** 2) / 0.0016
+          z -= 0.35 * Math.exp(-d2)
+        }
+      h[y * N + x] = z
+    }
+  const [c, g] = canvas(N, N)
+  const img = g.createImageData(N, N)
+  const at = (x, y) => h[((y + N) % N) * N + ((x + N) % N)]
+  const k = 6 // slope gain: height units to normal tilt
+  for (let y = 0; y < N; y++)
+    for (let x = 0; x < N; x++) {
+      const nx = -(at(x + 1, y) - at(x - 1, y)) * k
+      const ny = (at(x, y + 1) - at(x, y - 1)) * k
+      const l = Math.hypot(nx, ny, 1)
+      const i = (y * N + x) * 4
+      img.data[i] = (nx / l * 0.5 + 0.5) * 255
+      img.data[i + 1] = (ny / l * 0.5 + 0.5) * 255
+      img.data[i + 2] = (1 / l * 0.5 + 0.5) * 255
+      img.data[i + 3] = 255
+    }
+  g.putImageData(img, 0, 0)
+  const t = new THREE.CanvasTexture(c)
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  t.repeat.set(1 / 0.6, 1 / 0.6) // the cushion UVs are metres
+  t.anisotropy = 8
+  return t
+}
+
 export function slatsTex() {
   const [c, g] = canvas(128, 256)
   for (let y = 0; y < 256; y += 16) {

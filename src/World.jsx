@@ -200,6 +200,13 @@ function useMaterials() {
       desk: worldUV(std({ ...wood, color: '#e8c9a8', roughness: 0.9 }), 0.8),
       shelf: std({ map: T.booksTex(), roughness: 0.8 }),
       leather: std({ color: '#9a5530', roughness: 0.45 }),
+      // banquette seat cushions: the buttoned normal map replaces the scanned grain that
+      // Scenery.jsx gives the plain leather, so they are marked as already patched
+      leatherTuft: (() => {
+        const m = std({ color: '#9a5530', roughness: 0.45, normalMap: T.tuftNormalTex() })
+        m.userData.scenery = true
+        return m
+      })(),
       plinth: std({ color: '#2b2b2b', roughness: 0.6 }),
       orange: std({ color: '#d4552a', roughness: 0.8 }),
       chair: std({ color: '#141417', roughness: 0.6, metalness: 0.2, envMapIntensity: 0.6 }),
@@ -574,11 +581,13 @@ function CourtyardFrame({ M }) {
   )
 }
 
-// curved cognac banquette on a dark plinth, buttoned top panel (photos 03-05, 24)
+// curved cognac banquette (photos 03-05, 24): a leather body on a black plinth set 5 cm in, so
+// the plinth shows as a 6 cm dark reveal under the body's rounded bottom edge; buttoned seat
+// cushions and a back along the outer edge
 function Banquettes({ M }) {
   const geos = useMemo(() => {
     const R = 6 // radius of the curve
-    const sector = (r0, r1, h, len) => {
+    const sector = (r0, r1, h, len, bevel = 0.03) => {
       const a = len / R / 2
       const sh = new THREE.Shape()
       const n = 16
@@ -591,21 +600,24 @@ function Banquettes({ M }) {
         const t = -a + (2 * a * i) / n
         sh.lineTo(Math.cos(t) * r0 - R, Math.sin(t) * r0)
       }
-      const g = new THREE.ExtrudeGeometry(sh, { depth: h, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.03, bevelSegments: 2 })
+      const g = new THREE.ExtrudeGeometry(sh, bevel ? { depth: h, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 3 } : { depth: h, bevelEnabled: false })
       g.rotateX(-Math.PI / 2) // extrude upward; local z of the shape becomes -z
       return g
     }
+    // heights: plinth 0-0.065, body 0.06-0.41 (bevels included), cushion 0.41-0.51, back to 0.81
     return BENCHES.map((b) => ({
-      seat: sector(R - 0.42, R + 0.42, 0.22, b.len),
-      back: sector(R + 0.18, R + 0.42, 0.38, b.len - 0.2),
-      plinth: sector(R - 0.34, R + 0.34, 0.2, b.len - 0.15),
+      plinth: sector(R - 0.37, R + 0.37, 0.065, b.len - 0.1, 0),
+      body: sector(R - 0.42, R + 0.42, 0.29, b.len),
+      cushion: sector(R - 0.4, R + 0.17, 0.04, b.len - 0.04),
+      back: sector(R + 0.2, R + 0.42, 0.34, b.len - 0.3),
     }))
   }, [])
   return BENCHES.map((b, i) => (
     <group key={i} position={[b.c[0], 0, b.c[1]]} rotation={[0, b.rot, 0]}>
       <mesh geometry={geos[i].plinth} material={M.plinth} />
-      <mesh geometry={geos[i].seat} material={M.leather} position={[0, 0.2, 0]} />
-      <mesh geometry={geos[i].back} material={M.leather} position={[0, 0.42, 0]} />
+      <mesh geometry={geos[i].body} material={M.leather} position={[0, 0.09, 0]} />
+      <mesh geometry={geos[i].cushion} material={M.leatherTuft} position={[0, 0.44, 0]} />
+      <mesh geometry={geos[i].back} material={M.leather} position={[0, 0.44, 0]} />
     </group>
   ))
 }
