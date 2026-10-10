@@ -3,12 +3,18 @@ import { useFrame } from '@react-three/fiber'
 import Labubu, { EXPRESSIONS, YALE_BLUE } from './Labubu.jsx'
 import { MEETING } from './layout.js'
 import Life from './life/index.jsx'
+import TerraceParty from './life/TerraceParty.jsx'
 
 // The courtyard lawn belongs to the spell school (src/life/SpellSchool.jsx): four classes, one per quadrant.
 // The hopping, dancing and catch-playing Labubus and the ring around the maple were taken off the lawn in round 3.
 // Life (src/life) mounts here, in world coordinates.
 export default function LabubuParty() {
-  return <Life />
+  return (
+    <>
+      <Life />
+      <TerraceParty />
+    </>
+  )
 }
 
 // two or three Labubus in a meeting in every small glass room, sitting at the glass table

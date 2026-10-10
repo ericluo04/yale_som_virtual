@@ -418,6 +418,33 @@ for (const { a, p } of TERRACE_PLANTERS) {
   const t = [Math.cos(a) * 0.8, -Math.sin(a) * 0.8]
   W([p[0] - t[0], p[1] - t[1]], [p[0] + t[0], p[1] + t[1]], 'none', { t: 0.6 })
 }
+// The orientation party on the terrace (render: life/TerraceParty.jsx). Positions are offsets from
+// BEIN.c: dx east (out from the building), z as the world. The dance floor sits in front of the
+// Terrace Room door (dx 12.5) with a 2.1 m walk between, the DJ and the banner behind it against the
+// rail, the bar to the north-east, high tables round the south and north sides.
+const PC = (dx, z) => [EAST + dx, z]
+const polar = (a, rr) => ellPt(BEIN.c, rr, rr, a)
+export const PARTY = {
+  dance: { c: PC(16.9, 0), half: 2.3 }, // 4.6 m square of lighter pavers
+  dj: { c: PC(19.75, 0), w: 1.6, d: 0.7 }, // the table faces west, the DJ stands behind it at dx 20.4
+  speakers: [PC(19.85, -1.45), PC(19.85, 1.45)],
+  banner: { poles: [PC(20.45, -2.6), PC(20.45, 2.6)], y: 2.75, h: 0.9 },
+  // the bar along the 18.2 m ring at angle 2.15; the bar-back shelf 1.8 m behind it, stools in front
+  bar: { a: 2.15, rr: 18.2, len: 3.0, d: 0.6, backRr: 20.0 },
+  tables: [[0.85, 14.8], [1.0, 18.6], [1.22, 15.6], [0.62, 18.9], [2.0, 15.0], [1.85, 18.8], [2.45, 15.0]].map(([a, rr]) => polar(a, rr)),
+  lightPoles: [PC(14.2, -2.7), PC(14.2, 2.7)],
+  balloons: [PC(20.45, -2.6), PC(20.45, 2.6), polar(2.07, 18.2), polar(2.23, 18.2), polar(1.0, 20.4)],
+  plants: [polar(1.95, 20.3), polar(2.35, 20.3), PC(19.9, -3.4), PC(19.9, 3.4)],
+}
+{
+  const { dj, speakers, banner, bar, tables, lightPoles, plants } = PARTY
+  W([dj.c[0], dj.c[1] - dj.w / 2], [dj.c[0], dj.c[1] + dj.w / 2], 'none', { t: dj.d })
+  for (const p of [...speakers, ...banner.poles, ...lightPoles, ...plants]) dot(p)
+  for (const p of tables) W(p, [p[0] + 0.01, p[1]], 'none', { t: 0.75 })
+  const tan = (a, rr, half) => [polar(a - half / rr, rr), polar(a + half / rr, rr)]
+  W(...tan(bar.a, bar.rr, bar.len / 2), 'none', { t: bar.d })
+  W(...tan(bar.a, bar.backRr, 1.3), 'none', { t: 0.45 })
+}
 // Terrace Room tables (round 4): every table with its six chairs (about 1.35 m round its centre)
 // stays at least 1.1 m inside the glass (r 12.5); the two that stood at r 12.4 sat half outside.
 // Four on the 9.6 m ring, two on the 6.4 m ring beside the mural, one 8.8 m in front of the door.
