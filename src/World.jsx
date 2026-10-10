@@ -229,6 +229,8 @@ function useMaterials() {
       // with box-projected UVs, drawn in front of the baked faces, whose lightmap texels break up
       // into triangles; desks with path-following wood UVs and a dark leather writing strip
       riser: boxUV(std({ ...pbr('carpet', { color: 'concourse' }), color: '#8a8a88', roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }), 0.6),
+      // step tops over the baked ones: the room carpet, lifted like the other unbaked overlays
+      stepTop: unbakedFill(boxUV(std({ ...pbr('carpet', { color: 'concourse' }), color: '#6e6153', roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }), 0.6), 1),
       deskWood: std({ ...pbr('wood', { repeat: [0.8, 0.8] }), color: '#e8c9a8', roughness: 0.75, side: THREE.DoubleSide }),
       deskLeather: std({ color: '#2b211c', roughness: 0.5, side: THREE.DoubleSide }),
       beinCarpet: std({ ...pbr('carpet', { repeat: [14, 14] }), color: '#e6dccb', roughness: 1 }),
@@ -257,6 +259,37 @@ function useMaterials() {
       leaf: std({ color: '#3f7a35', roughness: 0.9 }),
       lamp: new THREE.MeshBasicMaterial({ color: '#fffaf0' }),
       column: std({ color: '#e8e8e6', roughness: 0.5 }),
+    }
+    // The plaster walls' lightmap texels show as soft 30 cm patches in shade. A second sample of
+    // the plaster maps at 5.37 times the frequency (about 37 cm tiles at the walls' 2 m) adds a
+    // fine grain the eye reads as texture: a detail normal for the sunlit side and a +-4% albedo
+    // grain from the roughness map for the shade, where the normal map changes nothing. The
+    // baked clones inherit it (Baked.jsx chains onBeforeCompile).
+    for (const m of [M.white, M.sage]) {
+      const prev = m.onBeforeCompile
+      const key = m.customProgramCacheKey()
+      m.onBeforeCompile = (sh, r) => {
+        prev(sh, r)
+        sh.fragmentShader = sh.fragmentShader
+          .replace(
+            '#include <roughnessmap_fragment>',
+            `#include <roughnessmap_fragment>
+            #ifdef USE_ROUGHNESSMAP
+              float plGrain = texture2D( roughnessMap, vRoughnessMapUv * 5.37 + 0.31 ).g;
+              float plMean = textureLod( roughnessMap, vec2( 0.5 ), 12.0 ).g;
+              diffuseColor.rgb *= clamp( 1.0 + 0.6 * ( plGrain - plMean ), 0.96, 1.04 );
+            #endif`,
+          )
+          .replace(
+            '#include <normal_fragment_maps>',
+            `#include <normal_fragment_maps>
+            #ifdef USE_NORMALMAP_TANGENTSPACE
+              vec3 plDetail = texture2D( normalMap, vNormalMapUv * 5.37 + 0.31 ).xyz * 2.0 - 1.0;
+              normal = normalize( tbn * vec3( mapN.xy + plDetail.xy * 0.25, mapN.z ) );
+            #endif`,
+          )
+      }
+      m.customProgramCacheKey = () => `${key}|plasterDetail`
     }
     // the bake exporter (render/exportGLB.js) and the baked loader find materials by key
     for (const [k, m] of Object.entries(M)) (Array.isArray(m) ? m : [m]).forEach((x, i) => (x.userData.key = Array.isArray(m) ? `${k}${i}` : k))
@@ -657,22 +690,35 @@ function Tiers({ M }) {
       }
     return out
   }, [])
-  // baked: only the riser faces (each extrusion's side group) are redrawn, merged into one mesh
-  // over the baked ones (polygon offset)
-  const risers = useMemo(() => {
-    if (PROC) return null
-    const sides = geos.map(([, g]) => {
-      const { start, count } = g.groups.find((gr) => gr.materialIndex === 1)
-      const out = new THREE.BufferGeometry()
-      for (const k of ['position', 'normal', 'uv']) {
-        const a = g.attributes[k]
-        out.setAttribute(k, new THREE.BufferAttribute(a.array.slice(start * a.itemSize, (start + count) * a.itemSize), a.itemSize))
+  // baked: the riser faces (each extrusion's side group) and the step tops (the up-facing half
+  // of its cap group) are redrawn over the baked ones, merged into one mesh each (polygon
+  // offset). The bake's denoiser left soft dark patches on the step tops, worst in the aisles.
+  const [risers, tops] = useMemo(() => {
+    if (PROC) return [null, null]
+    const pick = (g, index, keep) => {
+      const { start, count } = g.groups.find((gr) => gr.materialIndex === index)
+      const out = { position: [], normal: [], uv: [] }
+      const n = g.attributes.normal
+      for (let t = start; t < start + count; t += 3) {
+        if (!keep(n.getY(t))) continue
+        for (const k of Object.keys(out)) {
+          const a = g.attributes[k]
+          out[k].push(...a.array.slice(t * a.itemSize, (t + 3) * a.itemSize))
+        }
       }
-      return out
-    })
-    return mergeGeometries(sides)
+      const geo = new THREE.BufferGeometry()
+      for (const k of Object.keys(out)) geo.setAttribute(k, new THREE.Float32BufferAttribute(out[k], g.attributes[k].itemSize))
+      return geo
+    }
+    return [mergeGeometries(geos.map(([, g]) => pick(g, 1, () => true))), mergeGeometries(geos.map(([, g]) => pick(g, 0, (ny) => ny > 0.9)))]
   }, [geos])
-  if (!PROC) return <mesh geometry={risers} material={M.riser} />
+  if (!PROC)
+    return (
+      <>
+        <mesh geometry={risers} material={M.riser} />
+        <mesh geometry={tops} material={M.stepTop} />
+      </>
+    )
   return geos.map(([id, g], i) => <mesh key={i} geometry={g} material={[M.tierCarpet, M.stepEdge]} userData={{ bake: `tiers_${id}` }} />)
 }
 
