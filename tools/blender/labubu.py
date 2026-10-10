@@ -321,6 +321,7 @@ def animate(rig, costume="none"):
         A.key("root", "location", f, (0, 0.05 * k, 0))
         A.key("head", "rotation_euler", f, (-0.25 * k, 0, 0))
     A.push("Catch")
+    life_clips(A)
 
     if costume == "frog":
         # Read: paper up in front of the face (below the eyes), paws holding its edges, small head bob
@@ -332,6 +333,157 @@ def animate(rig, costume="none"):
             A.key("head", "rotation_euler", f, (0.12 + 0.03 * b, 0, 0))
         A.push("Read")
     lib.bpy.context.scene.frame_start, lib.bpy.context.scene.frame_end = 1, 120
+
+
+SIT_LEGS = (("leg.L", (1.5, 0, 0.05)), ("leg.R", (1.5, 0, -0.05)))
+LAP_L, LAP_R = (0.8, 0, -0.25), (0.8, 0, 0.25)
+
+
+def sit_legs(A, frames):
+    for f in frames:
+        for b, v in SIT_LEGS:
+            A.key(b, "rotation_euler", f, v)
+
+
+def life_clips(A):
+    """Clips for the living building (src/life, LabubuCrowd extras). Bone axes (lib.armature): arms and legs
+    swing forward about local X; arm.R raises sideways with negative local Z, arm.L with positive; head and
+    spine nod about X (positive is down), turn about Y (positive turns toward the character's left)."""
+    # RaiseHand: seated, right arm straight up with a small eager wave, left paw on the lap, 60 frames (loops)
+    sit_legs(A, (1, 61))
+    for f, w in ((1, 0), (16, 1), (31, 0), (46, -1), (61, 0)):
+        # the head is wider than the shoulders: straight up buries the paw in it, so the arm goes up and out
+        A.key("arm.R", "rotation_euler", f, (0.3, 0, -2.15 - 0.12 * w))
+        A.key("arm.R", "scale", f, (1, 1.8, 1))
+        A.key("arm.L", "rotation_euler", f, LAP_L)
+        A.key("spine", "rotation_euler", f, (-0.05, 0, -0.1 + 0.02 * w))
+        A.key("head", "rotation_euler", f, (-0.1, 0, -0.12 + 0.04 * w))
+        A.key("root", "location", f, (0, 0.012 * abs(w), 0))
+    A.push("RaiseHand")
+
+    # Nod: seated, two nods in 40 frames
+    sit_legs(A, (1, 41))
+    for f, k in ((1, 0), (8, 1), (16, 0), (26, 1), (34, 0), (41, 0)):
+        A.key("head", "rotation_euler", f, (0.28 * k, 0, 0))
+        A.key("arm.L", "rotation_euler", f, LAP_L)
+        A.key("arm.R", "rotation_euler", f, LAP_R)
+    A.push("Nod")
+
+    # Type: seated, paws forward on the laptop tapping in turn, head down at the screen, 20 frames
+    sit_legs(A, (1, 21))
+    for f, k in ((1, 0), (6, 1), (11, 0), (16, -1), (21, 0)):
+        A.key("arm.L", "rotation_euler", f, (1.25 + 0.12 * max(k, 0), 0, -0.3))
+        A.key("arm.R", "rotation_euler", f, (1.25 + 0.12 * max(-k, 0), 0, 0.3))
+        A.key("head", "rotation_euler", f, (0.22 + 0.02 * abs(k), 0, 0))
+        A.key("spine", "rotation_euler", f, (0.06, 0, 0))
+    A.push("Type")
+
+    # Yawn: seated, head back, both arms stretch up, eyes squeezed, 60 frames
+    sit_legs(A, (1, 61))
+    for f, k in ((1, 0), (14, 1), (40, 1), (54, 0), (61, 0)):
+        A.key("head", "rotation_euler", f, (-0.38 * k, 0, 0.06 * k))
+        A.key("spine", "rotation_euler", f, (-0.1 * k, 0, 0))
+        A.key("arm.L", "rotation_euler", f, (0.8 - 0.6 * k, 0, -0.25 + 2.35 * k))
+        A.key("arm.R", "rotation_euler", f, (0.8 - 0.6 * k, 0, 0.25 - 2.35 * k))
+        A.key("arm.L", "scale", f, (1, 1 + 0.25 * k, 1))
+        A.key("arm.R", "scale", f, (1, 1 + 0.25 * k, 1))
+        for side in ("L", "R"):
+            A.key(f"eye.{side}", "scale", f, (1, 1 - 0.8 * k, 1))
+    A.push("Yawn")
+
+    # Whisper: seated, leans and turns to the neighbor on its left, left paw cupped by the face, 60 frames
+    sit_legs(A, (1, 61))
+    for f, k in ((1, 0), (10, 1), (25, 0.8), (40, 1), (52, 1), (61, 0)):
+        A.key("spine", "rotation_euler", f, (0, 0.4 * k, -0.18 * k))
+        A.key("head", "rotation_euler", f, (0.05 * k, 0.45 * k, -0.12 * k + 0.03 * math.sin(f)))
+        A.key("arm.L", "rotation_euler", f, (0.8 + 1.0 * k, 0, -0.25 + 0.55 * k))
+        A.key("arm.R", "rotation_euler", f, LAP_R)
+    A.push("Whisper")
+
+    # Walk: bouncy two-leg walk, 24 frames (two steps); the root bobs on every step
+    for i in range(0, 25, 3):
+        u = i / 24
+        s = math.sin(2 * math.pi * u)
+        f = i + 1
+        A.key("leg.L", "rotation_euler", f, (0.55 * s, 0, 0))
+        A.key("leg.R", "rotation_euler", f, (-0.55 * s, 0, 0))
+        A.key("arm.L", "rotation_euler", f, (-0.45 * s, 0, 0.12))
+        A.key("arm.R", "rotation_euler", f, (0.45 * s, 0, -0.12))
+        A.key("root", "location", f, (0, 0.035 * abs(math.sin(2 * math.pi * u)), 0))
+        A.key("spine", "rotation_euler", f, (0.04, 0.08 * s, 0.04 * s))
+        A.key("head", "rotation_euler", f, (0.03 * abs(s), -0.05 * s, -0.03 * s))
+        A.key("ear.L", "rotation_euler", f, (0.12 * abs(s), 0, -0.08 * s))
+        A.key("ear.R", "rotation_euler", f, (0.12 * abs(s), 0, -0.08 * s))
+    A.push("Walk")
+
+    # Throw: backhand disc throw with the right paw, 20 frames: wind up across the chest, then snap out
+    for f, arm, spine, root in ((1, (0.2, 0, 0), (0, 0, 0), 0), (7, (0.9, 0, 0.6), (0, 0.55, 0), 0.0),
+                                (11, (0.75, 0, -1.2), (0, -0.25, 0), 0.03), (14, (0.5, 0, -1.55), (0, -0.45, 0), 0.02),
+                                (21, (0.2, 0, -0.1), (0, 0, 0), 0)):
+        A.key("arm.R", "rotation_euler", f, arm)
+        A.key("arm.R", "scale", f, (1, 1.25, 1))
+        A.key("spine", "rotation_euler", f, spine)
+        A.key("root", "location", f, (0, root, 0))
+        A.key("arm.L", "rotation_euler", f, (0.2, 0, 0.35 + 0.3 * abs(spine[1])))
+        A.key("head", "rotation_euler", f, (0, -spine[1] * 0.6, 0))
+    A.push("Throw")
+
+    # Cast: wand flick with the right paw, 18 frames: lift, then snap the wand forward and down
+    # (a forward-up arm hides in the big head, so the lift goes up and out to the side)
+    for f, arm, sc, k in ((1, (1.0, 0, -0.6), 1.3, 0), (6, (0.4, 0, -2.0), 1.6, 1), (10, (1.3, 0, -0.7), 1.45, -1),
+                          (13, (1.2, 0, -0.55), 1.4, -1), (19, (1.0, 0, -0.6), 1.3, 0)):
+        A.key("arm.R", "rotation_euler", f, arm)
+        A.key("arm.R", "scale", f, (1, sc, 1))
+        A.key("arm.L", "rotation_euler", f, (0.25, 0, 0.3))
+        A.key("head", "rotation_euler", f, (0.06 * max(-k, 0) - 0.06 * max(k, 0), 0, 0))
+        A.key("spine", "rotation_euler", f, (0.1 * max(-k, 0) - 0.05 * max(k, 0), 0, 0.06 * k))
+        A.key("root", "location", f, (0, 0.03 * max(k, 0), 0))
+    A.push("Cast")
+
+    # SitRead: seated with a book in both paws, head down; the right paw turns a page at frame 70, 90 frames
+    sit_legs(A, (1, 91))
+    for f, k in ((1, 0), (62, 0), (70, 1), (78, 0), (91, 0)):
+        A.key("arm.L", "rotation_euler", f, (1.15, 0, -0.45))
+        A.key("arm.R", "rotation_euler", f, (1.15 + 0.2 * k, 0, 0.45 - 0.9 * k))
+        A.key("head", "rotation_euler", f, (0.3, 0.08 * k, 0))
+    A.push("SitRead")
+
+    # Sleep: seated, chin down and to one side, slow breathing, eyes shut, 120 frames
+    sit_legs(A, (1, 121))
+    for f, b in ((1, 0), (61, 1), (121, 0)):
+        A.key("head", "rotation_euler", f, (0.42 + 0.04 * b, 0, 0.22))
+        A.key("spine", "scale", f, (1 + 0.02 * b, 1 + 0.03 * b, 1 + 0.02 * b))
+        A.key("spine", "rotation_euler", f, (0.12, 0, 0.05))
+        A.key("arm.L", "rotation_euler", f, LAP_L)
+        A.key("arm.R", "rotation_euler", f, LAP_R)
+        A.key("ear.L", "rotation_euler", f, (0.2, 0, 0.25))
+        A.key("ear.R", "rotation_euler", f, (0.2, 0, -0.1))
+        for side in ("L", "R"):
+            A.key(f"eye.{side}", "scale", f, (1, 0.12, 1))
+    A.push("Sleep")
+
+    # Phone: standing, right paw holds a phone up in front of the chest, head down, thumb taps, 60 frames
+    for f, k in ((1, 0), (10, 1), (20, 0), (40, 0), (46, 1), (52, 0), (61, 0)):
+        A.key("arm.R", "rotation_euler", f, (1.35 + 0.05 * k, 0, 0.35))
+        A.key("arm.L", "rotation_euler", f, (1.2 + 0.08 * k, 0, -0.45))
+        A.key("head", "rotation_euler", f, (0.35, 0, 0.04 * k))
+    A.push("Phone")
+
+    # Talk: standing, gestures with one paw then the other, head bobbing, 48 frames
+    for f, k in ((1, 0), (9, 1), (17, 0), (25, -1), (33, 0), (41, 1), (49, 0)):
+        A.key("arm.R", "rotation_euler", f, (0.6 + 0.4 * max(k, 0), 0, -0.4 - 0.5 * max(k, 0)))
+        A.key("arm.L", "rotation_euler", f, (0.6 + 0.4 * max(-k, 0), 0, 0.4 + 0.5 * max(-k, 0)))
+        A.key("head", "rotation_euler", f, (0.08 * abs(k) - 0.05, 0.1 * k, 0))
+        A.key("root", "location", f, (0, 0.012 * abs(k), 0))
+    A.push("Talk")
+
+    # Look: standing, looks left, then right, then back (head and a little spine), 120 frames
+    for f, k in ((1, 0), (20, 1), (45, 1), (65, -1), (95, -1), (121, 0)):
+        A.key("head", "rotation_euler", f, (-0.05, 0.65 * k, 0.05 * k))
+        A.key("spine", "rotation_euler", f, (0, 0.15 * k, 0))
+        A.key("arm.L", "rotation_euler", f, (0.05, 0, 0.1))
+        A.key("arm.R", "rotation_euler", f, (0.05, 0, -0.1))
+    A.push("Look")
 
 
 def build(costume="none", out_name="labubu", seated=True):
@@ -383,6 +535,17 @@ def previews(rig, meshes, name, costume="none", fur="#e9dcc6", shirt="#00356b", 
         ("Dance", 11, (0, 0, 0.6), 2.6, 0, 0.2, ""),
         ("Catch", 25, (0, 0, 0.65), 2.6, 0, 0.2, ""),
     ]
+    if lib.args().get("life"):
+        shots = [
+            ("RaiseHand", 16, (0, 0, 0.6), 2.6, -35, 0.3, ""), ("Nod", 8, (0, 0, 0.55), 2.4, -70, 0.2, ""),
+            ("Type", 6, (0, 0, 0.55), 2.4, -40, 0.3, ""), ("Yawn", 20, (0, 0, 0.6), 2.6, -25, 0.2, ""),
+            ("Whisper", 40, (0, 0, 0.55), 2.4, -20, 0.2, ""), ("Walk", 7, (0, 0, 0.6), 2.6, -80, 0.2, ""),
+            ("Walk", 19, (0, 0, 0.6), 2.6, -80, 0.2, ""), ("Throw", 7, (0, 0, 0.6), 2.6, -30, 0.2, ""),
+            ("Throw", 14, (0, 0, 0.6), 2.6, -30, 0.2, ""), ("Cast", 6, (0, 0, 0.7), 2.8, -70, 0.2, ""),
+            ("Cast", 12, (0, 0, 0.7), 2.8, -70, 0.2, ""), ("SitRead", 70, (0, 0, 0.55), 2.4, -30, 0.3, ""),
+            ("Sleep", 61, (0, 0, 0.55), 2.4, -30, 0.2, ""), ("Phone", 10, (0, 0, 0.6), 2.4, -40, 0.3, ""),
+            ("Talk", 9, (0, 0, 0.6), 2.4, -20, 0.2, ""), ("Look", 30, (0, 0, 0.6), 2.4, 0, 0.2, ""),
+        ]
     if costume == "frog":
         shots.append(("Read", 31, (0, 0, 0.6), 2.4, -25, 0.2, ""))
         shots.append(("Read", 31, (0, 0, 0.6), 2.4, -110, 0.2, "_side"))

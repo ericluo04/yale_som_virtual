@@ -1,8 +1,11 @@
 import { Suspense, useLayoutEffect, useMemo, useRef } from 'react'
+import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { YALE_BLUE } from './Labubu.jsx'
 import { CHAIRS, DRUMS } from './layout.js'
 import { FUR, FUR_ON, dressMaterial, preloadModel, shellMaterial, useModel } from './characters/rig.js'
+import { LIFE, LIFE_ON, rand as lifeRand } from './life/common.js'
+import ClassroomLife from './life/Classroom.jsx'
 
 // ~30 seated Labubu students per classroom, instanced from public/models/labubu_seated.glb.
 // Variation is cheap combinatorics, not more models:
@@ -53,6 +56,19 @@ export const STUDENTS = DRUMS.flatMap((d, di) => {
   })
 })
 
+// classroom life (src/life/Classroom.jsx): 4 students per room become skinned Labubus while the camera is near
+// the room (rooms in LIVE); their static copies draw only while the room is not live. Two laptop users first,
+// so someone is typing. A separate seed keeps everyone's looks as they were.
+export const LIVE = new Set()
+export const TYPING = new Set() // students whose skinned copy is playing Type (their laptop screen flickers)
+if (LIFE_ON)
+  for (const d of DRUMS) {
+    const r = lifeRand(7000 + Number(d.id))
+    const mine = STUDENTS.filter((s) => s.room === d.id).sort(() => r() - 0.5)
+    const pick = [...mine.filter((s) => s.prop === 'laptop').slice(0, 2), ...mine.filter((s) => s.prop !== 'laptop')].slice(0, 4)
+    for (const s of pick) s.extra = true
+  }
+
 const V = new THREE.Vector3()
 const S = new THREE.Vector3()
 const Q = new THREE.Quaternion()
@@ -62,8 +78,9 @@ const compose = (p, ry, s = [1, 1, 1]) => new THREE.Matrix4().compose(V.set(...p
 // one InstancedMesh per (variant, material primitive); only Fur and Shirt take per-instance color.
 // `shells` > 1 draws the fur shells: the items repeat once per shell (shell-major), see shellMaterial.
 const CAM = new THREE.Vector3()
-function Batch({ geometry, material, items, colorKey, shells = 1, shadow = true }) {
+function Batch({ geometry, material, items, colorKey, shells = 1, shadow = true, room = null }) {
   const ref = useRef()
+  useFrame(() => room && (ref.current.visible = !(LIFE.on && LIVE.has(room))))
   useLayoutEffect(() => {
     const im = ref.current
     const c = new THREE.Color()
@@ -110,15 +127,20 @@ function Crowd() {
           // batched per room, so rooms outside the view are frustum-culled (the subdivided seated
           // students are about 4.6k triangles each, 240 of them)
           const cfg = FUR[name] && { ...FUR[name], shells: CROWD_SHELLS, len: FUR[name].len * 0.8 }
-          for (const room of new Set(who.map((s) => s.room))) {
-            const mine = items.filter((_, k) => who[k].room === room)
-            out.push({ key: `${face}-${clothes}-${m.name}-${room}`, geometry, material, items: mine, colorKey })
-            if (FUR_ON && cfg) {
-              // seated students are 4 m or more away: fewer, shorter shells than the walking Labubus
-              const shell = shellMaterial(material, cfg, { items: mine.length, clothes: clothes === 'tee' ? 1 : 2 })
-              out.push({ key: `${face}-${clothes}-${m.name}-shells-${room}`, geometry, material: shell, items: mine, colorKey, shells: CROWD_SHELLS, shadow: false })
+          for (const room of new Set(who.map((s) => s.room)))
+            for (const extra of [false, true]) {
+              // the extras get their own batch per room, hidden while the room is live (their skinned copies draw)
+              const mine = items.filter((_, k) => who[k].room === room && !!who[k].extra === extra)
+              if (!mine.length) continue
+              const tag = `${room}${extra ? '-x' : ''}`
+              const hide = extra ? room : null
+              out.push({ key: `${face}-${clothes}-${m.name}-${tag}`, geometry, material, items: mine, colorKey, room: hide })
+              if (FUR_ON && cfg) {
+                // seated students are 4 m or more away: fewer, shorter shells than the walking Labubus
+                const shell = shellMaterial(material, cfg, { items: mine.length, clothes: clothes === 'tee' ? 1 : 2 })
+                out.push({ key: `${face}-${clothes}-${m.name}-shells-${tag}`, geometry, material: shell, items: mine, colorKey, shells: CROWD_SHELLS, shadow: false, room: hide })
+              }
             }
-          }
         })
       }
     return out
@@ -168,11 +190,70 @@ function DeskProps() {
   return Object.entries(sets).map(([k, ms]) => <Batch key={k} geometry={geo[k]} material={PROP_MATS[k]} items={ms.map((m) => ({ m }))} />)
 }
 
+// laptop screens: a lit panel on the student-facing side of every lid. Each frame the panel brightness moves a
+// little (scrolling); a student whose skinned copy is typing makes theirs flicker with the keystrokes.
+const GLOW_MAT = new THREE.MeshBasicMaterial({ color: '#ffffff', toneMapped: false })
+const GLOW_GEO = new THREE.PlaneGeometry(1, 1)
+const SCREEN = new THREE.Color('#bcd6ff')
+function LaptopGlow() {
+  const ref = useRef()
+  const items = useMemo(
+    () =>
+      STUDENTS.filter((s) => s.prop === 'laptop').map((s, i) => {
+        const f = [Math.sin(s.rot), Math.cos(s.rot)]
+        const top = s.seatY + 0.95
+        // same hinge as the lid in DeskProps, then 6 mm toward the student, turned to face them
+        const m = compose([s.x + f[0] * 0.6, top + 0.02, s.z + f[1] * 0.6], s.rot)
+          .multiply(new THREE.Matrix4().makeRotationX(0.45))
+          .multiply(new THREE.Matrix4().makeTranslation(0, 0.07, -0.0058))
+          .multiply(new THREE.Matrix4().makeRotationY(Math.PI))
+          .multiply(new THREE.Matrix4().makeScale(0.27, 0.12, 1))
+        return { m, s, seed: i * 1.37 }
+      }),
+    [],
+  )
+  useLayoutEffect(() => {
+    items.forEach((it, i) => ref.current.setMatrixAt(i, it.m))
+    ref.current.instanceMatrix.needsUpdate = true
+    ref.current.computeBoundingSphere()
+  }, [items])
+  const c = useMemo(() => new THREE.Color(), [])
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime
+    const im = ref.current
+    items.forEach((it, i) => {
+      if (!LIVE.has(it.s.room) && im.instanceColor) return
+      let k = 0.55 + 0.05 * Math.sin(t * 0.7 + it.seed)
+      if (TYPING.has(it.s)) {
+        // keystrokes: a fast stutter, with a brighter flash now and then (a new line)
+        const q = Math.floor(t * 14 + it.seed * 10)
+        const h = Math.sin(q * 12.9898 + it.seed) * 43758.5453
+        k = 0.62 + 0.22 * (h - Math.floor(h)) + (q % 23 === 0 ? 0.3 : 0)
+      }
+      im.setColorAt(i, c.copy(SCREEN).multiplyScalar(k))
+    })
+    if (im.instanceColor) im.instanceColor.needsUpdate = true
+  })
+  return <instancedMesh ref={ref} args={[GLOW_GEO, GLOW_MAT, items.length]} />
+}
+
+function LifeGroup() {
+  const ref = useRef()
+  useFrame(() => (ref.current.visible = LIFE.on))
+  return (
+    <group ref={ref}>
+      <LaptopGlow />
+      <ClassroomLife />
+    </group>
+  )
+}
+
 export default function LabubuCrowd() {
   return (
     <Suspense fallback={null}>
       <Crowd />
       <DeskProps />
+      {LIFE_ON && <LifeGroup />}
     </Suspense>
   )
 }
