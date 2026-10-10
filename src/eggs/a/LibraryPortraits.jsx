@@ -88,7 +88,7 @@ export default function LibraryPortraits() {
   const { discover } = useDiscovery('library', 'Consulted all seven book specialists')
   const mats = useMemo(() => BOOKS.map((b, i) => printMat(canvasTex(512, 640, (g, w, h) => drawBook(g, w, h, b, i)), { glow: 0.0001 })), [])
   // each book has its own frame so the routing flash can light it gold
-  const frames = useMemo(() => BOOKS.map(() => solidMat('#b08d3c', { metalness: 0.7, roughness: 0.35, emissive: '#ffcf5a', emissiveIntensity: 0 })), [])
+  const frames = useMemo(() => BOOKS.map(() => solidMat('#b08d3c', { metalness: 0.7, roughness: 0.35, emissive: '#ffb52e', emissiveIntensity: 0 })), [])
   const boss = useMemo(() => ({ mat: printMat(canvasTex(512, 683, drawBoss)), frame: solidMat('#b08d3c', { metalness: 0.7, roughness: 0.35 }) }), [])
   const libRef = useRef(false)
 
@@ -104,8 +104,8 @@ export default function LibraryPortraits() {
         const hold = flash.hits.includes(i) && t > STEP * 7 ? 1 : 0
         k = Math.max(sweep, hold)
       }
-      m.emissiveIntensity = 0.0001 + k * 2.2
-      frames[i].emissiveIntensity = k * 1.4
+      m.emissiveIntensity = 0.0001 + k * 3.6
+      frames[i].emissiveIntensity = k * 2.4
     })
   })
 
