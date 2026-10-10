@@ -78,6 +78,7 @@ export default function Dialogue() {
     <div className="dlg-scrim" onPointerDown={(e) => e.stopPropagation()}>
       <div className="dlg" onClick={click} role="dialog" aria-live="polite">
         <div className="dlg-head">
+          {line.avatar && <img className="dlg-avatar" src={line.avatar} alt="" />}
           {line.speaker && <span className="dlg-speaker">{line.speaker}</span>}
           <button
             className="dlg-x"

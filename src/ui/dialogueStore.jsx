@@ -4,6 +4,7 @@ import { sound } from '../interact/sound.js'
 
 // Dialogue script format: an array of lines, played in order unless a line says where to go.
 //   { id?, speaker, text, choices?: [{ text, next?, onChoice? }], next?, onChoice?, code? }
+// avatar: an image URL shown as a small circle before the speaker name (Lisa's portrait).
 // next: a line id, a line index, or 'end'. Text inside `backticks` renders in monospace.
 // onChoice on a choice runs when that choice is picked; onChoice on the line runs for any choice,
 // called as onChoice(choice, index).
