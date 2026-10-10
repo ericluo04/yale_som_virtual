@@ -4,6 +4,8 @@ import Roamers from './Roamers.jsx'
 import Frisbee from './Frisbee.jsx'
 import { Bursts } from './fx.jsx'
 import Spells from './Spells.jsx'
+import Ambient from './Ambient.jsx'
+import Birds from './Birds.jsx'
 
 // Everything alive outside the classrooms (the classroom extras mount from LabubuCrowd).
 // Mounted from LabubuParty, at world origin. ?off=life switches it all off.
@@ -14,6 +16,8 @@ export default function Life() {
       <Roamers />
       <Frisbee />
       <Spells />
+      <Ambient />
+      <Birds />
       <Bursts />
     </Suspense>
   )
