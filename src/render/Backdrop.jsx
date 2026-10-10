@@ -1,9 +1,9 @@
-import { useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useLoader } from '@react-three/fiber'
 import * as THREE from 'three'
 import { BOUNDS, EAST, BEIN } from '../layout.js'
 import { Trees } from './Scenery.jsx'
-import { SUN_DIR } from './Lighting.jsx'
+import { SUN_DIR, requestShadowUpdate } from './Lighting.jsx'
 
 // What the player sees through the perimeter glass. Two layers:
 //  1. far: the sky. The Poly Haven "Kloofendal 48d Partly Cloudy (Pure Sky)" HDRI (CC0), the same
@@ -51,6 +51,9 @@ function Sky() {
     return { geo: g, mat: m }
   }, [map])
   useFrame(({ camera }) => ref.current.position.copy(camera.position))
+  // a shadow redraw also makes Probes.jsx recapture, so the drums reflect this sky and not the
+  // bare Environment background, even when the JPG came from cache and no loading batch ended
+  useEffect(() => requestShadowUpdate(2), [mat])
   // not flagged dynamic, so the drum reflection probes capture it (it casts and receives nothing)
   return <mesh ref={ref} geometry={geo} material={mat} rotation={[0, SKY_YAW, 0]} renderOrder={-1} frustumCulled={false} />
 }
