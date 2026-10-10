@@ -270,6 +270,16 @@ for (const [side, zf, zb, M_X0] of [[1, 46, zMax, -35], [-1, -39.3, zMin, -22.7]
   P(arc(c, muralR, muralR, Math.PI / 2 - muralHalf, Math.PI / 2 + muralHalf, 20), 'none', { t: 0.2 })
   dot(BEIN.col) // terrace column
 }
+// outdoor Beinecke terrace (render/Town.jsx): white cafe tables on the 4.5 m ring between the
+// glass and the rail, clear of the door (east, angle pi/2) and of the column (angle 0.6), and
+// concrete planters against the rail
+export const TERRACE_TABLES = [0.2, 1.0, 1.28, 1.86, 2.16, 2.94].map((a) => ({ a, p: ellPt(BEIN.c, 14.8, 14.8, a) }))
+export const TERRACE_PLANTERS = [0.05, 1.4, 1.74, 3.09].map((a) => ({ a, p: ellPt(BEIN.c, 16.45, 16.45, a) }))
+for (const { p } of TERRACE_TABLES) W(p, [p[0] + 0.01, p[1]], 'none', { t: 1.9 })
+for (const { a, p } of TERRACE_PLANTERS) {
+  const t = [Math.cos(a) * 0.8, -Math.sin(a) * 0.8]
+  W([p[0] - t[0], p[1] - t[1]], [p[0] + t[0], p[1] + t[1]], 'none', { t: 0.6 })
+}
 export const BEIN_TABLES = [[7.5, -5], [7.5, 5], [4.5, -8.5], [4.5, 8.5], [10, 0], [9.5, -8], [9.5, 8]].map(([dx, z]) => [EAST + dx, z])
 for (const p of BEIN_TABLES) {
   W(p, [p[0] + 0.01, p[1]], 'none', { t: 1.5 })
