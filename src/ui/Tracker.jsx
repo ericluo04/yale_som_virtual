@@ -7,7 +7,7 @@ import { EGGS, discover, discoveryState, resetDiscoveries } from './discoveries.
 import { setHudItem } from './hudSlots.jsx'
 import './tracker.css'
 
-// Easter-egg tracker: a HUD pill "eggs 3 / 8" (top right, under the sound button), and a panel that lists
+// Easter-egg tracker: a HUD pill "Easter eggs 3 / 8" (top right, under the sound button), and a panel that lists
 // the eight eggs with a cryptic hint each until found. T or a click/tap on the pill opens and closes it.
 // At 8 / 8: confetti in course pink and Yale blue for 4 s, a chime, and a certificate the student can copy
 // as a line of text. discoveries.js loads this module, so App.jsx does not mount it.
@@ -129,7 +129,7 @@ function Pill() {
       aria-label={`easter eggs ${n} of ${TOTAL}`}
     >
       <EggIcon found={n > 0} />
-      <span className="hud-label">eggs</span>
+      <span className="hud-label">Easter eggs</span>
       <span className="hud-num">
         {n}
         <span className="hud-total"> / {TOTAL}</span>
@@ -201,7 +201,7 @@ function Panel() {
         <div className="trk-head">
           <div>
             <div className="trk-kicker">MGT 409 · Easter egg hunt</div>
-            <h2>{done ? 'All eight found' : 'Eight eggs on Floor 2'}</h2>
+            <h2>{done ? 'All eight found' : 'Easter eggs on Floor 2'}</h2>
           </div>
           <button className="trk-x" onClick={() => closeTracker(true)} aria-label="close">
             esc
