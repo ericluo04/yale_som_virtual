@@ -39,22 +39,84 @@ export function carpetTex(repeat = [0.25, 0.25], base = '#d6c9b3') {
   return tex(c, repeat)
 }
 
-// glossy navy drum panels in horizontal bands
+// drum glazing: deep Yale-blue glass (near Pantone 289) in 1.2 m horizontal bands with thin
+// dark joints and staggered vertical joints; gloss and reflections come from the material
 export function drumTex() {
   const [c, g] = canvas(512, 512)
   const grd = g.createLinearGradient(0, 0, 0, 512)
-  grd.addColorStop(0, '#0a1644')
-  grd.addColorStop(0.5, '#132c78')
-  grd.addColorStop(1, '#0a1540')
+  grd.addColorStop(0, '#0d3f86')
+  grd.addColorStop(0.5, '#0f4d92')
+  grd.addColorStop(1, '#00356b')
   g.fillStyle = grd
   g.fillRect(0, 0, 512, 512)
-  g.fillStyle = 'rgba(0,0,0,0.55)'
-  for (let y = 0; y < 512; y += 128) g.fillRect(0, y, 512, 4)
-  g.fillStyle = 'rgba(0,0,0,0.35)'
-  for (let x = 0; x < 512; x += 170) g.fillRect(x, 0, 2, 512)
-  g.fillStyle = 'rgba(160,190,255,0.08)'
-  for (let y = 0; y < 512; y += 128) g.fillRect(0, y + 8, 512, 40)
-  return tex(c, [8, 1])
+  const band = 512 / 6 // the drum walls are 7.2 m tall
+  const r = rng(31)
+  for (let i = 0; i < 6; i++) {
+    const y = i * band
+    g.fillStyle = `rgba(255,255,255,${0.02 + r() * 0.04})`
+    g.fillRect(0, y + 3, 512, band - 6)
+    g.fillStyle = 'rgba(2,10,30,0.7)'
+    g.fillRect(0, y, 512, 3)
+    g.fillStyle = 'rgba(2,10,30,0.45)'
+    for (let x = (i % 2) * 64; x < 512; x += 128) g.fillRect(x, y, 2, band)
+  }
+  return tex(c, [10, 1])
+}
+
+// level 1 café glazing below the concourse: warm-lit interior behind clear glass, silver mullions
+export function cafeTex() {
+  const [c, g] = canvas(1024, 256)
+  const grd = g.createLinearGradient(0, 0, 0, 256)
+  grd.addColorStop(0, '#f1e3c4')
+  grd.addColorStop(0.35, '#8a7a62')
+  grd.addColorStop(1, '#3b3631')
+  g.fillStyle = grd
+  g.fillRect(0, 0, 1024, 256)
+  const r = rng(41)
+  g.fillStyle = 'rgba(40,36,32,0.8)'
+  for (let i = 0; i < 26; i++) g.fillRect(r() * 1024, 150 + r() * 40, 30 + r() * 30, 6)
+  g.fillStyle = '#eceae6'
+  g.fillRect(0, 0, 1024, 18)
+  g.fillStyle = '#a7b0b5'
+  for (let x = 0; x < 1024; x += 1024 / 9) g.fillRect(x, 18, 5, 238)
+  return tex(c, [1, 1])
+}
+
+// the courtyard curtain wall above level 2 as seen from across the courtyard: the white
+// level 4 slab edge, blue drums behind clear glass, silver mullions, the roof fascia on top
+export function courtyardFacadeTex() {
+  const [c, g] = canvas(1024, 512)
+  const sky = g.createLinearGradient(0, 0, 0, 512)
+  sky.addColorStop(0, '#b9cbd8')
+  sky.addColorStop(1, '#7f95a6')
+  g.fillStyle = sky
+  g.fillRect(0, 0, 1024, 512)
+  // interior depth behind the glass: pale ceiling band, darker rooms
+  g.fillStyle = '#e9e7e2'
+  g.fillRect(0, 40, 1024, 28)
+  g.fillStyle = 'rgba(40,52,66,0.55)'
+  g.fillRect(0, 68, 1024, 380)
+  // one level 4 drum per tile
+  const dg = g.createLinearGradient(0, 110, 0, 400)
+  dg.addColorStop(0, '#1554a8')
+  dg.addColorStop(1, '#00356b')
+  g.fillStyle = dg
+  g.beginPath()
+  g.roundRect(150, 100, 724, 300, 90)
+  g.fill()
+  g.fillStyle = 'rgba(2,10,30,0.6)'
+  for (let y = 150; y < 400; y += 50) g.fillRect(150, y, 724, 3)
+  g.fillStyle = 'rgba(200,220,255,0.18)'
+  g.fillRect(220, 110, 90, 280)
+  // level 4 slab edge and the roof fascia
+  g.fillStyle = '#eceae6'
+  g.fillRect(0, 448, 1024, 64)
+  g.fillRect(0, 0, 1024, 40)
+  // silver mullions about 1.6 m apart (the tile spans 15 m) and a transom
+  g.fillStyle = '#a7b0b5'
+  for (let x = 0; x < 1024; x += 1024 / 9) g.fillRect(x, 40, 6, 408)
+  g.fillRect(0, 250, 1024, 5)
+  return tex(c, [1, 1])
 }
 
 export function slatsTex() {

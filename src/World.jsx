@@ -1,10 +1,12 @@
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
+import { Environment } from '@react-three/drei'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import {
   H, EAST, BOUNDS, COURTYARD, DRUMS, DRUM_WALL, WALLS, CHAIRS, SCREENS, BOARDS, LECTERNS,
   STAIRS, MEETING, MEET_DOOR, BEIN, BEIN_TABLES, PLANTS, LIBRARY, RISE, inPoly, ellPt, tierOutline,
+  BENCHES, COLUMNS, ROOF,
 } from './layout.js'
 import * as T from './textures.js'
 import LabubuParty, { MeetingLabubus } from './LabubuParty.jsx'
@@ -13,6 +15,9 @@ import Faculty from './Faculty.jsx'
 import HandsomeDan from './HandsomeDan.jsx'
 import { COURSE_KEYS, slideTex } from './slides.js'
 import { rng } from './textures.js'
+import Lighting from './render/Lighting.jsx'
+import { pbr, worldUV } from './render/pbr.js'
+import Props from './render/Props.jsx'
 
 const TAU = Math.PI * 2
 
@@ -20,6 +25,7 @@ const TAU = Math.PI * 2
 function Instanced({ items, material, geometry }) {
   const ref = useRef()
   useLayoutEffect(() => {
+    if (!ref.current) return // empty item lists render nothing
     const m = new THREE.Matrix4()
     const q = new THREE.Quaternion()
     const e = new THREE.Euler()
@@ -100,37 +106,53 @@ function Plane({ p, rot = 0, w, h, material }) {
 function useMaterials() {
   return useMemo(() => {
     const std = (o) => new THREE.MeshStandardMaterial(o)
+    // thin glass: physical material so the panes pick up environment reflections and a
+    // Fresnel edge; plain alpha blending keeps glass-behind-glass visible
     const glass = (color, opacity) =>
-      std({ color, transparent: true, opacity, roughness: 0.05, metalness: 0.2, side: THREE.DoubleSide, depthWrite: false })
+      new THREE.MeshPhysicalMaterial({
+        color, transparent: true, opacity, roughness: 0.05, metalness: 0, ior: 1.5, specularIntensity: 1,
+        envMapIntensity: 1.4, side: THREE.DoubleSide, depthWrite: false,
+      })
+    const plaster = pbr('plaster', { color: false })
+    const wood = pbr('wood')
     return {
-      white: std({ color: '#f2f0ec', roughness: 0.9 }),
-      sage: std({ map: T.sageTex(), roughness: 0.9 }),
-      exterior: glass('#2a3a55', 0.35),
+      white: worldUV(std({ color: '#f2f0ec', roughness: 1, ...plaster, normalScale: new THREE.Vector2(0.35, 0.35) }), 0.5),
+      sage: worldUV(std({ color: '#b9b7b2', roughness: 1, normalMap: plaster.normalMap, roughnessMap: plaster.roughnessMap, normalScale: new THREE.Vector2(0.35, 0.35) }), 0.5),
+      exterior: glass('#8fa3b5', 0.2),
       glass: glass('#d7ecf2', 0.14),
       libGlass: glass('#d7ecf2', 0.12),
       beinGlass: glass('#d7ecf2', 0.12),
       meetGlass: glass('#c9d6e6', 0.22),
       rail: glass('#9fb3c8', 0.3),
       slats: std({ map: T.slatsTex(), roughness: 0.7 }),
-      desk: std({ map: T.teakTex(), roughness: 0.55 }),
+      desk: worldUV(std({ ...wood, color: '#e8c9a8', roughness: 0.9 }), 0.8),
       shelf: std({ map: T.booksTex(), roughness: 0.8 }),
-      leather: std({ color: '#9a4f22', roughness: 0.45 }),
+      leather: std({ color: '#9a5530', roughness: 0.45 }),
+      plinth: std({ color: '#2b2b2b', roughness: 0.6 }),
       orange: std({ color: '#d4552a', roughness: 0.8 }),
       chair: std({ color: '#0a0a0b', roughness: 0.85, envMapIntensity: 0.25 }),
-      drum: std({ map: T.drumTex(), roughness: 0.08, metalness: 0.65, envMapIntensity: 1.6 }),
-      drumIn: std({ map: T.sageTex(), roughness: 0.9, side: THREE.BackSide }),
+      // glossy deep-blue glass drums (photos 01-05): clear-coated so they mirror the room
+      drum: new THREE.MeshPhysicalMaterial({ map: T.drumTex(), roughness: 0.12, metalness: 0.2, clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensity: 2.4 }),
+      // acoustic wall panels change colour from room to room: lavender, sage, gold, beige, grey
+      drumIn: ['#7b7fb0', '#9aa77a', '#c9a96a', '#cdbfa5', '#a3a5a8', '#7b7fb0', '#9aa77a', '#c9a96a'].map((color) =>
+        std({ color, roughness: 0.95, side: THREE.BackSide }),
+      ),
       frosted: std({ color: '#e9eef2', transparent: true, opacity: 0.75, roughness: 0.3 }),
-      carpet: std({ map: T.carpetTex(), color: '#d9cdb8', roughness: 1 }),
-      roomCarpet: std({ map: T.carpetTex([3, 3], '#c3bcae'), roughness: 1 }),
-      tierCarpet: std({ map: T.carpetTex([0.4, 0.4], '#c3bcae'), roughness: 1 }),
+      // concourse: matte pale warm grey, finely striped (carpet normal + roughness, own colour map)
+      carpet: std({ ...pbr('carpet', { repeat: [0.6, 0.6], color: 'concourse' }), roughness: 1 }),
+      roomCarpet: std({ ...pbr('carpet', { repeat: [7, 7], color: 'concourse' }), color: '#a9a9a6', roughness: 1 }),
+      tierCarpet: std({ ...pbr('carpet', { repeat: [0.6, 0.6], color: 'concourse' }), color: '#a9a9a6', roughness: 1 }),
       stepEdge: std({ color: '#d9822b', roughness: 0.7 }),
-      beinCarpet: std({ map: T.carpetTex([4, 4]), roughness: 1 }),
+      beinCarpet: std({ ...pbr('carpet', { repeat: [14, 14] }), color: '#e6dccb', roughness: 1 }),
       stone: std({ map: T.stoneTex([2, 2]), roughness: 0.95 }),
       ceiling: std({ color: '#f7f5f0', roughness: 1, side: THREE.DoubleSide }),
       lawn: std({ map: T.lawnTex(), roughness: 1 }),
       ground: std({ color: '#2b3a26', roughness: 1 }),
-      cafe: std({ map: T.windowsTex(true), emissive: '#ffffff', emissiveMap: T.windowsTex(true), emissiveIntensity: 0.6, side: THREE.DoubleSide }),
-      upper: std({ map: T.windowsTex(false), emissive: '#ffffff', emissiveMap: T.windowsTex(false), emissiveIntensity: 0.35, side: THREE.DoubleSide }),
+      cafe: std({ map: T.cafeTex(), emissive: '#ffffff', emissiveMap: T.cafeTex(), emissiveIntensity: 0.35, roughness: 0.3, side: THREE.DoubleSide }),
+      upper: std({ map: T.courtyardFacadeTex(), emissive: '#ffffff', emissiveMap: T.courtyardFacadeTex(), emissiveIntensity: 0.2, roughness: 0.25, side: THREE.DoubleSide }),
+      silver: std({ color: '#9aa3a8', metalness: 0.8, roughness: 0.3 }),
+      canopy: std({ color: '#f1f0ec', roughness: 0.9, side: THREE.DoubleSide }),
+      paving: std({ map: T.stoneTex([0.5, 0.5]), color: '#e4e0d8', roughness: 0.95 }),
       mural: std({ map: T.muralTex(), roughness: 0.9, side: THREE.DoubleSide }),
       velvet: std({ color: '#0d0b10', roughness: 1 }),
       mullion: std({ color: '#2a2d33', roughness: 0.4, metalness: 0.6 }),
@@ -144,33 +166,38 @@ function useMaterials() {
       opening: std({ map: T.stairOpeningTex(), roughness: 0.9 }),
       trunk: std({ color: '#4a3524', roughness: 1 }),
       crown: std({ color: '#2f4a25', roughness: 1 }),
+      youngCrown: std({ color: '#5d8a3a', roughness: 1 }),
       pot: std({ color: '#26262a', roughness: 0.7 }),
       leaf: std({ color: '#3f7a35', roughness: 0.9 }),
       lamp: new THREE.MeshBasicMaterial({ color: '#fffaf0' }),
-      column: std({ color: '#eceae6', roughness: 0.6 }),
+      column: std({ color: '#e8e8e6', roughness: 0.5 }),
     }
   }, [])
 }
 
 // ---------- scene setup: env reflections + dusk sky
+// drei's Environment writes scene.environmentIntensity even with background="only", so it gets
+// the same value
+const ENV_INTENSITY = 0.35
 function Atmosphere() {
   const { gl, scene } = useThree()
   useLayoutEffect(() => {
     const pm = new THREE.PMREMGenerator(gl)
     const env = pm.fromScene(new RoomEnvironment(), 0.04).texture
     scene.environment = env
-    scene.environmentIntensity = 0.55
-    scene.background = T.skyTex()
+    scene.environmentIntensity = ENV_INTENSITY
     return () => {
       env.dispose()
       pm.dispose()
     }
   }, [gl, scene])
+  // The HDRI is the sky seen through the courtyard and exterior glass. Interior reflections
+  // keep the RoomEnvironment above: an outdoor sky as the only environment tints every
+  // indoor surface blue.
   return (
     <>
-      <hemisphereLight args={['#e3ebff', '#8a7a66', 0.75]} />
-      <ambientLight intensity={0.2} />
-      <directionalLight position={[20, 40, 10]} intensity={0.6} />
+      <Environment files={`${import.meta.env.BASE_URL}hdri/kloofendal_48d_partly_cloudy_puresky_1k.hdr`} background="only" backgroundIntensity={1} environmentIntensity={ENV_INTENSITY} />
+      <Lighting />
     </>
   )
 }
@@ -206,14 +233,16 @@ function FloorAndCeiling({ M }) {
 
 function Courtyard({ M }) {
   const glass = useMemo(() => ribbon(COURTYARD, 0, H), [])
-  const cafe = useMemo(() => ribbon(COURTYARD, -5, 0), [])
-  const upper = useMemo(() => ribbon(COURTYARD, H, H + 9, 0.12), [])
+  const cafe = useMemo(() => ribbon(COURTYARD, -5, 0, 1 / 15), [])
+  const upper = useMemo(() => ribbon(COURTYARD, H, ROOF, 1 / 15), [])
   const mullions = useMemo(
-    () => COURTYARD.filter((_, i) => i % 6 === 0).map(([x, z]) => ({ p: [x, H / 2, z], s: [0.07, H, 0.07] })),
+    // silver mullions about 1.6 m apart from the lawn to the roof
+    () => COURTYARD.filter((_, i) => i % 2 === 0).map(([x, z]) => ({ p: [x, (ROOF - 5) / 2, z], s: [0.06, ROOF + 5, 0.06] })),
     [],
   )
   const trees = useMemo(() => {
-    const spots = [[-10, -9], [0, -11.5], [10, -8.5], [-12, 3], [12, 4], [-5, 11], [7, 11.5], [-2, 1]]
+    // young deciduous trees in a loose row on the lawn (exterior photos 05-09)
+    const spots = [[-11, -8], [0, -10.5], [11, -8], [-13, 5], [13, 5], [-5, 9.5], [6, 10]]
     return spots
   }, [])
   const cafeTables = useMemo(() => {
@@ -231,18 +260,103 @@ function Courtyard({ M }) {
       <mesh geometry={cafe} material={M.cafe} />
       <mesh geometry={upper} material={M.upper} />
       <Instanced items={mullions} material={M.mullion} geometry={BOX} />
-      <Instanced items={trees.map(([x, z]) => ({ p: [x, -3.5, z], s: [0.35, 3, 0.35] }))} material={M.trunk} geometry={BOX} />
+      <Instanced items={trees.map(([x, z]) => ({ p: [x, -3, z], s: [0.16, 4, 0.16] }))} material={M.trunk} geometry={BOX} />
       <Instanced
-        items={trees.map(([x, z], i) => ({ p: [x, -0.8 + (i % 3) * 0.6, z], s: [3.2, 2.6, 3.2] }))}
-        material={M.crown}
+        items={trees.map(([x, z], i) => ({ p: [x, -0.2 + (i % 3) * 0.4, z], s: [1.7, 2.1, 1.7] }))}
+        material={M.youngCrown}
         geometry={SPHERE}
       />
+      <CourtyardFrame M={M} />
       <Instanced items={cafeTables} material={M.board} geometry={BOX} />
-      <LabubuParty />
+      <group userData={{ dynamic: true }}>
+        <LabubuParty />
+      </group>
     </>
   )
 }
 const SPHERE = new THREE.SphereGeometry(1, 14, 10)
+
+// rounded rectangle as a closed polyline (for the canopy's sky opening)
+function roundRect(hx, hz, r, n = 8) {
+  const pts = []
+  const corners = [[hx - r, hz - r, 0], [-(hx - r), hz - r, 1], [-(hx - r), -(hz - r), 2], [hx - r, -(hz - r), 3]]
+  for (const [cx, cz, q] of corners)
+    for (let i = 0; i <= n; i++) {
+      const a = (q + i / n) * (Math.PI / 2)
+      pts.push([cx + Math.cos(a) * r, cz + Math.sin(a) * r])
+    }
+  return pts
+}
+
+// What frames the view across the courtyard: stone paving round the lawn, slim white columns
+// from the lawn to the roof, and the deep white roof canopy that leaves a 27 x 25 m sky opening.
+function CourtyardFrame({ M }) {
+  const geos = useMemo(() => {
+    const v = (pts) => pts.map(([x, z]) => new THREE.Vector2(x, -z))
+    const pave = new THREE.Shape(v(COURTYARD))
+    pave.holes.push(new THREE.Path(v(COURTYARD.map(([x, z]) => [x * 0.86, z * 0.85]))))
+    const pg = new THREE.ShapeGeometry(pave)
+    pg.rotateX(-Math.PI / 2)
+    const hole = roundRect(13.5, 12.5, 2.5)
+    const can = new THREE.Shape(v(COURTYARD.map(([x, z]) => [x * 1.03, z * 1.03])))
+    can.holes.push(new THREE.Path(v(hole)))
+    const cg = new THREE.ShapeGeometry(can)
+    cg.rotateX(-Math.PI / 2)
+    const fascia = ribbon(hole, ROOF - 0.9, ROOF + 0.3)
+    return { pg, cg, fascia }
+  }, [])
+  const cols = useMemo(() => {
+    const g = new THREE.CylinderGeometry(1, 1, 1, 20)
+    return { g, items: COLUMNS.map((c) => {
+      const top = c.court ? ROOF : H
+      return { p: [c.x, (c.y0 + top) / 2, c.z], s: [c.court ? 0.25 : 0.22, top - c.y0, c.court ? 0.25 : 0.22] }
+    }) }
+  }, [])
+  return (
+    <>
+      <mesh geometry={geos.pg} material={M.paving} position={[0, -4.98, 0]} />
+      <mesh geometry={geos.cg} material={M.canopy} position={[0, ROOF, 0]} />
+      <mesh geometry={geos.fascia} material={M.canopy} />
+      <Instanced items={cols.items} material={M.column} geometry={cols.g} />
+    </>
+  )
+}
+
+// curved cognac banquette on a dark plinth, buttoned top panel (photos 03-05, 24)
+function Banquettes({ M }) {
+  const geos = useMemo(() => {
+    const R = 6 // radius of the curve
+    const sector = (r0, r1, h, len) => {
+      const a = len / R / 2
+      const sh = new THREE.Shape()
+      const n = 16
+      for (let i = 0; i <= n; i++) {
+        const t = -a + (2 * a * i) / n
+        const p = [Math.cos(t) * r1 - R, Math.sin(t) * r1]
+        i ? sh.lineTo(...p) : sh.moveTo(...p)
+      }
+      for (let i = n; i >= 0; i--) {
+        const t = -a + (2 * a * i) / n
+        sh.lineTo(Math.cos(t) * r0 - R, Math.sin(t) * r0)
+      }
+      const g = new THREE.ExtrudeGeometry(sh, { depth: h, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.03, bevelSegments: 2 })
+      g.rotateX(-Math.PI / 2) // extrude upward; local z of the shape becomes -z
+      return g
+    }
+    return BENCHES.map((b) => ({
+      seat: sector(R - 0.42, R + 0.42, 0.22, b.len),
+      back: sector(R + 0.18, R + 0.42, 0.38, b.len - 0.2),
+      plinth: sector(R - 0.34, R + 0.34, 0.2, b.len - 0.15),
+    }))
+  }, [])
+  return BENCHES.map((b, i) => (
+    <group key={i} position={[b.c[0], 0, b.c[1]]} rotation={[0, b.rot, 0]}>
+      <mesh geometry={geos[i].plinth} material={M.plinth} />
+      <mesh geometry={geos[i].seat} material={M.leather} position={[0, 0.2, 0]} />
+      <mesh geometry={geos[i].back} material={M.leather} position={[0, 0.42, 0]} />
+    </group>
+  ))
+}
 
 function OutsideTrees({ M }) {
   const items = useMemo(() => {
@@ -311,7 +425,7 @@ function Drums({ M }) {
         {arcs.map(([a0, a1], j) => (
           <group key={j}>
             <Arc c={c} rx={rx} rz={rz} a0={a0} a1={a1} material={M.drum} />
-            <Arc c={c} rx={rx - DRUM_WALL} rz={rz - DRUM_WALL} a0={a0} a1={a1} material={M.drumIn} />
+            <Arc c={c} rx={rx - DRUM_WALL} rz={rz - DRUM_WALL} a0={a0} a1={a1} material={M.drumIn[i % M.drumIn.length]} />
           </group>
         ))}
         {doors.map((a, j) => {
@@ -378,13 +492,13 @@ function Beinecke({ M }) {
     ceil.rotateX(Math.PI / 2)
     const ter = new THREE.RingGeometry(r, terrace, 64, 1, -Math.PI / 2, Math.PI)
     ter.rotateX(-Math.PI / 2)
-    const over = new THREE.RingGeometry(r, 12.9, 64, 1, -Math.PI / 2, Math.PI)
+    const over = new THREE.RingGeometry(r, r + 2.9, 64, 1, -Math.PI / 2, Math.PI)
     over.rotateX(Math.PI / 2)
     return { floor, ceil, ter, over }
   }, [r, terrace])
   const sign = useMemo(() => new THREE.MeshBasicMaterial({ map: T.signTex('Beinecke Terrace Room', '2300') }), [])
   const libSign = useMemo(() => new THREE.MeshBasicMaterial({ map: T.signTex('Ross Library', '2100') }), [])
-  const col = ellPt(c, 12.6, 12.6, 0.6)
+  const col = BEIN.col
   return (
     <>
       <mesh geometry={geos.floor} material={M.beinCarpet} position={[c[0], 0.002, c[1]]} />
@@ -393,7 +507,7 @@ function Beinecke({ M }) {
       <mesh geometry={geos.over} material={M.ceiling} position={[c[0], H, c[1]]} />
       <Arc c={c} rx={r} a0={0} a1={Math.PI / 2 - doorGap} material={M.glass} />
       <Arc c={c} rx={r} a0={Math.PI / 2 + doorGap} a1={Math.PI} material={M.glass} />
-      <Arc c={c} rx={9.7} a0={0.12} a1={1.0} h={H - 0.2} material={M.velvet} />
+      <Arc c={c} rx={r - 0.3} a0={0.12} a1={1.0} h={H - 0.2} material={M.velvet} />
       <Arc c={c} rx={terrace} a0={0} a1={Math.PI} h={1.05} material={M.rail} />
       <Arc c={c} rx={muralR} a0={Math.PI / 2 - muralHalf} a1={Math.PI / 2 + muralHalf} h={3.8} material={M.mural} />
       <mesh position={[col[0], H / 2, col[1]]} material={M.column}>
@@ -504,35 +618,21 @@ function MeetingRooms({ M }) {
           material={slideMat(COURSE_KEYS[i % COURSE_KEYS.length], i % 2 ? 'content' : 'chart')}
         />
       ))}
-      {MEETING.map((m, i) => (
-        <GlassDoor key={i} door={m.door} M={M} />
-      ))}
-      <MeetingLabubus />
+      <group userData={{ dynamic: true }}>
+        {MEETING.map((m, i) => (
+          <GlassDoor key={i} door={m.door} M={M} />
+        ))}
+        <MeetingLabubus />
+      </group>
     </>
   )
 }
 
-// ---------- pot lights, plants
+// ---------- plants (ceiling lights live in render/Lighting.jsx)
 function Details({ M }) {
-  const lights = useMemo(() => {
-    const out = []
-    const { xMin, xMax, zMin, zMax } = BOUNDS
-    for (let x = xMin + 1.2; x < xMax; x += 2.4)
-      for (let z = zMin + 1.2; z < zMax; z += 2.4) if (!inPoly(x, z, COURTYARD)) out.push({ p: [x, H - 0.01, z] })
-    for (let x = EAST + 1; x < EAST + 9.5; x += 2.4)
-      for (let z = -9; z < 9.5; z += 2.4) if (Math.hypot(x - EAST, z) < 9.3) out.push({ p: [x, H - 0.01, z] })
-    return out
-  }, [])
-  const lampGeo = useMemo(() => {
-    const g = new THREE.CircleGeometry(0.09, 12)
-    g.rotateX(Math.PI / 2)
-    return g
-  }, [])
   return (
     <>
-      <Instanced items={lights} material={M.lamp} geometry={lampGeo} />
-      <Instanced items={PLANTS.map(([x, z]) => ({ p: [x, 0.3, z], s: [0.3, 0.6, 0.3] }))} material={M.pot} geometry={BOX} />
-      <Instanced items={PLANTS.map(([x, z]) => ({ p: [x, 1.1, z], s: [0.5, 0.65, 0.5] }))} material={M.leaf} geometry={SPHERE} />
+      <Props />
       <MeetingRooms M={M} />
     </>
   )
@@ -553,9 +653,12 @@ export default function World() {
       <Beinecke M={M} />
       <Stairs M={M} />
       <Details M={M} />
-      <LabubuCrowd />
-      <Faculty />
-      <HandsomeDan />
+      <Banquettes M={M} />
+      <group userData={{ dynamic: true }}>
+        <LabubuCrowd />
+        <Faculty />
+        <HandsomeDan />
+      </group>
     </>
   )
 }

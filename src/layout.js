@@ -2,13 +2,16 @@
 // World axes: +x = east, -z = north (three.js camera looks -z by default = north).
 // Read from reference/floorplan (plan is drawn with west at the top).
 
-export const H = 4.6 // ceiling height
+// Proportions follow the Foster level 2 plan (yale_som_virtual-refs/plans, 10 m = 95 px):
+// the concourse is double height (level 2 to level 4 is about 7.2 m)
+export const H = 7.2 // ceiling height
+export const ROOF = 14.8 // roof canopy above the level 2 floor (ground to roof about 19.5 m)
 export const EYE = 1.65
 export const R_PLAYER = 0.35
 export const SPAWN = { x: -24.4, z: 22 } // SW corner by Class of 1980, facing north (photo 1)
 
 // corridors are 25% wider than the first pass (gaps 2.5 m, cloister ~7 m, back halls ~4.4 m)
-export const BOUNDS = { xMin: -40.75, xMax: 28.75, zMin: -48.3, zMax: 48.3 }
+export const BOUNDS = { xMin: -40.75, xMax: 28.75, zMin: -43, zMax: 51.5 }
 export const EAST = BOUNDS.xMax
 const CLOISTER_W = 24.4 // x of the west/east cloister centerlines (mirrored)
 
@@ -25,8 +28,8 @@ export const arc = (c, rx, rz, a0, a1, n) =>
 
 // ---------- courtyard: rounded square, glass wiggles along the classroom (north/south) sides
 function courtyardPoints(n = 192) {
-  const hx = 20
-  const hz = 18
+  const hx = 21.75 // 43.5 m x 40 m between the glass walls
+  const hz = 20
   const pts = []
   for (let i = 0; i < n; i++) {
     const t = (i / n) * TAU
@@ -67,14 +70,16 @@ const TIER_SPAN = 1.42 // radians each side of the center aisle covered by riser
 const bandStart = (i) => ROW0 - 0.35 + i * ROW_STEP
 const SLIDE_ORDER = ['title', 'chart', 'content']
 export const DRUMS = [
-  { id: '2400', course: 'mgt409', name: 'MBA Class of 1980 Classroom', c: [-31, 28.4], rx: 8, rz: 8, front: [1, -1] },
-  { id: '2410', course: 'mgt404', name: 'Bewkes Classroom', c: [-14.5, 31.4], rx: 6, rz: 6.5, front: [0, -1] },
-  { id: '2420', course: 'mgt403', name: 'Betts Classroom', c: [0, 31.4], rx: 6, rz: 6.5, front: [0, -1] },
-  { id: '2430', course: 'mgt887', name: 'Baker Classroom', c: [14.5, 31.4], rx: 6, rz: 6.5, front: [0, -1] },
-  { id: '2200', course: 'mgt402', name: 'Blumetti Classroom', c: [-31, -28.4], rx: 7.5, rz: 7.5, front: [1, 1] },
-  { id: '2210', course: 'mgt538', name: 'Allison Foundation Classroom', c: [-14.5, -31.4], rx: 6, rz: 6.5, front: [0, 1] },
-  { id: '2220', course: 'mgt800', name: 'Jones Classroom', c: [0, -31.4], rx: 6, rz: 6.5, front: [0, 1] },
-  { id: '2230', course: 'mgt541', name: 'Nooyi Classroom', c: [14.5, -31.4], rx: 6, rz: 6.5, front: [0, 1] },
+  // south row: a 16 x 20 m oval in the southwest corner, then three 13 x 19 m ovals (long axis N-S)
+  { id: '2400', course: 'mgt409', name: 'MBA Class of 1980 Classroom', c: [-32.3, 34.7], rx: 8, rz: 10, front: [1, 0] },
+  { id: '2410', course: 'mgt404', name: 'Bewkes Classroom', c: [-15, 34.7], rx: 6.5, rz: 9.3, front: [0, -1] },
+  { id: '2420', course: 'mgt403', name: 'Betts Classroom', c: [0, 34.7], rx: 6.5, rz: 9.3, front: [0, -1] },
+  { id: '2430', course: 'mgt887', name: 'Baker Classroom', c: [15, 34.7], rx: 6.5, rz: 9.3, front: [0, -1] },
+  // north row: a 15 x 16 m oval in the northwest corner, then three round 13.7 x 12.4 m drums
+  { id: '2200', course: 'mgt402', name: 'Blumetti Classroom', c: [-32.9, -32.6], rx: 7.3, rz: 7.9, front: [1, 0] },
+  { id: '2210', course: 'mgt538', name: 'Allison Foundation Classroom', c: [-15.3, -31.1], rx: 6.85, rz: 6.2, front: [0, 1] },
+  { id: '2220', course: 'mgt800', name: 'Jones Classroom', c: [0, -31.1], rx: 6.85, rz: 6.2, front: [0, 1] },
+  { id: '2230', course: 'mgt541', name: 'Nooyi Classroom', c: [15.3, -31.1], rx: 6.85, rz: 6.2, front: [0, 1] },
 ].map((d) => {
   const dir = norm(d.front)
   const phi = Math.atan2(dir[0], dir[1])
@@ -89,21 +94,22 @@ export const DRUMS = [
 })
 
 // ---------- Beinecke Terrace Room (semi-oval bulging east) + outdoor terrace
-export const BEIN = { c: [EAST, 0], r: 10, terrace: 14, doorGap: 0.13, muralR: 3.6, muralHalf: 0.85 }
+export const BEIN = { c: [EAST, 0], r: 12.5, terrace: 17, doorGap: 0.11, muralR: 3.6, muralHalf: 0.85 }
+BEIN.col = ellPt(BEIN.c, BEIN.r + 2.6, BEIN.r + 2.6, 0.6) // terrace column
 
 // ---------- stairs (painting above each opening)
 export const STAIRS = [
-  { id: 'A', c: [-34.75, 15.5], w: 5, d: 3, face: [1, 0], seed: 1 },
-  { id: 'B', c: [-34.75, -15.5], w: 5, d: 3, face: [1, 0], seed: 2 },
+  { id: 'A', c: [-32.5, 19], w: 5, d: 3, face: [1, 0], seed: 1 },
+  { id: 'B', c: [-32.5, -19], w: 5, d: 3, face: [1, 0], seed: 2 },
   { id: 'G', c: [24.6, 25], w: 3, d: 4, face: [0, -1], photo: true },
   { id: 'D', c: [24.6, -25], w: 3, d: 4, face: [0, 1], seed: 3 },
-  { id: 'C', c: [24.6, -45], w: 3, d: 4, face: [0, 1], seed: 4 },
+  { id: 'C', c: [24.6, -41], w: 3, d: 4, face: [0, 1], seed: 4 },
   { id: 'H', c: [24.6, 45], w: 3, d: 4, face: [0, -1], seed: 5 },
-  { id: 'I', c: [-37.75, 45], w: 3, d: 4, face: [0, -1], seed: 6 },
+  { id: 'I', c: [-38, 48.5], w: 3, d: 4, face: [0, -1], seed: 6 },
 ]
 
 // ---------- library (west side)
-export const LIBRARY = { x0: -40.75, x1: -28.75, z0: -12, z1: 12, door: 1.2 }
+export const LIBRARY = { x0: -38.4, x1: -26.4, z0: -13.3, z1: 13.3, door: 1.2 }
 
 // ---------- walls: every straight piece is a box; mat 'none' = invisible collider
 export const WALLS = []
@@ -119,10 +125,10 @@ const { xMin, zMin, zMax } = BOUNDS
 W([xMin, zMin], [xMin, zMax], 'exterior')
 W([xMin, zMin], [EAST, zMin], 'exterior')
 W([xMin, zMax], [EAST, zMax], 'exterior')
-W([EAST, zMin], [EAST, -10], 'white')
-W([EAST, 10], [EAST, zMax], 'white')
-W([EAST, -10], [EAST, -1.3], 'beinGlass', { t: 0.1 })
-W([EAST, 1.3], [EAST, 10], 'beinGlass', { t: 0.1 })
+W([EAST, zMin], [EAST, -BEIN.r], 'white')
+W([EAST, BEIN.r], [EAST, zMax], 'white')
+W([EAST, -BEIN.r], [EAST, -1.3], 'beinGlass', { t: 0.1 })
+W([EAST, 1.3], [EAST, BEIN.r], 'beinGlass', { t: 0.1 })
 
 // courtyard glass (rendered as a smooth ribbon, collider here)
 P([...COURTYARD, COURTYARD[0]], 'none', { t: 0.15 })
@@ -220,12 +226,10 @@ for (const s of STAIRS) {
 
 // small glass meeting rooms in strips behind each drum row
 export const MEETING = []
-const M_X0 = -35
 const M_X1 = 22.6
 export const MEET_DOOR = 1.1 // glass door width
-for (const side of [1, -1]) {
-  const zf = 42.3 * side
-  const zb = zMax * side
+// north bar (plan: z -43 to -39.3, east of the corner oval); south strip in front of the faculty wing
+for (const [side, zf, zb, M_X0] of [[1, 46, zMax, -35], [-1, -39.3, zMin, -22.7]]) {
   const n = 9
   const w = (M_X1 - M_X0) / n
   for (let i = 0; i <= n; i++) W([M_X0 + i * w, zf], [M_X0 + i * w, zb], 'white', { t: 0.15 })
@@ -248,6 +252,7 @@ for (const side of [1, -1]) {
       x: cx,
       z: cz,
       w,
+      d: Math.abs(zb - zf),
       seats,
       num: side > 0 ? 2461 + i * 2 : 2246 + i * 3,
       monitor: { x: cx + w / 2 - 0.1, z: cz, rot: -Math.PI / 2 },
@@ -263,9 +268,9 @@ for (const side of [1, -1]) {
   P(arc(c, r, r, Math.PI / 2 + doorGap, Math.PI, 30), 'none', { t: 0.12 })
   P(arc(c, terrace, terrace, 0, Math.PI, 60), 'none', { t: 0.1 })
   P(arc(c, muralR, muralR, Math.PI / 2 - muralHalf, Math.PI / 2 + muralHalf, 20), 'none', { t: 0.2 })
-  dot(ellPt(c, 12.6, 12.6, 0.6)) // terrace column
+  dot(BEIN.col) // terrace column
 }
-export const BEIN_TABLES = [[7, -4.5], [7, 4.5], [4.2, -7], [4.2, 7]].map(([dx, z]) => [EAST + dx, z])
+export const BEIN_TABLES = [[7.5, -5], [7.5, 5], [4.5, -8.5], [4.5, 8.5], [10, 0], [9.5, -8], [9.5, 8]].map(([dx, z]) => [EAST + dx, z])
 for (const p of BEIN_TABLES) {
   W(p, [p[0] + 0.01, p[1]], 'none', { t: 1.5 })
   for (let i = 0; i < 6; i++) {
@@ -277,14 +282,40 @@ for (const p of BEIN_TABLES) {
 // cloister furniture: cognac benches, orange sofas, plants
 const CW = CLOISTER_W
 export const PLANTS = [[-CW, -10.5], [8.8, -21], [-7, 21], [CW, 8], [-CW, 9.5]]
-W([-CW, -3], [-CW, -0.6], 'leather', { h: 0.45, t: 0.7 })
-W([CW, 2.5], [CW, 5], 'leather', { h: 0.45, t: 0.7 })
-W([-2, -21], [0.6, -21], 'leather', { h: 0.45, t: 0.7 })
-W([3.5, 21], [6, 21], 'leather', { h: 0.45, t: 0.7 })
-W([6.2, -20.8], [8.2, -20.8], 'orange', { h: 0.55, t: 0.9 })
-W([-6.2, 20.8], [-4.2, 20.8], 'orange', { h: 0.55, t: 0.9 })
-W([-CW, 6], [-CW, 8], 'orange', { h: 0.55, t: 0.9 })
+// curved cognac "banana" banquettes (photos 03-05): drawn in World.jsx, colliders here
+export const BENCHES = [
+  { c: [-CW - 0.3, -2], len: 4.2, rot: 0 },
+  { c: [-CW - 0.3, 6.5], len: 3.6, rot: Math.PI },
+  { c: [CW + 0.4, 3.5], len: 4.2, rot: Math.PI },
+  { c: [-1.5, -21.8], len: 4.2, rot: Math.PI / 2 },
+  { c: [7.5, -21.8], len: 3.6, rot: -Math.PI / 2 },
+  { c: [4.5, 22.2], len: 4.2, rot: -Math.PI / 2 },
+  { c: [-5.5, 22.2], len: 3.6, rot: Math.PI / 2 },
+]
+for (const b of BENCHES) {
+  const d = [Math.cos(b.rot), -Math.sin(b.rot)]
+  W([b.c[0] - (d[1] * b.len) / 2, b.c[1] + (d[0] * b.len) / 2], [b.c[0] + (d[1] * b.len) / 2, b.c[1] - (d[0] * b.len) / 2], 'none', { h: 0.45, t: 0.9 })
+}
 for (const p of PLANTS) dot(p)
+
+// slim white round columns on the 7.6 m grid: a ring just inside the courtyard glass (rising
+// from the lawn to the roof) and a row along the east and west concourse
+let COLS = []
+for (const v of [-19.3, -11.5, -3.8, 3.9, 11.6, 19.3]) {
+  COLS.push({ x: -19.3, z: v, y0: -5, court: true }, { x: 19.3, z: v, y0: -5, court: true })
+  if (Math.abs(v) < 19) COLS.push({ x: v, z: -18.4, y0: -5, court: true }, { x: v, z: 18.4, y0: -5, court: true })
+  if (Math.abs(v) < 15) COLS.push({ x: 26.6, z: v, y0: 0 })
+}
+export const COLUMNS = COLS.filter((c) => !c.court || inPoly(c.x, c.z, COURTYARD))
+for (const c of COLUMNS) if (!c.court) dot([c.x, c.z])
+
+// lived-in props (drawn in render/Props.jsx): white-topped high counters against the drum
+// fronts, a reception desk inside the library door, signage screens on the west stair cores
+export const COUNTERS = [[-15.3, -24.1], [15.3, -24.1], [-15, 24.6], [15, 24.6]].map(([x, z]) => ({ x, z, w: 2.4, d: 0.6 }))
+for (const k of COUNTERS) W([k.x - k.w / 2, k.z], [k.x + k.w / 2, k.z], 'none', { t: k.d })
+export const RECEPTION = { x: LIBRARY.x1 - 1.6, z: -2.4, w: 2.8, d: 0.8 }
+W([RECEPTION.x, RECEPTION.z - RECEPTION.w / 2], [RECEPTION.x, RECEPTION.z + RECEPTION.w / 2], 'none', { t: RECEPTION.d })
+export const SIGNAGE = STAIRS.filter((s) => s.id === 'A' || s.id === 'B').map((s) => ({ x: s.c[0], z: s.c[1] - Math.sign(s.c[1]) * (s.d / 2 + 0.03), rot: s.c[1] > 0 ? Math.PI : 0 }))
 
 // colliders with bounding boxes for fast rejection
 export const COLLIDERS = WALLS.filter((w) => w.collide).map((w) => ({
@@ -325,9 +356,9 @@ export function locate(x, z) {
   }
   if (x < LIBRARY.x1 && z > LIBRARY.z0 && z < LIBRARY.z1) return 'Ross Library · 2100'
   if (x > EAST) return Math.hypot(x - EAST, z) < BEIN.r ? 'Beinecke Terrace Room · 2300' : 'Beinecke Terrace (outside)'
-  for (const m of MEETING) if (Math.abs(x - m.x) < m.w / 2 && Math.abs(z - m.z) < 3) return `Meeting room · ${m.num}`
-  if (z > 38) return 'South back hallway · meeting rooms 2461+'
-  if (z < -38) return 'North back hallway · meeting rooms 2246+'
+  for (const m of MEETING) if (Math.abs(x - m.x) < m.w / 2 && Math.abs(z - m.z) < m.d / 2) return `Meeting room · ${m.num}`
+  if (z > 44.3) return 'South back hallway · meeting rooms 2461+'
+  if (z < -37.4) return 'North back hallway · meeting rooms 2246+'
   if (x < -20) return 'West cloister · Ross Library side'
   if (x > 20) return 'East cloister · Beinecke side'
   return z < 0 ? 'North cloister' : 'South cloister'
