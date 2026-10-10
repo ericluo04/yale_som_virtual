@@ -89,9 +89,11 @@ const LOOK = {
   Teeth: 'glossy', Tooth: 'glossy', Nose: 'glossy', Tongue: 'glossy',
   EyeGlint: 'glint', Glint: 'glint',
   Hair: 'hair', BrowWhite: 'hair',
+  // professors (tools/blender/professor.py): cape, sash, bow tie, lips, inner ear, boots, grey streaks, Moody's iris
+  Cloak: 'cloth', Sash: 'cloth', Bowtie: 'cloth', Lip: 'skin', EarIn: 'skin', Boot: 'glossy', HairGrey: 'hair', MagicIris: 'eye',
 }
 const RIM = { fur: [0.1, new THREE.Color(1.0, 0.85, 0.7)], skin: [0.16, new THREE.Color(1.0, 0.5, 0.38)] }
-const CLOTH_REPEAT = { Shirt: 6, Frog: 5, Robe: 1, Trim: 1, Hat: 4, Shawl: 4, Fringe: 4, Cravat: 4, Collar: 6 }
+const CLOTH_REPEAT = { Shirt: 6, Frog: 5, Robe: 1, Trim: 1, Hat: 4, Shawl: 4, Fringe: 4, Cravat: 4, Collar: 6, Cloak: 1, Sash: 4, Bowtie: 6 }
 
 // small warm fresnel term added to the emissive radiance; `u` holds uRim (strength) and uRimColor
 export const RIM_GLSL = /* glsl */ `

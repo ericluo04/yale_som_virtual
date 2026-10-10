@@ -5,6 +5,7 @@
 # the width factor) before it reaches Blender, so each GLB is already at its real height and the app
 # never scales it. Faces -Y, feet at z = 0, wand in the right hand (at -X).
 import bpy, bmesh, math, os, sys
+from mathutils import Vector
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import lib
 
@@ -20,9 +21,24 @@ PROFESSORS = {
     "hagrid": dict(name="Rubeus Hagrid", robe="#5b4330", trim="#3b2c1f", skin="#e2b28f", hair="#2e2219", iris="#24170f", height=2.7),
 }
 WIDE = {"hagrid": 1.3, "slughorn": 1.12}
+# Dress per professor. cloak: colour of a cape hung from the shoulders (None = no cape), clasp: its clasp metal,
+# buttons: count down the front, belt / sash: colour, collar: stand | high | flare | None, shoes: leather colour.
+STYLE = {
+    "dumbledore": dict(cloak="#2c1656", clasp="gold", buttons=0, belt=None, sash=None, collar="stand", shoes="#3b2457"),
+    "mcgonagall": dict(cloak="#0a2219", clasp="gold", buttons=7, belt="#15100c", sash=None, collar="high", shoes="#15100c"),
+    "trelawney": dict(cloak=None, clasp=None, buttons=4, belt=None, sash="#8a3d6b", collar="stand", shoes="#5a3b25"),
+    "slughorn": dict(cloak=None, clasp=None, buttons=0, belt=None, sash=None, collar="stand", shoes="#2a1a12"),
+    "snape": dict(cloak="#121216", clasp="metal", buttons=14, belt=None, sash=None, collar="high", shoes="#0b0b0d"),
+    "lockhart": dict(cloak="#6a4596", clasp="gold", buttons=5, belt=None, sash="#e8c870", collar="flare", shoes="#c9a46a"),
+    "moody": dict(cloak="#4a3b2c", clasp="metal", buttons=5, belt="#2a1d12", sash=None, collar="stand", shoes="#2a1d12"),
+    "flitwick": dict(cloak=None, clasp=None, buttons=5, belt="#15100c", sash=None, collar="stand", shoes="#15100c"),
+    "hagrid": dict(cloak=None, clasp=None, buttons=5, belt="#1a1410", sash=None, collar=None, shoes="#2b1d12"),
+}
 
 HEAD_C, HEAD_R = (0.0, 0.0, 1.7), (0.12, 0.125, 0.14)
 SH_X, SH_Z, EL_Z, WR_Z = 0.25, 1.46, 1.2, 0.98
+H0 = 0.06  # the robe hem stands this far off the floor, so the shoes show under it
+FRONT = -math.pi / 2  # lathe angle of the robe's front (-Y)
 
 
 class Sc:
@@ -77,7 +93,84 @@ def cut_half(o, keep_below_z):
     bm.free()
 
 
-def materials(p):
+def cut_above(o, keep_above_z):
+    """Keep the part of mesh `o` above world z (eyelids)."""
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
+    bmesh.ops.bisect_plane(bm, geom=geom, plane_co=(0, 0, keep_above_z), plane_no=(0, 0, -1), clear_outer=True)
+    bm.to_mesh(o.data)
+    bm.free()
+
+
+def skull_pt(x, y, off=0.0):
+    """Point on the top of the head ellipsoid above (x, y), raised `off`."""
+    u = 1 - (x / HEAD_R[0]) ** 2 - ((y - HEAD_C[1]) / HEAD_R[1]) ** 2
+    return (x, y, HEAD_C[2] + HEAD_R[2] * math.sqrt(max(u, 0.0)) + off)
+
+
+def robe_r(z):
+    """Outer radius of the robe skirt at the front (reference meters), pleats included."""
+    zl = min(max(z - H0, 0.0), 1.24)
+    return 0.37 - 0.137 * zl + robe_folds(FRONT, zl)
+
+
+def front_y(z, who):
+    """y of the front of the body at height z: robe, torso, or Slughorn's belly, whichever stands out most."""
+    r = robe_r(z) if z < 1.3 else 0.0
+    if 1.18 <= z <= 1.48:
+        r = max(r, 0.2 + 0.015 * (z - 1.18) / 0.3)
+    y = -r
+    if who == "slughorn" and abs(z - 1.1) < 0.33:
+        y = min(y, -0.06 - 0.3 * math.sqrt(1 - ((z - 1.1) / 0.33) ** 2))
+    return y
+
+
+def shell(Q, name, m, a0, a1, rings, thick=0.01, cols=20, bone="spine", blend=None, fold=None):
+    """Open cloth shell: rings (rx, ry, yoff, z) from top to bottom, each an arc from angle a0 to a1 measured from
+    the back (+Y) toward +X; outer and inner skins joined at the edges, with UVs for the cloth normal map.
+    fold(a, z) adds to both radii; blend=(bone2, z_hi, z_lo) fades the weights to bone2 going down."""
+    verts, faces, uvs = [], [], []
+    rows = len(rings) - 1
+    W = cols + 1
+    for dr in (0.0, -thick):
+        for rx, ry, yo, z in rings:
+            for j in range(W):
+                a = a0 + (a1 - a0) * j / cols
+                f = fold(a, z) if fold else 0.0
+                verts.append(((rx + f + dr) * math.sin(a), (ry + f + dr) * math.cos(a) + yo, z))
+                uvs.append((3 * j / cols, 4 * z))
+    off = (rows + 1) * W
+    for i in range(rows):
+        for j in range(cols):
+            q = i * W + j
+            faces.append((q, q + 1, q + W + 1, q + W))
+            faces.append((off + q, off + q + W, off + q + W + 1, off + q + 1))
+    for i in range(rows):
+        for j, flip in ((0, True), (cols, False)):
+            q = i * W + j
+            f = (q, q + W, off + q + W, off + q)
+            faces.append(f[::-1] if flip else f)
+    for j in range(cols):
+        for q, flip in ((j, True), (rows * W + j, False)):
+            f = (q, off + q, off + q + 1, q + 1)
+            faces.append(f[::-1] if flip else f)
+    o = Q.P.poly(name, [Q.T(v) for v in verts], faces, m, bone, smooth=True)
+    uv = o.data.uv_layers.new(name="UVMap")
+    for poly in o.data.polygons:
+        for li in poly.loop_indices:
+            uv.data[li].uv = uvs[o.data.loops[li].vertex_index]
+    if blend:
+        b2, zh, zl = blend[0], blend[1] * Q.s, blend[2] * Q.s
+        g1, g2 = o.vertex_groups[bone], o.vertex_groups.new(name=b2)
+        for v in o.data.vertices:
+            w = min(1.0, max(0.0, (zh - v.co.z) / (zh - zl)))
+            g1.add([v.index], 1.0 - w, "REPLACE")
+            g2.add([v.index], w, "REPLACE")
+    return o
+
+
+def materials(p, st=None):
     h = lib.hexrgb
     return {
         "robe": lib.mat("Robe", h(p["robe"]), 0.85),
@@ -98,6 +191,13 @@ def materials(p):
         "metal": lib.mat("Metal", h("#8a8f96"), 0.3, metal=0.9),
         "dark": lib.mat("Dark", h("#1a1410"), 0.7),
         "blush": lib.mat("Blush", h("#e8a49a"), 0.6),
+        # lips: the skin pulled toward a muted rose
+        "lip": lib.mat("Lip", tuple(c * k for c, k in zip(h(p["skin"]), (0.78, 0.5, 0.48))), 0.5),
+        "boot": lib.mat("Boot", h(st["shoes"]) if st else h("#1a1410"), 0.45),
+        "trouser": lib.mat("Trouser", h("#141216"), 0.85),
+        "cloak": lib.mat("Cloak", h(st["cloak"]), 0.85) if st and st["cloak"] else None,
+        "leather": lib.mat("Leather", h(st["belt"]), 0.5) if st and st["belt"] else None,
+        "sash": lib.mat("Sash", h(st["sash"]), 0.7) if st and st["sash"] else None,
     }
 
 
@@ -118,23 +218,31 @@ def base_body(Q, M, who):
     outer = [(r_out(z), z) for z in [0.0] + [0.03 + 0.093 * i for i in range(14)]]
     outer[-1] = (r_out(1.24), 1.24)
     inner = [(r_out(z) - 0.012, z) for z in (1.24, 0.3, 0.1, 0.0)]
-    Q.lathe("robe", outer + inner, robe, "spine", seg=36, disp=robe_folds, closed=True)
+    Q.lathe("robe", outer + inner, robe, "spine", seg=36, disp=robe_folds, closed=True, loc=(0, 0, H0))
     hem = [(0.37, 0.0), (0.384, 0.004), (0.389, 0.02), (0.389, 0.058), (0.384, 0.074), (0.371, 0.079),
            (0.358, 0.075), (0.353, 0.06), (0.353, 0.014), (0.358, 0.002)]
-    Q.lathe("hem", hem, trim, "spine", seg=36, disp=robe_folds, closed=True)
+    Q.lathe("hem", hem, trim, "spine", seg=36, disp=robe_folds, closed=True, loc=(0, 0, H0))
     Q.cyl("torso", (0, 0, 1.33), 0.2, 0.215, 0.3, robe, "chest", verts=24)
     Q.sphere("shoulders", (0, 0, 1.47), (0.27, 0.17, 0.09), robe, "chest", seg=12, rings=6, subd=1)
-    Q.box("placket", (0, -0.2, 1.05), (0.06, 0.012, 0.85), trim, "spine", rot=(-0.12, 0, 0))
     if belly:
         Q.sphere("belly", (0, -0.06, 1.1), (0.31, 0.3, 0.33), robe, "spine", seg=20, rings=12, subd=1)
-        for z in (1.18, 1.04, 0.92):
-            Q.sphere(f"btn{z}", (0, -0.355, z), (0.02, 0.012, 0.02), M["gold"], "spine", seg=8, rings=5)
-    Q.cyl("neck", (0, 0, 1.57), 0.05, 0.05, 0.1, skin, "head", verts=12)
-    Q.torus("collar", (0, 0, 1.53), 0.075, 0.025, trim, "chest", seg=12, minor=4, subd=1)
-    # head: smooth skull, ears
-    Q.sphere("head", HEAD_C, HEAD_R, skin, "head", seg=16, rings=10, subd=1)
+        for z in (1.2, 1.1, 1.0, 0.9):
+            Q.sphere(f"btn{z}", (0, front_y(z, who) - 0.004, z), (0.02, 0.012, 0.02), M["gold"], "spine", seg=8, rings=5)
+    # legs and shoes under the lifted hem; the toes stick out past the hem trim
     for s in (1, -1):
-        Q.sphere(f"ear{s}", (0.12 * s, 0.0, 1.7), (0.02, 0.03, 0.038), skin, "head", seg=6, rings=4, subd=1)
+        Q.cyl(f"leg{s}", (0.09 * s, -0.02, 0.17), 0.05, 0.055, 0.26, M["trouser"], "root", verts=8)
+        if who == "moody" and s == 1:
+            continue  # his left leg is wooden (extras)
+        Q.sphere(f"shoe{s}", (0.095 * s, -0.25, 0.048), (0.06, 0.17, 0.05), M["boot"], "root", seg=12, rings=6)
+        Q.box(f"sole{s}", (0.095 * s, -0.25, 0.007), (0.085, 0.26, 0.014), M["dark"], "root")
+    Q.cyl("neck", (0, 0, 1.57), 0.05, 0.05, 0.1, skin, "head", verts=12)
+    # head: smooth skull, a chin and soft cheekbones so the face is not a flat disc, ears with an inner bowl
+    Q.sphere("head", HEAD_C, HEAD_R, skin, "head", seg=16, rings=10, subd=1)
+    Q.sphere("chin", head_pt(0, 1.6, -0.035), (0.05, 0.045, 0.04), skin, "head", seg=10, rings=6)
+    for s in (1, -1):
+        Q.sphere(f"cheek{s}", head_pt(0.058 * s, 1.672, -0.024), (0.046, 0.026, 0.034), skin, "head", seg=10, rings=6)
+        Q.sphere(f"ear{s}", (0.121 * s, 0.0, 1.7), (0.016, 0.03, 0.04), skin, "head", rot=(0, 0, -0.25 * s), seg=10, rings=6)
+        Q.sphere(f"earin{s}", (0.132 * s, -0.004, 1.698), (0.006, 0.018, 0.026), lib.mat("EarIn", tuple(c * 0.72 for c in lib.hexrgb(PROFESSORS[who]["skin"])), 0.6), "head", rot=(0, 0, -0.25 * s), seg=8, rings=4)
     # arms: upper sleeve, a thick bell sleeve with a few pleats, cuff, and a mitt hand. A lining
     # disc closes the bell 6 cm above the opening, so a raised arm shows dark cloth instead of
     # the hollow tube; the mitt (wrist, flat palm, thumb) starts inside the cuff
@@ -146,8 +254,59 @@ def base_body(Q, M, who):
         Q.torus(f"cuff.{side}", (0.307 * s, 0, 0.965), 0.108, 0.012, trim, f"lowerarm.{side}", seg=16, minor=4)
         Q.cyl(f"sleevecap.{side}", (0.305 * s, 0, 1.02), 0.086, 0.086, 0.012, M["lining"], f"lowerarm.{side}", rot=(0, 0.03 * s, 0), verts=20)
         Q.cyl(f"wrist.{side}", (0.31 * s, -0.012, 0.985), 0.03, 0.028, 0.07, skin, f"lowerarm.{side}", verts=10)
-        Q.sphere(f"hand.{side}", (0.31 * s, -0.018, 0.918), (0.027, 0.046, 0.058), skin, f"lowerarm.{side}", seg=10, rings=6, subd=1)
-        Q.sphere(f"thumb.{side}", (0.29 * s, -0.05, 0.935), (0.015, 0.016, 0.032), skin, f"lowerarm.{side}", rot=(0.5, 0, 0), seg=8, rings=5, subd=1)
+        Q.sphere(f"hand.{side}", (0.31 * s, -0.018, 0.918), (0.027, 0.046, 0.058), skin, f"lowerarm.{side}", seg=12, rings=8)
+        Q.sphere(f"thumb.{side}", (0.29 * s, -0.05, 0.935), (0.015, 0.016, 0.032), skin, f"lowerarm.{side}", rot=(0.5, 0, 0), seg=8, rings=6)
+
+
+def dress(Q, M, who):
+    """Collar, buttons down the front, belt or sash, and a cape hung from the shoulders with a clasp."""
+    st = STYLE[who]
+    trim = M["trim"]
+    if st["collar"]:
+        top, flare = {"stand": (1.59, 0.0), "high": (1.635, 0.006), "flare": (1.645, 0.035)}[st["collar"]]
+        gap = math.radians(32 if st["collar"] != "flare" else 48)
+        rings = [(0.083 + flare, 0.083 + flare * 0.8, 0.012 * (flare > 0), top), (0.08, 0.08, 0.0, 1.55), (0.1, 0.095, 0.0, 1.5)]
+        shell(Q, "collar", trim, -math.pi + gap, math.pi - gap, rings, thick=0.008, cols=14, bone="chest")
+        if who == "snape":  # the white edge of his shirt collar
+            Q.torus("shirtcollar", (0, 0, 1.6), 0.058, 0.006, lib.mat("Collar", (0.92, 0.92, 0.9), 0.6), "head", seg=14, minor=4)
+    # a placket strip following the front of the body, with the buttons on it
+    zs = [1.47 - (1.47 - (H0 + 0.1)) * k / 9 for k in range(10)]
+    if who not in ("slughorn", "dumbledore", "hagrid"):
+        Q.strand("placket", [(0, front_y(z, who) - 0.003, z) for z in zs], 0.03, 0.03, trim, "chest",
+                 sides=4, flat=0.12, wide=(1, 0, 0), blend=("spine", 1.3, 1.2))
+    btn = lib.mat("Button", lib.hexrgb("#c9a44a" if st["clasp"] == "gold" or who in ("lockhart", "flitwick") else "#2a2a33"), 0.35, metal=0.6)
+    n = st["buttons"]
+    for i in range(n):
+        z = 1.45 - i * (0.5 if n < 8 else 0.62) / max(n - 1, 1)
+        if st["belt"] and abs(z - 1.12) < 0.04:
+            continue
+        r = 0.022 if who == "hagrid" else 0.012
+        Q.sphere(f"btn{i}", (0, front_y(z, who) - 0.008, z), (r, r * 0.7, r), btn, "chest" if z > 1.3 else "spine", seg=8, rings=4)
+    if st["belt"]:
+        R = 0.232 if who != "hagrid" else 0.236
+        Q.torus("belt", (0, 0, 1.12), R, 0.013, M["leather"], "spine", seg=28, minor=4, scale=(1, 1, 2.2))
+        Q.box("buckle", (0, -R - 0.014, 1.12), (0.064, 0.012, 0.054), M["gold"] if who != "moody" else M["metal"], "spine")
+        Q.box("buckleIn", (0, -R - 0.019, 1.12), (0.04, 0.006, 0.03), M["leather"], "spine")
+    if st["sash"]:
+        Q.torus("sash", (0, 0, 1.12), 0.236, 0.016, M["sash"], "spine", rot=(0, 0.08, 0), seg=28, minor=5, scale=(1, 1, 2.4))
+        Q.sphere("sashknot", (0.16, -0.18, 1.115), (0.035, 0.022, 0.03), M["sash"], "spine", seg=8, rings=5)
+        for k, dx in enumerate((0.0, 0.035)):
+            Q.strand(f"sashtail{k}", curve([(0.16 + dx, -0.19, 1.1), (0.175 + dx * 1.3, -0.2, 0.98), (0.17 + dx * 1.5, -0.215, 0.84 - 0.04 * k)], 6),
+                     0.022, 0.018, M["sash"], "spine", sides=4, flat=0.18, wide=(1, 0.2, 0))
+    if st["cloak"]:
+        cl = M["cloak"]
+        fold = lambda a, z: 0.012 * math.sin(7 * a + 1.3) * max(0.0, (1.3 - z) / 1.1)
+        rings = [(0.215, 0.15, 0.0, 1.535), (0.3, 0.2, 0.02, 1.47), (0.315, 0.24, 0.03, 1.38),
+                 (0.325, 0.29, 0.04, 1.1), (0.37, 0.35, 0.04, 0.62), (0.43, 0.42, 0.04, H0 + 0.12)]
+        span = math.radians(80)
+        shell(Q, "cloak", cl, -span, span, rings, thick=0.01, cols=22, bone="chest", blend=("spine", 1.38, 1.1), fold=fold)
+        # straps over the shoulders to a clasp on the chest
+        metal = M["gold"] if st["clasp"] == "gold" else M["metal"]
+        for s in (1, -1):
+            Q.strand(f"cloakstrap{s}", curve([(0.27 * s, 0.03, 1.5), (0.22 * s, -0.08, 1.545), (0.13 * s, -0.18, 1.52), (0.075 * s, -0.215, 1.49)], 7),
+                     0.02, 0.016, cl, "chest", sides=4, flat=0.3, wide=(0, 0, 1))
+            Q.cyl(f"clasp{s}", (0.068 * s, -0.222, 1.49), 0.022, 0.022, 0.01, metal, "chest", rot=(math.pi / 2, 0, 0), verts=12)
+        Q.strand("claspchain", curve([(-0.05, -0.226, 1.488), (0, -0.232, 1.475), (0.05, -0.226, 1.488)], 5), 0.004, 0.004, metal, "chest", sides=4)
 
 
 def face(Q, M, who):
@@ -155,49 +314,68 @@ def face(Q, M, who):
     strand eyebrows, mouth, blush."""
     ez = 1.722
     skin = M["skin"]
-    Q.sphere("browridge", head_pt(0, ez + 0.02, -0.011), (0.072, 0.024, 0.014), skin, "head", seg=8, rings=6, subd=1)
-    Q.sphere("bridge", head_pt(0, 1.706, -0.004), (0.013, 0.02, 0.03), skin, "head", seg=8, rings=6, subd=1)
-    Q.sphere("nose", head_pt(0, 1.684, 0.012), (0.019, 0.022, 0.019), skin, "head", seg=8, rings=6, subd=1)
+    Q.sphere("browridge", head_pt(0, ez + 0.02, -0.011), (0.072, 0.024, 0.014), skin, "head", seg=12, rings=6)
+    Q.sphere("bridge", head_pt(0, 1.706, -0.004), (0.013, 0.02, 0.03), skin, "head", seg=8, rings=6)
+    nose = {"slughorn": 1.25, "snape": 1.2, "hagrid": 1.3, "moody": 1.15, "flitwick": 1.1}.get(who, 1.0)
+    Q.sphere("nose", head_pt(0, 1.684, 0.012), (0.019 * nose, 0.022 * nose, 0.019 * nose), skin, "head", seg=8, rings=6, subd=1)
     for s in (1, -1):
-        Q.sphere(f"nostril{s}", head_pt(0.013 * s, 1.676, 0.004), (0.011, 0.013, 0.009), skin, "head", seg=6, rings=4, subd=1)
+        Q.sphere(f"nostril{s}", head_pt(0.013 * s, 1.676, 0.004), (0.011, 0.013, 0.009), skin, "head", seg=8, rings=5)
     brow_col = M["hair"] if who not in ("dumbledore", "flitwick") else lib.mat("BrowWhite", (0.9, 0.9, 0.9), 0.9)
     big = 1.3 if who == "trelawney" else 1.0  # magnified by her glasses
     for s in (1, -1):
         x = 0.045 * s
-        Q.sphere(f"eyew{s}", head_pt(x, ez, -0.004), (0.022 * big, 0.012, 0.017 * big), M["eye"], "head", seg=8, rings=6, subd=1)
         if who == "moody" and s == -1:
-            Q.sphere("magiceye", head_pt(x, ez, 0.006), (0.032, 0.02, 0.032), lib.mat("MagicEye", lib.hexrgb("#3fa9ff"), 0.2, emit=lib.hexrgb("#3fa9ff")), "head", seg=12, rings=8, subd=1)
-            Q.sphere("magicpupil", head_pt(x, ez, 0.024), (0.01, 0.005, 0.01), M["pupil"], "head", seg=8, rings=4)
-            Q.torus("magicring", head_pt(x, ez, 0.012), 0.036, 0.007, M["metal"], "head", rot=(math.pi / 2, 0, 0), seg=16, minor=5)
-            Q.box("strap", (0.0, -0.02, ez + 0.03), (0.25, 0.25, 0.012), M["dark"], "head", rot=(0, -0.45, 0))
-        else:
-            Q.sphere(f"iris{s}", head_pt(x, ez - 0.001, 0.005), (0.0115 * big, 0.004, 0.0115 * big), M["iris"], "head", seg=12, rings=6)
-            Q.sphere(f"pupil{s}", head_pt(x, ez - 0.001, 0.0075), (0.0055 * big, 0.003, 0.0055 * big), M["pupil"], "head", seg=8, rings=4)
-            Q.sphere(f"glint{s}", head_pt(x - 0.004, ez + 0.004, 0.0095), (0.0025, 0.0012, 0.0025), M["glint"], "head", seg=6, rings=4)
+            # the magical eye: a large pale eyeball with an electric-blue iris in a steel rim, on a leather strap
+            Q.sphere("magiceye", head_pt(x, ez, 0.004), (0.031, 0.022, 0.031), lib.mat("MagicEye", lib.hexrgb("#e4ecf0"), 0.15), "head", seg=14, rings=10)
+            Q.sphere("magiciris", head_pt(x + 0.004, ez, 0.022), (0.015, 0.005, 0.015), lib.mat("MagicIris", lib.hexrgb("#2f8fff"), 0.15, emit=lib.hexrgb("#2f8fff")), "head", seg=12, rings=6)
+            Q.sphere("magicpupil", head_pt(x + 0.004, ez, 0.026), (0.0065, 0.003, 0.0065), M["pupil"], "head", seg=8, rings=4)
+            Q.torus("magicring", head_pt(x, ez, 0.01), 0.034, 0.0055, M["metal"], "head", rot=(math.pi / 2, 0, 0), seg=18, minor=5)
+            moody_strap(Q, M, x, ez)
+            continue
+        Q.sphere(f"eyew{s}", head_pt(x, ez, -0.004), (0.022 * big, 0.012, 0.017 * big), M["eye"], "head", seg=12, rings=8)
+        # upper eyelid: a skin cap over the top of the eye, lower for the stern and the sleepy
+        lid = {"snape": 0.0, "mcgonagall": 0.002, "moody": 0.0, "slughorn": 0.001, "dumbledore": 0.004}.get(who, 0.006)
+        o = Q.sphere(f"lid{s}", head_pt(x, ez, -0.002), (0.025 * big, 0.0155, 0.02 * big), skin, "head", seg=14, rings=8)
+        cut_above(o, Q.T((0, 0, ez + lid * big))[2])
+        Q.sphere(f"iris{s}", head_pt(x, ez - 0.001, 0.005), (0.0115 * big, 0.004, 0.0115 * big), M["iris"], "head", seg=12, rings=6)
+        Q.sphere(f"pupil{s}", head_pt(x, ez - 0.001, 0.0075), (0.0055 * big, 0.003, 0.0055 * big), M["pupil"], "head", seg=8, rings=4)
+        Q.sphere(f"glint{s}", head_pt(x - 0.004, ez + 0.004, 0.0095), (0.0025, 0.0012, 0.0025), M["glint"], "head", seg=6, rings=4)
         # eyebrow: a flat tapered strand along the brow ridge, slanted per character
         tilt = 0.012 if who in ("snape", "mcgonagall") else (-0.006 if who in ("dumbledore", "hagrid", "slughorn") else 0.0)
         pts = [head_pt(s * (0.018 + 0.056 * k), ez + 0.039 + 0.008 * math.sin(math.pi * k) - tilt * (k - 0.5) * 2, 0.004) for k in (0, 0.33, 0.66, 1.0)]
         thick = 0.0085 if who in ("dumbledore", "hagrid", "moody", "slughorn") else 0.0055
         Q.strand(f"brow{s}", pts, thick, 0.002, brow_col, "head", sides=4, flat=0.45, wide=(0, 0, 1))
+    # mouth: a dark crease between an upper lip (a tapered bow) and a fuller lower lip; thin for the stern
+    thin = 0.55 if who in ("snape", "mcgonagall", "moody") else 1.0
+    wide = 1.25 if who == "lockhart" else 1.0
+    if who == "lockhart":  # the famous smile
+        Q.sphere("smile", head_pt(0, 1.645, -0.001), (0.034, 0.009, 0.008), M["teeth"], "head", seg=12, rings=6)
+    Q.box("mouth", head_pt(0, 1.646, 0.006), (0.05 * wide, 0.004, 0.0035), M["mouth"], "head")
+    up = [head_pt(s * 0.028 * wide * k, 1.649 + 0.004 * (1 - k) ** 2 + 0.002 * math.sin(math.pi * k), 0.008) for k, s in
+          ((1.0, -1), (0.55, -1), (0.0, 1), (0.55, 1), (1.0, 1))]
     if who == "lockhart":
-        Q.sphere("smile", head_pt(0, 1.645, 0.012), (0.056, 0.012, 0.03), M["teeth"], "head", seg=12, rings=6)
-        Q.box("smileline", head_pt(0, 1.645, 0.024), (0.085, 0.004, 0.003), M["mouth"], "head")
-    elif who in ("snape", "mcgonagall"):
-        Q.box("mouth", head_pt(0, 1.645, 0.0), (0.045, 0.01, 0.008), M["mouth"], "head")
-    else:
-        Q.sphere("mouth", head_pt(0, 1.646, 0.0), (0.03, 0.01, 0.009), M["mouth"], "head", seg=10, rings=4, subd=1)
+        up = [(q[0], q[1], q[2] + 0.004 * abs(q[0]) / 0.03) for q in up]
+    Q.strand("lipup", up, 0.0055 * thin, 0.0045 * thin, M["lip"], "head", sides=5, flat=0.6, wide=(0, 0, 1))
+    Q.sphere("liplow", head_pt(0, 1.638 - 0.004 * (who == "lockhart"), 0.003), (0.021 * wide, 0.009, 0.0075 * thin), M["lip"], "head", seg=12, rings=6)
     if who not in ("snape", "moody"):
         for s in (1, -1):
-            Q.sphere(f"blush{s}", head_pt(0.07 * s, 1.675, -0.002), (0.022, 0.008, 0.014), M["blush"], "head", seg=8, rings=4)
+            Q.sphere(f"blush{s}", head_pt(0.062 * s, 1.672, -0.0005), (0.028, 0.004, 0.017), M["blush"], "head", seg=10, rings=5)
+
+
+WAND_TILT = math.radians(35)  # the wand leaves the fist 35 degrees forward of the forearm, so the Point clip aims it level
 
 
 def wand(Q, M, side="R"):
+    """Wand gripped in the hand, running forward and down out of the fist; tip, silver ferrule and pommel."""
     s = 1 if side == "L" else -1
-    Q.cyl("wand", (0.31 * s, -0.17, 0.93), 0.009, 0.006, 0.3, M["wand"], f"lowerarm.{side}", rot=(math.pi / 2, 0, 0), verts=8)
-    Q.sphere("wandtip", (0.31 * s, -0.33, 0.93), (0.014, 0.014, 0.014), M["tip"], f"lowerarm.{side}", seg=8, rings=6)
-    # a little silver ferrule at the tip and a pommel at the handle end
-    Q.cyl("wandferrule", (0.31 * s, -0.31, 0.93), 0.0075, 0.0068, 0.03, M["metal"], f"lowerarm.{side}", rot=(math.pi / 2, 0, 0), verts=10)
-    Q.sphere("wandpommel", (0.31 * s, -0.02, 0.93), (0.012, 0.012, 0.012), M["metal"], f"lowerarm.{side}", seg=8, rings=6)
+    g = Vector((0.31 * s, -0.03, 0.915))
+    d = Vector((0, -math.sin(WAND_TILT), -math.cos(WAND_TILT)))
+    rot = Vector((0, 0, 1)).rotation_difference(d).to_euler()
+    at = lambda k: tuple(g + d * k)
+    Q.cyl("wand", at(0.095), 0.009, 0.006, 0.33, M["wand"], f"lowerarm.{side}", rot=rot, verts=8)
+    Q.cyl("wandferrule", at(0.245), 0.0075, 0.0068, 0.03, M["metal"], f"lowerarm.{side}", rot=rot, verts=10)
+    Q.sphere("wandtip", at(0.262), (0.013, 0.013, 0.013), M["tip"], f"lowerarm.{side}", seg=8, rings=6)
+    Q.sphere("wandpommel", at(-0.072), (0.012, 0.012, 0.012), M["metal"], f"lowerarm.{side}", seg=8, rings=6)
 
 
 def curve(ctrl, n):
@@ -360,6 +538,7 @@ def snape_hair(Q, M):
 
 def hagrid_hair(Q, M):
     hair = M["hair"]
+    hair_sheet(Q, "mane", hair, math.radians(-128), math.radians(128), 1.86, 1.6, (0.168, 0.162))
     Q.sphere("hair", (0, 0.06, 1.78), (0.17, 0.15, 0.13), hair, "head", seg=10, rings=6, subd=1)
     Q.sphere("beard", (0, -0.07, 1.55), (0.16, 0.12, 0.11), hair, "head", seg=10, rings=6, subd=1)
     for i in range(12):
@@ -383,6 +562,140 @@ def hagrid_hair(Q, M):
             wig = 0.014 * math.sin(t * 7 + k)
             ctrl.append((base[0] + out[0] * L * t + wig, base[1] + out[1] * L * t, base[2] + out[2] * L * t + wig * 0.5))
         Q.strand(f"wild{k}", curve(ctrl, 6), 0.018, 0.004, hair, "head", sides=4)
+
+
+def slughorn_hair(Q, M):
+    """Bald crown with a thin comb-over, a fuller fringe round the back above the ears, short sideburns,
+    and a big drooping walrus mustache over the mouth."""
+    hair = M["hair"]
+    for k in range(20):
+        a = math.radians(-112 + 224 * k / 19)  # 0 = back
+        sx, cy = math.sin(a), math.cos(a)
+        side = abs(sx)
+        ztop = 1.79 - 0.02 * side
+        zend = 1.745 if side > 0.8 else 1.635 + 0.015 * jit(k) + 0.06 * side
+        ctrl = [(0.112 * sx, 0.118 * cy, ztop), (0.13 * sx, 0.136 * cy + 0.006, (ztop + zend) / 2 + 0.01),
+                (0.137 * sx, 0.142 * cy + 0.012, zend + 0.012), (0.132 * sx, 0.138 * cy + 0.014, zend)]
+        Q.strand(f"fringe{k}", curve(ctrl, 6), 0.022, 0.005, hair, "head", sides=4, flat=0.4, wide=(cy, -sx, 0))
+    for s in (1, -1):  # sideburns in front of the ears
+        for k in range(3):
+            Q.strand(f"burn{s}{k}", curve([(0.118 * s, -0.025 - 0.012 * k, 1.75), (0.122 * s, -0.03 - 0.012 * k, 1.71), (0.12 * s, -0.03 - 0.014 * k, 1.665)], 5),
+                     0.011, 0.004, hair, "head", sides=4, flat=0.5, wide=(0, 1, 0))
+    for k in range(11):  # comb-over from a low parting on his left
+        y = -0.08 + 0.016 * k
+        xm = HEAD_R[0] * math.sqrt(max(0.0, 1 - ((y - HEAD_C[1]) / HEAD_R[1]) ** 2)) * 0.92
+        pts = [skull_pt(xm - 2 * xm * t, y + 0.01 * math.sin(math.pi * t), 0.0015) for t in (0, 0.25, 0.5, 0.75, 0.95)]
+        Q.strand(f"comb{k}", pts, 0.0045, 0.002, hair, "head", sides=4, flat=0.25, wide=(0, 1, 0))
+    for s in (1, -1):  # walrus mustache: thick locks from under the nose, drooping past the mouth corners
+        for k in range(8):
+            u = k / 7
+            pts = [head_pt(s * (0.004 + 0.02 * u), 1.668 - 0.002 * u, 0.017), head_pt(s * (0.02 + 0.034 * u), 1.657 - 0.004 * u, 0.026),
+                   head_pt(s * (0.028 + 0.046 * u), 1.636 - 0.01 * u, 0.022), head_pt(s * (0.03 + 0.05 * u), 1.616 - 0.014 * u + 0.004 * jit(k), 0.012)]
+            Q.strand(f"walrus{s}{k}", curve(pts, 6), 0.012, 0.003, hair, "head", sides=4, flat=0.6, wide=(0, 0, 1))
+
+
+def flitwick_hair(Q, M):
+    """White hair thin on top with wild tufts flaring over the ears, a curled white mustache and a pointed beard."""
+    hair = M["hair"]
+    Q.sphere("haircap", (0, 0.018, 1.76), (0.127, 0.128, 0.103), hair, "head", seg=12, rings=7)
+    for s in (1, -1):
+        for k in range(14):
+            a = math.radians(40 + 95 * (k % 7) / 6)  # from the back round the side, two layers
+            z0 = 1.74 + (0.05 if k >= 7 else 0.0) + 0.012 * math.sin(k * 1.7)
+            sx, cy = s * math.sin(a), math.cos(a)
+            base = (0.118 * sx, 0.118 * cy + 0.01, z0)
+            L = 0.055 + 0.015 * jit(k, s)
+            lift = 0.5 if k >= 7 else 0.15
+            ctrl = [base, (base[0] + sx * L * 0.5, base[1] + cy * L * 0.4, z0 + lift * L * 0.6),
+                    (base[0] + sx * L, base[1] + cy * L * 0.7 + 0.01 * jit(k, 5), z0 + lift * L * 0.5 - 0.01)]
+            Q.strand(f"tuft{s}{k}", curve(ctrl, 5), 0.022, 0.004, hair, "head", sides=4, flat=0.6, wide=(0, 0, 1))
+    for s in (1, -1):  # mustache, ends curled down
+        for k in range(4):
+            pts = [head_pt(s * (0.005 + 0.004 * k), 1.667 - 0.002 * k, 0.015), head_pt(s * (0.04 + 0.005 * k), 1.66 - 0.004 * k, 0.02),
+                   head_pt(s * (0.065 + 0.005 * k), 1.64 - 0.006 * k, 0.012), head_pt(s * (0.07 + 0.004 * k), 1.615 - 0.006 * k, 0.006)]
+            Q.strand(f"mst{s}{k}", curve(pts, 6), 0.0085, 0.002, hair, "head", sides=4, flat=0.6, wide=(0, 0, 1))
+    for k in range(11):  # pointed beard from the jaw to a tip below the chin
+        u = -1 + 2 * k / 10
+        root = head_pt(0.075 * u, 1.632 - 0.02 * (1 - u * u), -0.004)
+        ctrl = [root, (0.06 * u, root[1] - 0.025, 1.585), (0.03 * u, -0.15, 1.53), (0.006 * u, -0.155, 1.47 + 0.01 * abs(u))]
+        Q.strand(f"beard{k}", curve(ctrl, 6), 0.016, 0.002, hair, "head", sides=4, flat=0.6, wide=(1, 0, 0), blend=("chest", 1.58, 1.5))
+
+
+def lockhart_hair(Q, M):
+    """Voluminous wavy golden hair from a parting on his left: locks root along the parting, sweep over the skull
+    and down the sides with a wave and an outward flick at the collar; the front locks lift into a pompadour;
+    the back locks fall from the crown."""
+    hair = M["hair"]
+    Q.sphere("haircap", (0, 0.012, 1.765), (0.136, 0.134, 0.118), hair, "head", seg=14, rings=8)
+    i = 0
+    for s, n, phi1 in ((-1, 12, 1.95), (1, 8, 1.85)):  # his right side (more hair) and left side
+        for k in range(n):
+            u = k / (n - 1)
+            y0 = -0.1 + 0.16 * u
+            y1 = min(y0 + 0.14 - 0.05 * u, 0.09)
+            phi0 = -0.3 if s == -1 else 0.32
+            ctrl = []
+            for t in [j / 7 for j in range(8)]:
+                y = y0 + (y1 - y0) * t ** 1.2
+                kk = math.sqrt(max(0.08, 1 - (y / HEAD_R[1]) ** 2))
+                vol = 0.02 + 0.012 * math.sin(math.pi * t) + 0.007 * math.sin(5 * t + k) + 0.02 * t ** 4
+                if s == -1 and k < 4:
+                    vol += (0.04 - 0.009 * k) * math.exp(-(((t - 0.18) / 0.13) ** 2))  # the pompadour
+                phi = phi0 + (phi1 - phi0) * t
+                ctrl.append((s * (HEAD_R[0] * kk + vol) * math.sin(phi), y, HEAD_C[2] + (HEAD_R[2] * kk + vol) * math.cos(phi)))
+            Q.strand(f"wave{i}", curve(ctrl, 9), 0.032, 0.007, hair, "head", sides=4, flat=0.3, wide=(0, 1, 0))
+            i += 1
+    for k in range(9):  # back of the head, from the crown down to the collar
+        a = math.radians(-80 + 160 * k / 8)
+        sx, cy = math.sin(a), math.cos(a)
+        ctrl = [skull_pt(0.03 * sx, 0.05 + 0.02 * cy, 0.01), (0.12 * sx, 0.13 * cy + 0.03, 1.8), (0.15 * sx, 0.16 * cy + 0.03, 1.71),
+                (0.155 * sx + 0.008 * math.sin(k), 0.165 * cy + 0.035, 1.64), (0.175 * sx, 0.185 * cy + 0.045, 1.6)]
+        Q.strand(f"back{k}", curve(ctrl, 7), 0.034, 0.008, hair, "head", sides=4, flat=0.3, wide=(cy, -sx, 0))
+
+
+def moody_hair(Q, M):
+    """A long grizzled mane in two greys, uneven bangs, and scars across the face; a chunk out of the nose."""
+    hair, grey = M["hair"], lib.mat("HairGrey", lib.hexrgb("#5f5a52"), 0.9)
+    Q.sphere("haircap", (0, 0.015, 1.765), (0.133, 0.13, 0.115), hair, "head", seg=12, rings=8)
+    hair_sheet(Q, "manesheet", grey, math.radians(-118), math.radians(118), 1.85, 1.56, (0.158, 0.158))
+    for k in range(30):
+        a = math.radians(-138 + 276 * k / 29)
+        sx, cy = math.sin(a), math.cos(a)
+        side = abs(sx)
+        front = cy < -0.4
+        zend = (1.66 if front else 1.5 + 0.06 * side) + 0.03 * jit(k)
+        j1, j2 = 0.015 * jit(k, 1), 0.02 * jit(k, 2)
+        ctrl = [(0.04 * sx, 0.04 * cy, 1.865), (0.13 * sx, 0.125 * cy + 0.005, 1.81), (0.155 * sx + j1, 0.15 * cy + 0.02, 1.71),
+                (0.17 * sx + j2, 0.17 * cy + 0.045, 1.6), (0.18 * sx + j1 + j2, 0.18 * cy + 0.06, zend)]
+        if front:
+            ctrl = ctrl[:3] + [(0.16 * sx + j2, 0.155 * cy + 0.02, zend)]
+        Q.strand(f"mane{k}", curve(ctrl, 7), 0.03, 0.005, grey if k % 3 == 1 else hair, "head", sides=4, flat=0.3, wide=(cy, -sx, 0),
+                 blend=None if front else ("chest", 1.6, 1.52))
+    for k in range(6):  # ragged bangs that stop above the brows
+        x = -0.07 + 0.028 * k
+        ctrl = [(x * 0.5, -0.03, 1.875), (x * 0.9, -0.105, 1.85), head_pt(x * 1.05, 1.795 + 0.012 * jit(k, 4), 0.008)]
+        Q.strand(f"bang{k}", curve(ctrl, 5), 0.02, 0.004, grey if k % 2 else hair, "head", sides=4, flat=0.3, wide=(1, 0, 0))
+    scar = lib.mat("Scar", lib.hexrgb("#a8665a"), 0.6)
+    for i, ((x0, z0), (x1, z1)) in enumerate((((0.005, 1.805), (0.07, 1.75)), ((-0.03, 1.703), (0.03, 1.692)), ((0.05, 1.705), (0.088, 1.628)), ((-0.022, 1.615), (0.018, 1.597)), ((-0.075, 1.68), (-0.06, 1.62)))):
+        pts = [head_pt(x0 + (x1 - x0) * t + 0.003 * math.sin(9 * t), z0 + (z1 - z0) * t, 0.002 + 0.008 * (i == 1)) for t in (0, 0.33, 0.66, 1)]
+        Q.strand(f"scar{i}", pts, 0.0042, 0.0025, scar, "head", sides=4, flat=0.6)
+    Q.sphere("nosechunk", head_pt(0.014, 1.69, 0.024), (0.009, 0.007, 0.009), lib.mat("ScarDark", lib.hexrgb("#6a3a32"), 0.7), "head", seg=8, rings=5)
+
+
+def moody_strap(Q, M, x, ez):
+    """The leather strap of the magical eye: a loop on the head through the eye socket, running up across the
+    forehead to the far side of the crown and back under the near ear (like an eyepatch strap)."""
+    c = Vector(HEAD_C)
+    u = (Vector(head_pt(x, ez, 0.0)) - c).normalized()
+    v = Vector((0.7, 0.0, 1.0))
+    v = (v - u * v.dot(u)).normalized()
+    pts = []
+    for k in range(25):
+        t = math.radians(14 + (360 - 28) * k / 24)  # leave out the stretch behind the eye rim
+        dvec = u * math.cos(t) + v * math.sin(t)
+        r = 1 / math.sqrt((dvec.x / HEAD_R[0]) ** 2 + (dvec.y / HEAD_R[1]) ** 2 + (dvec.z / HEAD_R[2]) ** 2)
+        pts.append(tuple(c + dvec * (r + 0.006)))
+    Q.strand("eyestrap", pts, 0.0045, 0.0045, lib.mat("Leather", lib.hexrgb("#2a1d12"), 0.5), "head", sides=4, flat=0.5)
 
 
 def extras(Q, M, who):
@@ -415,7 +728,6 @@ def extras(Q, M, who):
         Q.cyl("hatbrim", (0, 0, 1.82), 0.3, 0.3, 0.015, hat, "head", verts=24)
         Q.cyl("hat", (0, 0.01, 2.07), 0.14, 0.0, 0.5, hat, "head", verts=16, rot=(-0.1, 0, 0))
         Q.torus("hatband", (0, 0, 1.84), 0.135, 0.012, M["trim"], "head", seg=16, minor=4)
-        Q.cyl("brooch", (0, -0.21, 1.47), 0.035, 0.035, 0.012, M["gold"], "chest", rot=(math.pi / 2, 0, 0), verts=10)
         wand(Q, M)
     elif who == "trelawney":
         trelawney_hair(Q, M)
@@ -431,50 +743,60 @@ def extras(Q, M, who):
         Q.sphere("crystal", (0.31, -0.08, 0.86), (0.1, 0.1, 0.1), lib.mat("Crystal", lib.hexrgb("#bfe3ff"), 0.05, emit=lib.hexrgb("#7fb2ff")), "lowerarm.L", seg=16, rings=10)
         wand(Q, M)
     elif who == "slughorn":
-        for s in (1, -1):
-            Q.sphere(f"sidehair{s}", (0.11 * s, 0.02, 1.71), (0.045, 0.08, 0.07), hair, "head", seg=10, rings=6)
-        Q.sphere("backhair", (0, 0.08, 1.68), (0.1, 0.05, 0.07), hair, "head", seg=10, rings=6)
-        for s in (1, -1):
-            Q.sphere(f"mustache{s}", head_pt(0.045 * s, 1.662, 0.016), (0.05, 0.022, 0.025), hair, "head", rot=(0, -0.35 * s, 0), seg=10, rings=6)
-            Q.sphere(f"droop{s}", head_pt(0.08 * s, 1.64, 0.008), (0.022, 0.018, 0.035), hair, "head", seg=8, rings=6)
+        slughorn_hair(Q, M)
+        # watch chain from the middle button to a waistcoat pocket
+        Q.strand("watchchain", curve([(0, front_y(1.0, who) - 0.008, 1.0), (0.09, front_y(0.96, who) + 0.02, 0.955), (0.18, -0.29, 0.99)], 7), 0.004, 0.004, M["gold"], "spine", sides=4)
+        Q.box("pocket", (0.19, -0.288, 1.0), (0.07, 0.012, 0.006), M["dark"], "spine", rot=(0, 0, 0.5))
+        # an hourglass in the left hand: wooden caps and posts round two glass cones, sand in the bottom one
+        wood, glass = lib.mat("Staff", lib.hexrgb("#4a3524"), 0.8), lib.mat("Glass", lib.hexrgb("#d8ecf4"), 0.05)
+        hx, hy = 0.31, -0.085
+        for z in (1.0, 0.86):
+            Q.cyl(f"hgcap{z}", (hx, hy, z), 0.042, 0.042, 0.012, wood, "lowerarm.L", verts=14)
+        for k in range(3):
+            a = k * math.tau / 3
+            Q.cyl(f"hgpost{k}", (hx + 0.034 * math.cos(a), hy + 0.034 * math.sin(a), 0.93), 0.004, 0.004, 0.14, wood, "lowerarm.L", verts=6)
+        Q.cyl("hgtop", (hx, hy, 0.96), 0.004, 0.03, 0.068, glass, "lowerarm.L", verts=14)
+        Q.cyl("hgbot", (hx, hy, 0.9), 0.03, 0.004, 0.068, glass, "lowerarm.L", verts=14)
+        Q.cyl("hgsand", (hx, hy, 0.882), 0.026, 0.012, 0.032, lib.mat("Sand", lib.hexrgb("#e2b04a"), 0.8), "lowerarm.L", verts=12)
         wand(Q, M)
     elif who == "snape":
         snape_hair(Q, M)
-        for i in range(8):
-            Q.sphere(f"btn{i}", (0, -0.212 - 0.005 * i, 1.46 - i * 0.075), (0.012, 0.01, 0.012), lib.mat("Button", lib.hexrgb("#2a2a33"), 0.4), "chest" if i < 3 else "spine", seg=6, rings=4)
         wand(Q, M)
     elif who == "lockhart":
-        Q.sphere("hair", (0, 0.01, 1.78), (0.145, 0.13, 0.11), hair, "head", seg=16, rings=10)
-        Q.sphere("quiff", (0, -0.07, 1.84), (0.12, 0.07, 0.06), hair, "head", rot=(0.4, 0, 0), seg=12, rings=8)
-        for s in (1, -1):
-            Q.sphere(f"wave{s}", (0.12 * s, 0.0, 1.7), (0.045, 0.1, 0.09), hair, "head", seg=10, rings=8)
-        Q.sphere("cravat", (0, -0.19, 1.5), (0.065, 0.04, 0.05), lib.mat("Cravat", lib.hexrgb("#f2e6ff"), 0.6), "chest", seg=10, rings=6)
-        Q.sphere("star", (0, -0.21, 1.4), (0.025, 0.008, 0.025), lib.mat("Star", lib.hexrgb("#ffd700"), 0.3, emit=lib.hexrgb("#ffd700")), "chest", seg=6, rings=4)
+        lockhart_hair(Q, M)
+        Q.sphere("cravat", (0, -0.2, 1.5), (0.06, 0.035, 0.045), lib.mat("Cravat", lib.hexrgb("#f2e6ff"), 0.6), "chest", seg=10, rings=6)
+        Q.sphere("star", (0, -0.222, 1.4), (0.025, 0.008, 0.025), lib.mat("Star", lib.hexrgb("#ffd700"), 0.3, emit=lib.hexrgb("#ffd700")), "chest", seg=6, rings=4)
         wand(Q, M)
     elif who == "moody":
-        for i in range(10):
-            a = math.pi * 0.1 + i / 9 * math.pi * 0.8
-            Q.sphere(f"shag{i}", (math.cos(a) * 0.13, math.sin(a) * 0.09 + 0.02, 1.74 + math.sin(a) * 0.05), (0.06, 0.06, 0.12), hair, "head", seg=8, rings=6)
-        scar = lib.mat("Scar", lib.hexrgb("#9c6a5a"), 0.7)
-        Q.box("scar1", head_pt(0.06, 1.68, 0.002), (0.05, 0.006, 0.006), scar, "head", rot=(0, 0.7, 0))
-        Q.box("scar2", head_pt(-0.03, 1.66, 0.003), (0.006, 0.006, 0.05), scar, "head", rot=(0, 0.3, 0))
-        Q.cyl("staff", (0.31, -0.06, 0.95), 0.022, 0.022, 1.9, lib.mat("Staff", lib.hexrgb("#4a3524"), 0.8), "lowerarm.L", verts=8)
-        Q.sphere("knob", (0.31, -0.06, 1.92), (0.04, 0.04, 0.04), lib.mat("Staff", lib.hexrgb("#4a3524"), 0.8), "lowerarm.L", seg=8, rings=6, subd=1)
+        moody_hair(Q, M)
+        staff = lib.mat("Staff", lib.hexrgb("#4a3524"), 0.8)
+        Q.cyl("staff", (0.31, -0.06, 0.95), 0.022, 0.022, 1.9, staff, "lowerarm.L", verts=8)
+        Q.sphere("knob", (0.31, -0.06, 1.92), (0.04, 0.04, 0.04), staff, "lowerarm.L", seg=8, rings=6, subd=1)
         Q.cyl("staffcap", (0.31, -0.06, 0.03), 0.026, 0.024, 0.06, M["metal"], "lowerarm.L", verts=10)
+        # wooden left leg ending in a clawed foot
+        Q.cyl("peg", (0.09, -0.03, 0.09), 0.028, 0.02, 0.15, staff, "root", verts=8)
+        for k in range(3):
+            a = (k - 1) * 0.5
+            Q.strand(f"claw{k}", curve([(0.09, -0.03, 0.03), (0.09 + 0.05 * math.sin(a), -0.03 - 0.05 * math.cos(a), 0.018), (0.09 + 0.08 * math.sin(a), -0.03 - 0.08 * math.cos(a), 0.004)], 5),
+                     0.012, 0.004, M["metal"], "root", sides=4)
+        # hip flask on the belt
+        Q.box("flask", (0.21, -0.13, 1.03), (0.05, 0.022, 0.085), M["metal"], "spine", rot=(0, 0, -0.55))
+        Q.cyl("flaskcap", (0.21, -0.13, 1.08), 0.01, 0.01, 0.02, M["dark"], "spine", verts=8)
         wand(Q, M)
     elif who == "flitwick":
+        flitwick_hair(Q, M)
+        bow = lib.mat("Bowtie", lib.hexrgb("#8a1f2a"), 0.6)
         for s in (1, -1):
-            Q.sphere(f"tuft{s}", (0.12 * s, 0.0, 1.75), (0.07, 0.08, 0.08), hair, "head", seg=10, rings=6)
-        Q.sphere("tufttop", (0, 0.02, 1.83), (0.08, 0.08, 0.05), hair, "head", seg=10, rings=6)
-        Q.box("mustache", head_pt(0, 1.663, 0.012), (0.13, 0.025, 0.02), hair, "head")
-        for s in (1, -1):
-            Q.cyl(f"mtip{s}", head_pt(0.07 * s, 1.62, 0.01), 0.022, 0.0, 0.09, hair, "head", rot=(math.pi, 0, 0), verts=8)
+            Q.sphere(f"bow{s}", (0.032 * s, -0.16, 1.535), (0.03, 0.012, 0.02), bow, "chest", rot=(0, 0, 0.2 * s), seg=8, rings=5)
+        Q.sphere("bowknot", (0, -0.168, 1.535), (0.012, 0.01, 0.013), bow, "chest", seg=8, rings=5)
+        # a book carried by its top edge in the left hand
+        Q.box("book", (0.31, -0.03, 0.83), (0.04, 0.15, 0.19), lib.mat("BookCover", lib.hexrgb("#1f3f7a"), 0.6), "lowerarm.L")
+        Q.box("bookpages", (0.31, -0.034, 0.83), (0.032, 0.148, 0.182), lib.mat("Pages", lib.hexrgb("#efe6cf"), 0.9), "lowerarm.L")
+        Q.box("bookband", (0.31, -0.03, 0.79), (0.042, 0.152, 0.012), M["gold"], "lowerarm.L")
         wand(Q, M)
     elif who == "hagrid":
         hagrid_hair(Q, M)
         # keep the eyes and nose clear of the beard: the beard sits below z=1.68
-        Q.box("belt", (0, -0.03, 1.12), (0.44, 0.44, 0.06), M["dark"], "spine")
-        Q.box("buckle", (0, -0.25, 1.12), (0.07, 0.02, 0.07), M["gold"], "spine")
         pink = lib.mat("Umbrella", lib.hexrgb("#f4a6c8"), 0.7)
         Q.cyl("ushaft", (-0.31, -0.08, 0.75), 0.008, 0.008, 0.75, M["wand"], "lowerarm.R", rot=(-0.12, 0, 0), verts=8)
         Q.cyl("ucanopy", (-0.31, -0.05, 0.62), 0.045, 0.012, 0.45, pink, "lowerarm.R", rot=(-0.12, 0, 0), verts=10)
@@ -499,10 +821,11 @@ def build_one(who, lod=1.0):
     lib.reset()
     p = PROFESSORS[who]
     s, w = p["height"] / 1.9, WIDE.get(who, 1.0)
-    M = materials(p)
+    M = materials(p, STYLE[who])
     P = lib.Parts(lod)
     Q = Sc(P, s, w)
     base_body(Q, M, who)
+    dress(Q, M, who)
     face(Q, M, who)
     extras(Q, M, who)
     mesh = P.join(f"Professor_{who}")
@@ -550,6 +873,25 @@ def animate(rig, who=""):
         A.key("head", "rotation_euler", f, (-0.1 * k, 0, 0))
         A.key("chest", "rotation_euler", f, (-0.05 * k, 0, 0))
     A.push("WandRaise")
+    # Point: 37 frames (1.2 s): from the idle pose the wand arm comes up and aims the wand level at the class
+    # (forearm about 60 degrees forward plus the 35 degree wand tilt), a small jab, then back to idle
+    for f, k, jab in ((1, 0, 0), (9, 0.85, 0), (13, 1, 0), (18, 1, 1), (24, 1, 0), (29, 0.85, 0), (37, 0, 0)):
+        A.key("upperarm.R", "rotation_euler", f, (0.25 + 0.5 * k + 0.08 * jab, 0, -0.12 * k))
+        A.key("lowerarm.R", "rotation_euler", f, (0.35 + 0.15 * k - 0.04 * jab, 0, 0))
+        A.key("upperarm.L", "rotation_euler", f, (0.05, 0, 0.04))
+        A.key("lowerarm.L", "rotation_euler", f, (0.15, 0, 0))
+        A.key("head", "rotation_euler", f, (0.04 * k + 0.03 * jab, 0, -0.08 * k))
+        A.key("chest", "rotation_euler", f, (0.02 * k, 0, -0.07 * k))
+    A.push("Point")
+    # Nod: 31 frames (1.0 s): two nods of the head with a slight bow of the chest, arms at idle
+    for f, k in ((1, 0), (7, 1), (13, 0.15), (19, 0.8), (25, 0.1), (31, 0)):
+        A.key("head", "rotation_euler", f, (0.24 * k, 0, 0))
+        A.key("chest", "rotation_euler", f, (0.04 * k, 0, 0))
+        A.key("upperarm.R", "rotation_euler", f, (0.25, 0, 0))
+        A.key("lowerarm.R", "rotation_euler", f, (0.35, 0, 0))
+        A.key("upperarm.L", "rotation_euler", f, (0.05, 0, 0.04))
+        A.key("lowerarm.L", "rotation_euler", f, (0.15, 0, 0))
+    A.push("Nod")
     bpy.context.scene.frame_start, bpy.context.scene.frame_end = 1, 120
 
 
@@ -569,6 +911,8 @@ def build(who, previews=True):
             ("Idle", 1, (0, 0, 1.7 * s), 0.75 * s + 0.15, 0, 0.0, "_face"),
             ("Lecture", 16, (0, 0, H * 0.55), H * 1.75 + 1.0, 20, 0.2, ""),
             ("WandRaise", 37, (0, 0, H * 0.6), H * 1.9 + 1.0, -45, 0.2, ""),
+            ("Point", 18, (0, 0, H * 0.6), H * 1.9 + 1.0, -70, 0.2, ""),
+            ("Nod", 7, (0, 0, 1.7 * s), 0.75 * s + 0.3, -60, 0.0, "_face"),
         ])
     return n, kb
 

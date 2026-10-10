@@ -34,3 +34,16 @@ body.egg-routing .dlg-next {
     box-shadow: -18px 0 0 #ff4fa355, 18px 0 0 #ff4fa3;
   }
 }
+
+/* Lisa's portrait before the speaker name (dialogue line field `avatar`) */
+.dlg-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid var(--ui-pink, #ff4fa3);
+  box-shadow: 0 0 14px rgba(255, 79, 163, 0.35);
+  flex: none;
+}
+.dlg-avatar + .dlg-speaker {
+  margin: 0 auto 0 12px;
+}
