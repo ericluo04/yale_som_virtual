@@ -20,8 +20,8 @@ const sunParam = Number(new URLSearchParams(typeof location === 'undefined' ? ''
 export const SUN = { color: '#fff4e2', intensity: sunParam || 5 }
 const CENTER = new THREE.Vector3((BOUNDS.xMin + EAST + BEIN.terrace) / 2, 0, (BOUNDS.zMin + BOUNDS.zMax) / 2)
 
-// Fit the orthographic shadow camera to the building box in light space, so the 2048 map
-// covers only the floor plate (about 5 cm per texel) and not empty sky.
+// Fit the orthographic shadow camera to the building box in light space, so the 1536 map
+// covers only the floor plate (about 7 cm per texel) and not empty sky.
 function fitShadow(light) {
   const cam = light.shadow.camera
   const view = new THREE.Matrix4().lookAt(light.position, light.target.position, new THREE.Vector3(0, 1, 0))
@@ -112,7 +112,7 @@ function ShadowSetup() {
 // Character shadows. A second, small depth map renders only CHAR_LAYER from the sun every frame:
 // 1024 px over a 40 m square that follows the camera (4 cm texels). Baked.jsx reads it in the
 // baked floors, lawn and walls and darkens the direct sun there, so characters in sunlight throw
-// real moving shadows without redrawing the 2048 static map. Characters standing in shade get
+// real moving shadows without redrawing the 1536 static map. Characters standing in shade get
 // nothing from it, which is right, since the sun does not reach them.
 const CHAR_SPAN = 40
 const CHAR_RES = 1024
@@ -201,7 +201,7 @@ function Sun() {
         color={SUN.color}
         intensity={SUN.intensity}
         castShadow={QUALITY !== 'low'}
-        shadow-mapSize={[2048, 2048]}
+        shadow-mapSize={[1536, 1536]} // 2048 cost 1 to 2 fps in the library at dpr 1.5 with no visible gain
         shadow-bias={-0.0004}
         shadow-normalBias={0.04}
         shadow-radius={3}
