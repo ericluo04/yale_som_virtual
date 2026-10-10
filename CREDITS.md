@@ -51,3 +51,5 @@ Downloaded at 1K, then compressed with glTF-Transform (WebP textures at 512 or 1
 No CC0 water cooler was found on Poly Haven, Kenney or Quaternius, so none is placed.
 
 The painted skyline on the distance wall, the facades, the street furniture, the low-poly ring trees and the terrace furniture are drawn in code (canvas and three.js primitives) and carry no third-party assets.
+
+The classroom whiteboard writing uses the Caveat typeface by Impallari Type, served by Google Fonts (https://fonts.google.com/specimen/Caveat), SIL Open Font License 1.1. The library's book spines, prints and reading lamps, and the level 4 offices, are drawn in code.
