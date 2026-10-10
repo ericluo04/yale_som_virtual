@@ -319,6 +319,10 @@ export const RECEPTION = { x: LIBRARY.x1 - 1.6, z: -2.4, w: 2.8, d: 0.8 }
 W([RECEPTION.x, RECEPTION.z - RECEPTION.w / 2], [RECEPTION.x, RECEPTION.z + RECEPTION.w / 2], 'none', { t: RECEPTION.d })
 export const SIGNAGE = STAIRS.filter((s) => s.id === 'A' || s.id === 'B').map((s) => ({ x: s.c[0], z: s.c[1] - Math.sign(s.c[1]) * (s.d / 2 + 0.03), rot: s.c[1] > 0 ? Math.PI : 0 }))
 
+// Beinecke: a full-height dark curtain on a curve just behind the mural (render/Props.jsx)
+export const BEIN_CURTAIN = { r: BEIN.muralR + 0.3, half: BEIN.muralHalf + 0.12 }
+P(arc(BEIN.c, BEIN_CURTAIN.r, BEIN_CURTAIN.r, Math.PI / 2 - BEIN_CURTAIN.half, Math.PI / 2 + BEIN_CURTAIN.half, 20), 'none', { t: 0.15 })
+
 // ---------- scenery (render/Scenery.jsx draws scanned CC0 models; colliders here)
 // more plants in front of the drums, between the counters and the doors
 export const PLANTS_EXTRA = [[-18.6, -25.3], [3.4, -25.3], [11.9, -25.3], [-18.5, 26.2], [3.5, 26.2], [11.5, 26.2], [-27.4, -22.6], [27.9, 22.4]]
@@ -330,8 +334,8 @@ for (const p of BINS) W(p, [p[0] + 0.01, p[1]], 'none', { t: 0.5 })
 // (two chairs north of the table, two south), clear of the desk chairs and the reception desk
 export const LOUNGES = [{ x: -28.0, z: -6.4 }, { x: -28.0, z: 6.4 }]
 for (const l of LOUNGES) W([l.x, l.z - 0.9], [l.x, l.z + 0.9], 'none', { t: 1.9 })
-// The library shelves, study desks and leather sofas, and the box chairs in the library and the
-// Beinecke room, are drawn as scanned models now. Their wall entries keep their colliders but stop
+// The library shelves, study desks and leather sofas, and the box chairs in the library, the
+// Beinecke room and the meeting rooms, are drawn as scanned models now. Their wall entries keep their colliders but stop
 // drawing (mat 'none'), and their box chairs leave CHAIRS (no other module reads those seats).
 {
   const { x0, x1, z0, z1 } = LIBRARY
@@ -341,6 +345,9 @@ for (const l of LOUNGES) W([l.x, l.z - 0.9], [l.x, l.z + 0.9], 'none', { t: 1.9 
     const c = CHAIRS[i]
     if (!c.room && (inLib(c.x, c.z) || c.x > EAST)) CHAIRS.splice(i, 1)
   }
+  // meeting-room box chairs give way to scanned office chairs too (render/Scenery.jsx reads m.seats)
+  const inMeet = (x, z) => MEETING.some((m) => Math.abs(x - m.x) < m.w / 2 && Math.abs(z - m.z) < m.d / 2)
+  for (let i = CHAIRS.length - 1; i >= 0; i--) if (!CHAIRS[i].room && inMeet(CHAIRS[i].x, CHAIRS[i].z)) CHAIRS.splice(i, 1)
 }
 
 // colliders with bounding boxes for fast rejection

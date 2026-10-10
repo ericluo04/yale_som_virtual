@@ -1,10 +1,12 @@
-import { Suspense, useMemo } from 'react'
+import { Suspense, useLayoutEffect, useMemo } from 'react'
+import { useThree } from '@react-three/fiber'
 import * as THREE from 'three'
-import { COUNTERS, RECEPTION, SIGNAGE, DRUMS, MEETING, LIBRARY, ellPt } from '../layout.js'
+import { COUNTERS, RECEPTION, SIGNAGE, DRUMS, MEETING, LIBRARY, STAIRS, BEIN, BEIN_CURTAIN, H, EAST, ellPt } from '../layout.js'
 import { slideTex, COURSE_KEYS } from '../slides.js'
 import Scenery, { METAL } from './Scenery.jsx'
 import Backdrop from './Backdrop.jsx'
 import { OFF } from './debugCam.js'
+import { pbr, worldUV } from './pbr.js'
 
 // Procedural props: high counters, a reception desk, signage screens and exit signs over drum
 // doors. Scanned models (plants, furniture, trees) live in Scenery.jsx, the view out in Backdrop.jsx.
@@ -93,22 +95,32 @@ function ExitSigns() {
 }
 
 // ---------- wayfinding: brushed-aluminium plates with a bevelled edge and a printed face
-// face drawn on a canvas at 512 px per metre so the type stays crisp up close
-function plateTex(w, h, draw) {
+// face drawn on a canvas at 512 px per metre so the type stays crisp up close. Inter comes from
+// Google Fonts (index.html); the face is drawn again once the font has arrived.
+const FONT = "Inter, Helvetica, Arial, sans-serif"
+function plateTex(w, h, draw, bg = '#2f3237') {
   const PX = 512
   const c = document.createElement('canvas')
   c.width = Math.round(w * PX)
   c.height = Math.round(h * PX)
   const g = c.getContext('2d')
-  g.fillStyle = '#2f3237'
-  g.fillRect(0, 0, c.width, c.height)
-  g.fillStyle = '#f4f3ef'
-  g.textBaseline = 'middle'
-  draw(g, c.width, c.height)
+  const paint = () => {
+    g.textAlign = 'left'
+    g.fillStyle = bg
+    g.fillRect(0, 0, c.width, c.height)
+    g.fillStyle = '#f4f3ef'
+    g.textBaseline = 'middle'
+    draw(g, c.width, c.height)
+  }
+  paint()
   const t = new THREE.CanvasTexture(c)
   t.colorSpace = THREE.SRGBColorSpace
   t.anisotropy = 8
   t.repeat.set(1 / w, 1 / h) // the extruded face's UVs are its shape coordinates in metres
+  document.fonts?.load(`700 40px Inter`).then(() => {
+    paint()
+    t.needsUpdate = true
+  })
   return t
 }
 const plateEdge = new THREE.MeshStandardMaterial({ color: '#aeb3b8', metalness: 0.8, roughness: 0.35 })
@@ -133,11 +145,11 @@ function plateGeo(w, h) {
   }
   return plateGeos.get(k)
 }
-function Plate({ p, rot, w, h, draw }) {
+function Plate({ p, rot, w, h, draw, bg }) {
   const mat = useMemo(() => {
-    const t = plateTex(w, h, draw) // UVs were generated before the geometry was centred
+    const t = plateTex(w, h, draw, bg) // UVs were generated before the geometry was centred
     return new THREE.MeshStandardMaterial({ map: t, roughness: 0.5, metalness: 0.1 })
-  }, [w, h, draw])
+  }, [w, h, draw, bg])
   return <mesh geometry={plateGeo(w, h)} material={[mat, plateEdge]} position={p} rotation={[0, rot, 0]} castShadow />
 }
 
@@ -157,40 +169,298 @@ function RoomPlates() {
   })
 }
 
-// directional signs: one destination per line, arrow on the side it points to
+// directional signs: a Yale-blue header over a white panel, one destination per line, arrow on
+// the side it points to. Sized to read from 3 m: cap height about 55 mm on the lines, the same
+// order as building wayfinding guidance (about 25 mm of letter height per metre of reading
+// distance, my reading of the usual rule of thumb).
+const YALE_BLUE = '#00356b'
 const ARROW = { left: '\u2190', right: '\u2192', up: '\u2191' }
-const dirSign = (lines) => (g, w, h) => {
-  const lh = h / lines.length
+const SIGN_W = 1.5
+const HEAD_H = 0.2
+const LINE_H = 0.2
+const dirSign = (lines, head = 'Level 2') => (g, w, h) => {
+  const hh = (HEAD_H / (HEAD_H + LINE_H * lines.length)) * h
+  g.fillStyle = YALE_BLUE
+  g.fillRect(0, 0, w, hh)
+  g.fillStyle = '#ffffff'
+  g.font = `700 ${hh * 0.46}px ${FONT}`
+  g.fillText(head, w * 0.05, hh * 0.54)
+  const lh = (h - hh) / lines.length
   lines.forEach(([dir, text], i) => {
-    const y = lh * (i + 0.5)
-    g.font = `${lh * 0.36}px Helvetica, Arial, sans-serif`
-    g.fillStyle = '#f4f3ef'
+    const y = hh + lh * (i + 0.5)
+    g.fillStyle = '#16181c'
+    g.font = `600 ${lh * 0.4}px ${FONT}`
     if (dir === 'right') {
       g.textAlign = 'right'
-      g.fillText(`${text}   ${ARROW.right}`, w * 0.94, y)
+      g.fillText(text, w * 0.84, y)
     } else {
       g.textAlign = 'left'
-      g.fillText(`${ARROW[dir]}   ${text}`, w * 0.06, y)
+      g.fillText(text, w * 0.16, y)
     }
+    g.textAlign = 'center'
+    g.fillStyle = YALE_BLUE
+    g.font = `700 ${lh * 0.5}px ${FONT}`
+    g.fillText(ARROW[dir], dir === 'right' ? w * 0.92 : w * 0.08, y)
     if (i) {
-      g.fillStyle = '#5a5e64'
-      g.fillRect(w * 0.04, lh * i - 1, w * 0.92, 2)
+      g.fillStyle = '#c4c7cc'
+      g.fillRect(w * 0.04, hh + lh * i - 2, w * 0.92, 4)
     }
   })
+  g.textAlign = 'left'
 }
+// centred where the old 1.0 m plates were, so the larger plates cover their baked contact shadows
 const SIGNS = [
   // library's north outer wall, read facing south: east (the library door, Beinecke) is on the left
-  { p: [-30.5, 2.1, LIBRARY.z0 - 0.105], rot: Math.PI, lines: [['left', 'Ross Library  2100'], ['left', 'Beinecke Terrace Room  2300']] },
+  { p: [-30.5, 2.0, LIBRARY.z0 - 0.105], rot: Math.PI, lines: [['left', 'Ross Library  2100'], ['left', 'Beinecke Terrace Room  2300']] },
   // library's south outer wall, read facing north: east is on the right
-  { p: [-28.2, 2.1, LIBRARY.z1 + 0.105], rot: 0, lines: [['right', 'Ross Library  2100'], ['right', 'Beinecke Terrace Room  2300']] },
+  { p: [-28.2, 2.0, LIBRARY.z1 + 0.105], rot: 0, lines: [['right', 'Ross Library  2100'], ['right', 'Beinecke Terrace Room  2300']] },
   // east column, read facing east toward the Beinecke door: north on the left, south on the right
-  { p: [26.36, 2.1, -3.8], rot: -Math.PI / 2, lines: [['up', 'Beinecke Terrace Room  2300'], ['left', 'Classrooms  2210 \u2013 2230'], ['right', 'Classrooms  2410 \u2013 2430']] },
+  { p: [26.36, 2.0, -3.8], rot: -Math.PI / 2, lines: [['up', 'Beinecke Terrace Room  2300'], ['left', 'Classrooms  2210 \u2013 2230'], ['right', 'Classrooms  2410 \u2013 2430']] },
 ]
 function DirectionSigns() {
   return SIGNS.map((sg, i) => {
-    const h = 0.17 * sg.lines.length
-    return <Plate key={i} p={sg.p} rot={sg.rot} w={1.0} h={h} draw={dirSign(sg.lines)} />
+    const h = HEAD_H + LINE_H * sg.lines.length
+    return <Plate key={i} p={sg.p} rot={sg.rot} w={SIGN_W} h={h} draw={dirSign(sg.lines)} bg="#f7f7f5" />
   })
+}
+
+// ---------- stair doors: a pair of painted steel leaves in a steel frame, each with a narrow
+// wired-glass vision panel and a horizontal push bar, plus a "Stair X" plate beside the frame.
+// The stair cores are baked (render/Baked.jsx), so this sits on top of the wall; the World's
+// flat opening picture (material key 'opening') is hidden.
+const doorMats = {
+  leaf: new THREE.MeshStandardMaterial({ color: '#d6d5d0', roughness: 0.45, metalness: 0.2, ...METAL, normalScale: new THREE.Vector2(0.15, 0.15) }),
+  frame: new THREE.MeshStandardMaterial({ color: '#8c9196', roughness: 0.35, metalness: 0.8 }),
+  vision: new THREE.MeshPhysicalMaterial({ color: '#4a5560', roughness: 0.08, metalness: 0.1, transparent: true, opacity: 0.55, envMapIntensity: 1.5 }),
+}
+const DOOR_W = 1.8 // clear width of the pair, as the opening it replaces
+const DOOR_H = 2.25
+const FR = 0.06 // frame face width
+const stairPlate = (id) => (g, w, h) => {
+  g.fillStyle = YALE_BLUE
+  g.fillRect(0, 0, w, h)
+  g.fillStyle = '#ffffff'
+  g.font = `700 ${h * 0.4}px ${FONT}`
+  g.fillText(`Stair ${id}`, w * 0.1, h * 0.38)
+  g.font = `500 ${h * 0.18}px ${FONT}`
+  g.fillText('Exit  \u00b7  Levels 1 \u2013 4', w * 0.1, h * 0.76)
+}
+function StairDoor({ s }) {
+  const ext = s.face[0] !== 0 ? s.w / 2 : s.d / 2
+  const off = ext + 0.1 // wall face: the core outline plus half the 0.2 m wall
+  const p = [s.c[0] + s.face[0] * off, 0, s.c[1] + s.face[1] * off]
+  const rot = Math.atan2(s.face[0], s.face[1])
+  const leafW = DOOR_W / 2 - 0.01
+  return (
+    <group position={p} rotation={[0, rot, 0]}>
+      {/* frame: two jambs and a head, proud of the wall */}
+      {[-1, 1].map((sx) => (
+        <mesh key={sx} geometry={box} material={doorMats.frame} position={[sx * (DOOR_W / 2 + FR / 2), (DOOR_H + FR) / 2, 0.03]} scale={[FR, DOOR_H + FR, 0.06]} castShadow />
+      ))}
+      <mesh geometry={box} material={doorMats.frame} position={[0, DOOR_H + FR / 2, 0.03]} scale={[DOOR_W + 2 * FR, FR, 0.06]} castShadow />
+      {[-1, 1].map((sx) => {
+        const cx = sx * (DOOR_W / 4)
+        return (
+          <group key={sx} position={[cx, 0, 0.025]}>
+            <mesh geometry={box} material={doorMats.leaf} position={[0, DOOR_H / 2, 0]} scale={[leafW, DOOR_H - 0.01, 0.04]} castShadow receiveShadow />
+            {/* vision panel near the meeting stiles, steel bead round it */}
+            <mesh geometry={box} material={doorMats.frame} position={[-sx * 0.2, 1.5, 0.021]} scale={[0.17, 0.66, 0.006]} />
+            <mesh geometry={box} material={doorMats.vision} position={[-sx * 0.2, 1.5, 0.025]} scale={[0.13, 0.62, 0.004]} />
+            {/* push bar: a steel tube on two end brackets */}
+            <mesh material={doorMats.frame} position={[0, 1.0, 0.075]} rotation={[0, 0, Math.PI / 2]} castShadow>
+              <cylinderGeometry args={[0.018, 0.018, leafW - 0.16, 14]} />
+            </mesh>
+            {[-1, 1].map((e) => (
+              <mesh key={e} geometry={box} material={doorMats.frame} position={[e * (leafW / 2 - 0.07), 1.0, 0.045]} scale={[0.05, 0.09, 0.06]} castShadow />
+            ))}
+            {/* kick plate */}
+            <mesh geometry={box} material={doorMats.frame} position={[0, 0.13, 0.021]} scale={[leafW - 0.04, 0.24, 0.004]} />
+          </group>
+        )
+      })}
+      <Plate p={[DOOR_W / 2 + FR + 0.28, 1.55, 0.012]} rot={0} w={0.44} h={0.2} draw={stairPlate(s.id)} bg={YALE_BLUE} />
+    </group>
+  )
+}
+function StairDoors() {
+  const { scene, gl } = useThree()
+  useLayoutEffect(() => {
+    const hidden = []
+    scene.traverse((o) => {
+      if (o.isMesh && o.material?.userData?.key === 'opening') {
+        o.visible = false
+        hidden.push(o)
+      }
+    })
+    gl.shadowMap.needsUpdate = true
+    return () => hidden.forEach((o) => (o.visible = true))
+  }, [scene, gl])
+  return STAIRS.map((s) => <StairDoor key={s.id} s={s} />)
+}
+
+// ---------- Beinecke Terrace Room: a dark curtain wall behind the mural (photos 16, 17) and slim
+// silver mullions with one transom on the room's glass
+const texLoader = new THREE.TextureLoader()
+const fabricTex = (file, rx, ry) => {
+  const t = texLoader.load(`${import.meta.env.BASE_URL}scenery/tex/${file}`)
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  t.repeat.set(rx, ry)
+  t.anisotropy = 8
+  return t
+}
+// ambientCG Fabric 030 weave; the folds are in the geometry
+const curtainMat = new THREE.MeshStandardMaterial({
+  color: '#232a40', roughness: 1, side: THREE.DoubleSide,
+  normalMap: fabricTex('fabric_normal.jpg', 1, 1), roughnessMap: fabricTex('fabric_rough.jpg', 1, 1), normalScale: new THREE.Vector2(0.6, 0.6),
+})
+function curtainGeo() {
+  const { r, half } = BEIN_CURTAIN
+  const a0 = Math.PI / 2 - half
+  const span = 2 * half
+  const FOLD = 0.2 // pleat spacing along the curtain, m
+  const AMP = 0.035 // pleat depth, m
+  const n = Math.ceil((span * r) / FOLD) * 8
+  const top = H - 0.04
+  const pos = []
+  const uv = []
+  const idx = []
+  for (let i = 0; i <= n; i++) {
+    const th = a0 + (span * i) / n
+    const arcLen = (th - a0) * r
+    const rr = r + AMP * Math.sin((arcLen / FOLD) * Math.PI * 2)
+    const x = BEIN.c[0] + rr * Math.sin(th)
+    const z = BEIN.c[1] + rr * Math.cos(th)
+    pos.push(x, 0, z, x, top, z)
+    uv.push(arcLen / 0.6, 0, arcLen / 0.6, top / 0.6) // weave tiles every 0.6 m
+    if (i < n) {
+      const k = i * 2
+      idx.push(k, k + 2, k + 1, k + 1, k + 2, k + 3)
+    }
+  }
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
+  g.setIndex(idx)
+  g.computeVertexNormals()
+  return g
+}
+const mullionMat = new THREE.MeshStandardMaterial({ color: '#b4bbc1', metalness: 0.85, roughness: 0.3 })
+// vertical mullions about 1.6 m apart (photo 16) and a transom at 4.6 m, on the curved glass and
+// on the straight glass toward the concourse
+function beinMullions() {
+  const { c, r, doorGap } = BEIN
+  const out = []
+  const TRANSOM = 4.6
+  const curve = (t0, t1) => {
+    const n = Math.max(1, Math.round(((t1 - t0) * r) / 1.6))
+    for (let i = 0; i <= n; i++) {
+      const th = t0 + ((t1 - t0) * i) / n
+      const [x, z] = ellPt(c, r - 0.08, r - 0.08, th)
+      out.push({ p: [x, H / 2, z], r: th, s: [0.05, H, 0.1] })
+      if (i < n) {
+        const tm = th + (t1 - t0) / n / 2
+        const [mx, mz] = ellPt(c, r - 0.08, r - 0.08, tm)
+        const chord = 2 * (r - 0.08) * Math.sin((t1 - t0) / n / 2)
+        out.push({ p: [mx, TRANSOM, mz], r: tm, s: [chord, 0.06, 0.08] })
+      }
+    }
+  }
+  curve(0, Math.PI / 2 - doorGap)
+  curve(Math.PI / 2 + doorGap, Math.PI)
+  for (const [z0, z1] of [[-r, -1.3], [1.3, r]]) {
+    const n = Math.round((z1 - z0) / 1.6)
+    for (let i = 0; i <= n; i++) {
+      const z = z0 + ((z1 - z0) * i) / n
+      out.push({ p: [EAST + 0.08, H / 2, z], r: 0, s: [0.1, H, 0.05] })
+      if (i < n) out.push({ p: [EAST + 0.08, TRANSOM, z + (z1 - z0) / n / 2], r: 0, s: [0.08, 0.06, (z1 - z0) / n] })
+    }
+  }
+  return out
+}
+function Boxes({ items, material }) {
+  const geo = useMemo(() => {
+    const g = box.clone()
+    const m = new THREE.Matrix4()
+    const q = new THREE.Quaternion()
+    const up = new THREE.Vector3(0, 1, 0)
+    return { g, set: (mesh) => {
+      if (!mesh) return
+      items.forEach((it, i) => mesh.setMatrixAt(i, m.compose(new THREE.Vector3(...it.p), q.setFromAxisAngle(up, it.r), new THREE.Vector3(...it.s))))
+      mesh.instanceMatrix.needsUpdate = true
+      mesh.computeBoundingSphere()
+    } }
+  }, [items])
+  return <instancedMesh ref={geo.set} args={[geo.g, material, items.length]} castShadow receiveShadow />
+}
+function Beinecke() {
+  const curtain = useMemo(curtainGeo, [])
+  const mullions = useMemo(beinMullions, [])
+  return (
+    <>
+      <mesh geometry={curtain} material={curtainMat} receiveShadow />
+      <Boxes items={mullions} material={mullionMat} />
+    </>
+  )
+}
+
+// ---------- meeting rooms: a white table, 2.6 x 1.1 m with a 4 cm top, on two dark steel T-legs,
+// in place of the World's glass slab and its four box legs (hidden here)
+const tableMats = {
+  top: new THREE.MeshStandardMaterial({ color: '#f3f2ee', roughness: 0.35 }),
+  leg: new THREE.MeshStandardMaterial({ color: '#3a3d42', metalness: 0.7, roughness: 0.35 }),
+}
+const meetTops = MEETING.map((m) => ({ p: [m.x, 0.72, m.z], r: 0, s: [2.6, 0.04, 1.1] }))
+const meetLegs = MEETING.flatMap((m) =>
+  [-0.95, 0.95].flatMap((dx) => [
+    { p: [m.x + dx, 0.35, m.z], r: 0, s: [0.07, 0.7, 0.07] }, // post
+    { p: [m.x + dx, 0.015, m.z], r: 0, s: [0.08, 0.03, 0.85] }, // foot
+    { p: [m.x + dx, 0.68, m.z], r: 0, s: [0.06, 0.04, 0.9] }, // top rail
+  ]),
+)
+function MeetingTables() {
+  const { scene, gl } = useThree()
+  useLayoutEffect(() => {
+    const hidden = []
+    scene.traverse((o) => {
+      if (!o.isInstancedMesh) return
+      const k = o.material?.userData?.key
+      // the glass tops, and the box legs: the only mullion-material instance set with 4 per room
+      if (k === 'tableGlass' || (k === 'mullion' && o.count === MEETING.length * 4)) {
+        o.visible = false
+        hidden.push(o)
+      }
+    })
+    gl.shadowMap.needsUpdate = true
+    return () => hidden.forEach((o) => (o.visible = true))
+  }, [scene, gl])
+  return (
+    <>
+      <Boxes items={meetTops} material={tableMats.top} />
+      <Boxes items={meetLegs} material={tableMats.leg} />
+    </>
+  )
+}
+
+// ---------- library: a plaster wall behind the west shelf run, floor to ceiling, so the 2.5 m
+// shelves stand against a wall and not in front of open sky; and study tables with a 4 cm top on
+// slim legs in place of the scanned Wooden Table 02 (its top read toy-thick)
+const plaster = pbr('plaster', { color: false })
+const libWallMat = worldUV(new THREE.MeshStandardMaterial({ color: '#f2f0ec', roughness: 1, ...plaster, normalScale: new THREE.Vector2(0.35, 0.35) }), 0.5)
+const libWall = [{ p: [LIBRARY.x0 + 0.06, H / 2, (LIBRARY.z0 + LIBRARY.z1) / 2], r: 0, s: [0.08, H, LIBRARY.z1 - LIBRARY.z0] }]
+const LIB_DESK_X = LIBRARY.x1 - 4 // matches the desk colliders in layout.js
+const libTops = [-8, -4, 4, 8].map((z) => ({ p: [LIB_DESK_X, 0.74, z], r: 0, s: [0.9, 0.04, 2.2] }))
+const libLegs = [-8, -4, 4, 8].flatMap((z) => [
+  ...[-1, 1].flatMap((sx) => [-1, 0, 1].map((k) => ({ p: [LIB_DESK_X + sx * 0.41, 0.36, z + k * 1.06], r: 0, s: [0.04, 0.72, 0.04] }))),
+  ...[-1, 1].map((sx) => ({ p: [LIB_DESK_X + sx * 0.41, 0.69, z], r: 0, s: [0.03, 0.06, 2.1] })), // aprons
+])
+function Library() {
+  return (
+    <>
+      <Boxes items={libWall} material={libWallMat} />
+      <Boxes items={libTops} material={tableMats.top} />
+      <Boxes items={libLegs} material={tableMats.top} />
+    </>
+  )
 }
 
 export default function Props() {
@@ -204,6 +474,10 @@ export default function Props() {
       <ExitSigns />
       <RoomPlates />
       <DirectionSigns />
+      <StairDoors />
+      <Beinecke />
+      <MeetingTables />
+      <Library />
       <Suspense fallback={null}>
         {!OFF.has('scenery') && <Scenery />}
         {!OFF.has('backdrop') && <Backdrop />}
