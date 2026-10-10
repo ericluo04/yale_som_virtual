@@ -14,16 +14,21 @@ import { useStore } from './interact/store.js'
 import InteractUI from './ui/InteractUI.jsx'
 import EggsA from './eggs/eggsA.jsx'
 import EggsB from './eggs/eggsB.jsx'
-import Loading, { LoadingProbe } from './ui/Loading.jsx'
+import Loading, { LoadingProbe, useLoaded } from './ui/Loading.jsx'
 
 export default function App() {
   const [locked, setLocked] = useState(false)
   const [where, setWhere] = useState('')
   const [showMap, setShowMap] = useState(true)
-  // high quality starts at dpr 1 and climbs toward 2 in 0.1 steps while the frame rate holds
-  // at the display rate; after three up-down flips it settles at 1. Post-processing at dpr 2
-  // is about 30 fps on an M1 at 1440x900.
-  const [dpr, setDpr] = useState(DPR ?? 1)
+  // high quality starts at the display's pixel ratio (capped at 2) and steps down a tier
+  // (2, 1.5, 1) when the frame rate sits under the lower bound for 75% of a 3 s window; it
+  // steps back up after a 3 s window at the display rate. After two up-down flips it settles
+  // on the lower tier, so a machine that holds 2 keeps 2 and one that cannot stops searching.
+  const [tiers] = useState(() => [2, 1.5, 1].filter((t) => t <= Math.max(1, Math.min(2, window.devicePixelRatio || 1))))
+  const [tier, setTier] = useState(0)
+  const worstTier = useRef(0)
+  const dpr = DPR ?? tiers[tier]
+  const loaded = useLoaded()
   const lockRef = useRef()
   const mapRef = useRef()
   const onLock = useCallback((v) => setLocked(v), [])
@@ -68,8 +73,22 @@ export default function App() {
         <LoadingProbe />
         {/* N8AO keeps stale half-res buffers across a pixel-ratio change, so the chain remounts */}
         <Effects key={dpr} />
-        {QUALITY !== 'low' && !DPR && (
-          <PerformanceMonitor factor={0} step={0.1} flipflops={3} bounds={() => [52, 59]} onChange={({ factor }) => setDpr(1 + factor)} onFallback={() => setDpr(1)} />
+        {QUALITY !== 'low' && !DPR && loaded && tiers.length > 1 && (
+          <PerformanceMonitor
+            ms={250}
+            iterations={12}
+            flipflops={2}
+            bounds={(hz) => [Math.min(50, hz * 0.83), hz - 3]}
+            onDecline={() =>
+              setTier((t) => {
+                const next = Math.min(t + 1, tiers.length - 1)
+                worstTier.current = Math.max(worstTier.current, next)
+                return next
+              })
+            }
+            onIncline={() => setTier((t) => Math.max(t - 1, 0))}
+            onFallback={() => setTier(worstTier.current)}
+          />
         )}
         {STATS && <Stats />}
       </Canvas>

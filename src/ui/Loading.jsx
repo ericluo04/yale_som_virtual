@@ -26,6 +26,9 @@ const LINES = [
 // idle: no load in flight for 400 ms; ready: shaders compiled and two frames rendered since
 const gate = createStore({ idle: false, ready: false })
 
+// true once the loading panel has left (the scene is compiled and on screen)
+export const useLoaded = () => useStore(gate, (s) => s.ready)
+
 // Inside the Canvas: once loading is idle, compile every material against the camera so the
 // first walk-in frame does not stall, then let two frames render before releasing the panel.
 export function LoadingProbe() {

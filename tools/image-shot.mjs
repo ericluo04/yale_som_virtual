@@ -10,6 +10,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 const [outDir, tag = 'shot', base = 'http://localhost:5193/', extra = ''] = process.argv.slice(2)
+// SCALE=2 renders like the M1's retina panel (devicePixelRatio 2), so the dpr search starts at 2
+const SCALE = Number(process.env.SCALE) || 1
 if (!outDir) throw new Error('usage: node tools/image-shot.mjs <outDir> <tag> [base] [extraQuery]')
 fs.mkdirSync(outDir, { recursive: true })
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
@@ -34,7 +36,7 @@ const browser = await puppeteer.launch({
   executablePath: CHROME,
   headless: 'new',
   args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--window-size=1440,900'],
-  defaultViewport: { width: 1440, height: 900, deviceScaleFactor: 1 },
+  defaultViewport: { width: 1440, height: 900, deviceScaleFactor: SCALE },
 })
 
 async function measure(page, seconds = 6) {
@@ -63,12 +65,18 @@ for (const name of pick) {
   const q = `?cam=${SHOTS[name]}&hud=0&nolock=1&quality=high${extra ? '&' + extra : ''}`
   await page.goto(base + q, { waitUntil: 'load', timeout: 120000 })
   await page.waitForFunction(() => document.body.dataset.ready, { timeout: 120000 })
-  await new Promise((r) => setTimeout(r, 9000)) // dpr search and shadow frames settle
+  // dpr search and shadow frames settle; the pixel ratio is sampled once a second
+  const trace = []
+  const settle = Number(process.env.SETTLE) || 9000
+  for (let t = 0; t < settle; t += 1000) {
+    await new Promise((r) => setTimeout(r, 1000))
+    trace.push(await page.evaluate(() => window.__three?.gl.getPixelRatio?.() ?? null))
+  }
   const fps = await measure(page)
   const dpr = await page.evaluate(() => window.__three?.gl.getPixelRatio?.() ?? null)
   const file = path.join(outDir, `${tag}-${name}.png`)
   await page.screenshot({ path: file })
-  results.push({ name, fps, dpr, file, errors: errors.slice(0, 3) })
+  results.push({ name, fps, dpr, trace: trace.join(' '), file, errors: errors.slice(0, 3) })
   await page.close()
 }
 
