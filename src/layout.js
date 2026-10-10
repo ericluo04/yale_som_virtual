@@ -210,6 +210,19 @@ export const LECTERNS = []
 export const DESK_SURFACES = []
 const DESK_DEPTH = 0.254 // half the desk's depth, front lip to back panel (DeskTops' profile)
 const DESK_TOP = 0.962 // the leather writing strip's top above the riser
+// Chairs per row, front to back, as at 267b2fa (Lan, round 4: "kept as before really like more rows
+// and width"). Each row keeps the desks nearest the centre aisle, the same desks 267b2fa placed; the
+// drums are sized so every one of them fits (see DRUMS).
+const SEAT_ROWS = {
+  2400: [8, 12, 16, 24, 28, 32, 36],
+  2410: [8, 12, 16, 16, 16, 16, 12, 12, 8],
+  2420: [8, 12, 16, 16, 16, 16, 12, 12, 8],
+  2430: [8, 12, 16, 16, 16, 16, 12, 12, 8],
+  2200: [8, 12, 16, 20, 24, 20],
+  2210: [8, 12, 16, 20, 16],
+  2220: [8, 12, 16, 20, 16],
+  2230: [8, 12, 16, 20, 16],
+}
 for (const d of DRUMS) {
   const { c, rx, rz, gap, dir, doors, arcs } = d
   for (const [a0, a1] of arcs) {
@@ -255,14 +268,18 @@ for (const d of DRUMS) {
   const inside = (q) => ((q[0] - c[0]) / fx) ** 2 + ((q[1] - c[1]) / fz) ** 2 <= 1
   let i = 0
   const rings = []
-  for (let r = ROW0; r < rIn * FRONT_DEPTH + rOut - FOCUS; r += ROW_STEP) {
+  const plan = SEAT_ROWS[d.id]
+  for (let r = ROW0; i < plan.length && r < rIn * FRONT_DEPTH + rOut - FOCUS; r += ROW_STEP) {
     const y = i * RISE
     let placed = 0
     const rowTh = []
     // desks march out from both sides of a clear center aisle (the steps)
     const angles = []
     for (let sArc = AISLE_HALF + 0.6; sArc / r <= 1.35; sArc += 1.25) angles.push(sArc / r, -sArc / r)
+    const perSide = plan[i] / 4 // two chairs a desk, two sides
+    const taken = { 1: 0, '-1': 0 }
     for (const th of angles) {
+      if (taken[Math.sign(th)] >= perSide) continue
       const ux = [Math.cos(th) * back[0] + Math.sin(th) * t[0], Math.cos(th) * back[1] + Math.sin(th) * t[1]]
       const p = [F[0] + ux[0] * r, F[1] + ux[1] * r]
       const tg = [-Math.sin(th) * back[0] + Math.cos(th) * t[0], -Math.sin(th) * back[1] + Math.cos(th) * t[1]]
@@ -270,6 +287,7 @@ for (const d of DRUMS) {
       const foot = [[-0.6, -0.25], [0.6, -0.25], [-0.6, 0.25], [0.6, 0.25], [-0.55, 0.95], [0.55, 0.95]]
       if (!foot.every(([a, b]) => inside([p[0] + tg[0] * a + ux[0] * b, p[1] + tg[1] * a + ux[1] * b]))) continue
       if (doorPts.some((q) => Math.hypot(p[0] - q[0], p[1] - q[1]) < 2.2)) continue
+      taken[Math.sign(th)]++
       W([p[0] - tg[0] * 0.6, p[1] - tg[1] * 0.6], [p[0] + tg[0] * 0.6, p[1] + tg[1] * 0.6], 'desk', { h: 0.95, t: 0.5, y0: y })
 
       for (const s of [-0.3, 0.3]) {
