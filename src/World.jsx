@@ -929,6 +929,55 @@ function Drums({ M }) {
   })
 }
 
+// Whiteboards: an aluminium frame, a glossy face with the course's marker notes (textures.js
+// whiteboardTex), and a tray with three markers and an eraser along the bottom edge.
+const MARKER_INK = ['#1d2129', '#1f4fa8', '#c0392b']
+function Whiteboards({ M }) {
+  const parts = useMemo(() => {
+    const faces = BOARDS.map((b, i) => {
+      const mat = new THREE.MeshStandardMaterial({ map: T.whiteboardTex(DRUMS[i].course, b.w, 1.0), roughness: 0.12, metalness: 0, envMapIntensity: 1.2 })
+      return { b, mat }
+    })
+    const tray = []
+    const eraser = []
+    const markers = [[], [], []]
+    BOARDS.forEach((b, i) => {
+      const back = DRUMS[i].front.back
+      const t = [-back[1], back[0]]
+      const at = (along, out, y) => [b.x + t[0] * along + back[0] * out, y, b.z + t[1] * along + back[1] * out]
+      tray.push({ p: at(0, 0.06, 0.93), r: b.rot, s: [Math.min(b.w * 0.5, 2.4), 0.025, 0.09] })
+      eraser.push({ p: at(-0.5, 0.07, 0.965), r: b.rot, s: [0.15, 0.04, 0.055] })
+      for (let k = 0; k < 3; k++) markers[k].push({ p: at(0.1 + k * 0.17, 0.07, 0.957), r: b.rot })
+    })
+    return { faces, tray, eraser, markers }
+  }, [])
+  const mats = useMemo(() => ({
+    eraser: new THREE.MeshStandardMaterial({ color: '#2b2f36', roughness: 0.8 }),
+    markers: MARKER_INK.map((color) => new THREE.MeshStandardMaterial({ color, roughness: 0.4 })),
+  }), [])
+  // a marker lies along the tray: a 12 cm cylinder, axis along the board
+  const markerGeo = useMemo(() => new THREE.CylinderGeometry(0.009, 0.009, 0.12, 10).rotateZ(Math.PI / 2), [])
+  return (
+    <>
+      {parts.faces.map(({ b, mat }, i) => (
+        <group key={i} position={[b.x, 1.45, b.z]} rotation={[0, b.rot, 0]}>
+          <mesh material={M.silver}>
+            <boxGeometry args={[b.w + 0.05, 1.05, 0.035]} />
+          </mesh>
+          <mesh material={mat} position={[0, 0, 0.019]}>
+            <planeGeometry args={[b.w, 1.0]} />
+          </mesh>
+        </group>
+      ))}
+      <Instanced items={parts.tray} material={M.silver} geometry={BOX} noCast />
+      <Instanced items={parts.eraser} material={mats.eraser} geometry={BOX} noCast />
+      {parts.markers.map((items, k) => (
+        <Instanced key={k} items={items} material={mats.markers[k]} geometry={markerGeo} noCast />
+      ))}
+    </>
+  )
+}
+
 function ClassroomStuff({ M }) {
   const chairs = useMemo(() => CHAIRS.map((c) => ({ p: [c.x, c.y || 0, c.z], r: c.rot })), [])
   return (
@@ -940,11 +989,7 @@ function ClassroomStuff({ M }) {
       {SCREENS.map((s, i) => (
         <Plane key={i} p={[s.x, 2.95, s.z]} rot={s.rot} w={2.1} h={1.18} material={slideMat(s.course, s.kind)} />
       ))}
-      {BOARDS.map((b, i) => (
-        <mesh key={i} position={[b.x, 1.45, b.z]} rotation={[0, b.rot, 0]} material={M.board}>
-          <boxGeometry args={[b.w, 1.0, 0.04]} />
-        </mesh>
-      ))}
+      <Whiteboards M={M} />
       {LECTERNS.map((l, i) => (
         <mesh key={i} position={[l.x, 0.55, l.z]} rotation={[0, l.rot, 0]} material={M.dark}>
           <boxGeometry args={[0.7, 1.1, 0.5]} />

@@ -620,3 +620,224 @@ export function libraryPrintTex(kind) {
   }
   return tex(c)
 }
+
+// ---------- classroom whiteboards: marker notes and a small diagram per course, in a handwriting
+// font (Caveat, loaded in index.html). The canvas draws at once with a cursive fallback and
+// redraws when the font arrives.
+const BOARD_NOTES = {
+  mgt409: { extra: ['Today:', '- live demo: a scraper in 10 min', '- when the agent is wrong', '- review checklist'], title: 'Vibe coding with agents', lines: ['1. Say what you want in plain words', '2. Agent plans, writes, runs the tests', '3. YOU read the diff before merging!', '4. Small steps > one giant prompt', 'HW: ship one tool by Thurs'], diagram: 'loop' },
+  mgt404: { extra: ['Today:', '- shifts vs. movements', '- tax incidence', '- case: NYC rent control'], title: 'Supply & demand', lines: ['Qd falls as P rises (law of demand)', 'Qs rises as P rises', 'Equilibrium: Qd = Qs  ->  P*, Q*', 'Price ceiling below P* -> shortage', 'Elasticity = %dQ / %dP'], diagram: 'supply' },
+  mgt403: { extra: ['Today:', '- sampling distributions', '- confidence intervals', '- Trelawney\'s forecasts?? (n = 1)'], title: 'The normal distribution', lines: ['X ~ N(mu, sigma^2)', 'z = (x - mu) / sigma', '68 - 95 - 99.7 rule', 'CLT: means of n draws -> normal', 'P(z > 1.96) = 0.025'], diagram: 'bell' },
+  mgt887: { extra: ['Today:', '- role play: car purchase', '- debrief in pairs', '- Prisoner\'s Dilemma, 10 rounds'], title: 'BATNA & ZOPA', lines: ['BATNA = best alternative if no deal', 'Reservation price: walk-away point', 'ZOPA = overlap of the two ranges', 'Anchor first, anchor high (not crazy)', 'Trade on differences in priorities'], diagram: 'zopa' },
+  mgt402: { extra: ['Today:', '- journal entries', '- the trial balance', '- case: Potions Ltd. ledger'], title: 'The balance sheet', lines: ['Assets = Liabilities + Equity', 'Every entry: debit = credit', 'Cash  Dr 500  /  Loan  Cr 500', 'Accrual: record when earned', 'Quiz Mon: ch. 3 + 4'], diagram: 'taccount' },
+  mgt538: { extra: ['Today:', '- scarcity: limited editions', '- social proof in reviews', '- read: Cialdini ch. 4'], title: 'Six levers of influence', lines: ['Reciprocity, commitment', 'Social proof, authority', 'Liking, scarcity', 'Ask small first (foot in the door)', 'Ethics: persuade, never deceive'], diagram: 'hexagon' },
+  mgt800: { extra: ['Today:', '- tabletop: outage at 3 am', '- who talks to press?', '- postmortem template'], title: 'First 72 hours', lines: ['0-1 h: detect, page on-call, triage', '1-24 h: contain, one owner, one channel', 'Status page every 30 min', '24-72 h: root cause, customer comms', 'Blameless postmortem within 1 wk'], diagram: 'timeline' },
+  mgt541: { extra: ['Today:', '- free cash flow build', '- WACC from comps', '- case: Gringotts Bank'], title: 'Valuation by DCF', lines: ['PV = sum CF_t / (1 + r)^t', 'r = WACC for firm cash flows', 'TV = CF_n+1 / (r - g)', 'NPV > 0  ->  accept', 'Check: sensitivity to r and g!'], diagram: 'dcf' },
+}
+const INK = { black: '#1d2129', blue: '#1f4fa8', red: '#c0392b', green: '#23794a' }
+function drawBoard(g, W, Hh, course, font) {
+  const n = BOARD_NOTES[course] || BOARD_NOTES.mgt409
+  g.fillStyle = '#fbfbf8'
+  g.fillRect(0, 0, W, Hh)
+  // faint ghosting of erased writing
+  const r = rng(course.length * 31 + 7)
+  g.strokeStyle = 'rgba(120,130,150,0.07)'
+  g.lineWidth = 10
+  for (let i = 0; i < 9; i++) {
+    g.beginPath()
+    const x = r() * W
+    const y = r() * Hh
+    g.moveTo(x, y)
+    g.quadraticCurveTo(x + 200, y + (r() - 0.5) * 80, x + 300 + r() * 300, y + (r() - 0.5) * 60)
+    g.stroke()
+  }
+  const U = Hh / 10 // one tenth of the board height
+  const ink = (c) => {
+    g.fillStyle = c
+    g.strokeStyle = c
+  }
+  g.textBaseline = 'alphabetic'
+  ink(INK.blue)
+  g.font = `bold ${U * 1.75}px ${font}`
+  g.fillText(n.title, U * 0.8, U * 1.7)
+  const tw = g.measureText(n.title).width
+  g.lineWidth = U * 0.09
+  g.beginPath()
+  g.moveTo(U * 0.8, U * 2.05)
+  g.quadraticCurveTo(U * 0.8 + tw / 2, U * 2.25, U * 0.8 + tw, U * 2.0)
+  g.stroke()
+  g.font = `${U * 1.25}px ${font}`
+  let colEnd = 0
+  n.lines.forEach((l, i) => {
+    ink(i === n.lines.length - 1 ? INK.red : INK.black)
+    g.fillText(l, U * 1.0 + (r() - 0.5) * U * 0.2, U * (3.6 + i * 1.45))
+    colEnd = Math.max(colEnd, U * 1.0 + g.measureText(l).width)
+  })
+  // the diagram fills a square box on the right; a wide board also gets today's agenda between
+  const bx = Math.max(W * 0.62, W - U * 9)
+  if (bx - colEnd > U * 16) {
+    const ax = colEnd + (bx - colEnd - U * 13) / 2
+    n.extra.forEach((l, i) => {
+      ink(i ? INK.green : INK.blue)
+      g.font = `${i ? '' : 'bold '}${U * 1.25}px ${font}`
+      g.fillText(l, ax, U * (2.2 + i * 1.6))
+    })
+    ink(INK.black)
+    g.font = `${U * 0.9}px ${font}`
+    g.fillText('Fri: problem set due 9 am', ax, U * 9.2)
+  }
+  const bw = Math.min(W - bx - U * 0.6, U * 8.4)
+  const by = U * 0.8
+  const bh = U * 8.4
+  g.lineWidth = U * 0.08
+  g.lineCap = 'round'
+  g.font = `${U * 0.8}px ${font}`
+  const line = (pts) => {
+    g.beginPath()
+    pts.forEach(([x, y], i) => (i ? g.lineTo(bx + x * bw, by + y * bh) : g.moveTo(bx + x * bw, by + y * bh)))
+    g.stroke()
+  }
+  const text = (t, x, y) => g.fillText(t, bx + x * bw, by + y * bh)
+  const axes = () => {
+    ink(INK.black)
+    line([[0.08, 0.05], [0.08, 0.9], [0.95, 0.9]])
+  }
+  switch (n.diagram) {
+    case 'loop': {
+      const boxes = [['prompt', 0.05, 0.1], ['agent', 0.55, 0.1], ['tests', 0.55, 0.62], ['diff', 0.05, 0.62]]
+      boxes.forEach(([t, x, y]) => {
+        ink(INK.black)
+        g.strokeRect(bx + x * bw, by + y * bh, bw * 0.38, bh * 0.25)
+        text(t, x + 0.06, y + 0.17)
+      })
+      ink(INK.green)
+      line([[0.44, 0.22], [0.54, 0.22]])
+      line([[0.74, 0.36], [0.74, 0.6]])
+      line([[0.54, 0.74], [0.44, 0.74]])
+      line([[0.24, 0.6], [0.24, 0.36]])
+      break
+    }
+    case 'supply':
+      axes()
+      text('P', 0.0, 0.1)
+      text('Q', 0.93, 1.0)
+      ink(INK.blue)
+      line([[0.15, 0.15], [0.9, 0.8]])
+      text('D', 0.9, 0.78)
+      ink(INK.red)
+      line([[0.15, 0.82], [0.9, 0.15]])
+      text('S', 0.9, 0.14)
+      ink(INK.black)
+      g.setLineDash([U * 0.2, U * 0.2])
+      line([[0.08, 0.475], [0.52, 0.475], [0.52, 0.9]])
+      g.setLineDash([])
+      text('P*', 0.0, 0.5)
+      break
+    case 'bell': {
+      axes()
+      ink(INK.blue)
+      const pts = []
+      for (let i = 0; i <= 40; i++) {
+        const x = -3 + (6 * i) / 40
+        pts.push([0.12 + (0.8 * i) / 40, 0.88 - 0.75 * Math.exp((-x * x) / 2)])
+      }
+      line(pts)
+      ink(INK.red)
+      line([[0.385, 0.42], [0.385, 0.9]])
+      line([[0.655, 0.42], [0.655, 0.9]])
+      text('68%', 0.44, 0.7)
+      ink(INK.black)
+      text('mu', 0.49, 0.99)
+      break
+    }
+    case 'zopa':
+      ink(INK.black)
+      line([[0.05, 0.5], [0.95, 0.5]])
+      ink(INK.blue)
+      line([[0.3, 0.38], [0.3, 0.62]])
+      text('seller RP', 0.12, 0.3)
+      ink(INK.red)
+      line([[0.72, 0.38], [0.72, 0.62]])
+      text('buyer RP', 0.6, 0.3)
+      ink(INK.green)
+      line([[0.3, 0.75], [0.3, 0.8], [0.72, 0.8], [0.72, 0.75]])
+      text('ZOPA', 0.42, 0.95)
+      break
+    case 'taccount':
+      ink(INK.black)
+      line([[0.1, 0.2], [0.9, 0.2]])
+      line([[0.5, 0.2], [0.5, 0.95]])
+      text('Cash', 0.42, 0.13)
+      text('Dr', 0.2, 0.33)
+      text('Cr', 0.7, 0.33)
+      ink(INK.blue)
+      text('500', 0.2, 0.52)
+      text('1,200', 0.15, 0.7)
+      ink(INK.red)
+      text('300', 0.66, 0.52)
+      break
+    case 'hexagon': {
+      ink(INK.black)
+      const pts = []
+      for (let i = 0; i <= 6; i++) {
+        const a = (i / 6) * Math.PI * 2 - Math.PI / 2
+        pts.push([0.5 + Math.cos(a) * 0.32, 0.5 + Math.sin(a) * 0.36])
+      }
+      line(pts)
+      ink(INK.blue)
+      ;['R', 'C', 'SP', 'A', 'L', 'S'].forEach((t, i) => {
+        const a = (i / 6) * Math.PI * 2 - Math.PI / 2
+        text(t, 0.47 + Math.cos(a) * 0.44, 0.53 + Math.sin(a) * 0.47)
+      })
+      ink(INK.red)
+      text('YES', 0.41, 0.56)
+      break
+    }
+    case 'timeline':
+      ink(INK.black)
+      line([[0.05, 0.5], [0.95, 0.5]])
+      ;[[0.05, '0h'], [0.3, '1h'], [0.6, '24h'], [0.92, '72h']].forEach(([x, t]) => {
+        line([[x, 0.43], [x, 0.57]])
+        text(t, x - 0.04, 0.7)
+      })
+      ink(INK.red)
+      text('!', 0.06, 0.35)
+      ink(INK.green)
+      text('fixed', 0.8, 0.35)
+      break
+    case 'dcf':
+      ink(INK.black)
+      line([[0.05, 0.6], [0.95, 0.6]])
+      ;[0.12, 0.32, 0.52, 0.72, 0.92].forEach((x, i) => {
+        line([[x, 0.56], [x, 0.64]])
+        text(String(i), x - 0.015, 0.74)
+        if (i) {
+          ink(INK.blue)
+          line([[x, 0.56], [x, 0.56 - 0.08 - i * 0.04]])
+          ink(INK.black)
+        }
+      })
+      ink(INK.red)
+      line([[0.12, 0.66], [0.12, 0.9]])
+      text('-I', 0.05, 0.97)
+      ink(INK.green)
+      text('discount <-', 0.3, 0.2)
+      break
+  }
+}
+const FONT_HAND = "'Caveat', 'Patrick Hand', 'Bradley Hand', 'Segoe Print', cursive"
+export function whiteboardTex(course, wM, hM) {
+  const pxPerM = 320
+  const W = Math.round(wM * pxPerM)
+  const Hh = Math.round(hM * pxPerM)
+  const [c, g] = canvas(W, Hh)
+  drawBoard(g, W, Hh, course, FONT_HAND)
+  const t = tex(c)
+  if (typeof document !== 'undefined' && document.fonts?.load) {
+    Promise.all([document.fonts.load(`40px 'Caveat'`), document.fonts.load(`bold 40px 'Caveat'`)]).then(() => {
+      drawBoard(g, W, Hh, course, FONT_HAND)
+      t.needsUpdate = true
+    }).catch(() => {})
+  }
+  return t
+}
