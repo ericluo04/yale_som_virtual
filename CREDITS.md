@@ -35,5 +35,12 @@ Downloaded at 1K, then compressed with glTF-Transform (WebP textures at 512 or 1
 | `backdrop_museumplein_2k.jpg` | Museumplein by Greg Zaal, Poly Haven, https://polyhaven.com/a/museumplein | CC0 1.0 | 2K HDR tone mapped (ACES) to an 8-bit equirectangular JPG |
 | `tex/leather_*.jpg` | Leather 037 by ambientCG, https://ambientcg.com/view?id=Leather037 | CC0 1.0 | normal and roughness at 512 px |
 | `tex/metal_*.jpg` | Metal 027 by ambientCG, https://ambientcg.com/view?id=Metal027 | CC0 1.0 | normal and roughness at 512 px |
+| `tex/carpet_*_2k.jpg` | Carpet 016 by ambientCG at 2K, https://ambientcg.com/view?id=Carpet016 | CC0 1.0 | swapped in at run time for the 1K normal and roughness maps of the same set |
+| `tex/plaster_*_2k.jpg` | Painted Plaster 017 by ambientCG at 2K, https://ambientcg.com/view?id=PaintedPlaster017 | CC0 1.0 | as above |
+| `tex/paving_*_2k.jpg` | Paving Stones 128 by ambientCG, https://ambientcg.com/view?id=PavingStones128 | CC0 1.0 | courtyard paving |
+| `tex/sidewalk_*.jpg` | Paving Stones 136 by ambientCG, https://ambientcg.com/view?id=PavingStones136 | CC0 1.0 | sidewalks outside |
+| `tex/grass_*.jpg` | Grass 004 by ambientCG, https://ambientcg.com/view?id=Grass004 | CC0 1.0 | lawn outside, 512 px |
+| `tex/facade_brick_*.jpg` | Facade 018 A by ambientCG, https://ambientcg.com/view?id=Facade018A | CC0 1.0 | neighbour buildings; colour at 2K, normal and roughness at 1K |
+| `tex/facade_brown_*.jpg` | Facade 020 A by ambientCG, https://ambientcg.com/view?id=Facade020A | CC0 1.0 | as above |
 
 No CC0 water cooler was found on Poly Haven, Kenney or Quaternius, so none is placed.
