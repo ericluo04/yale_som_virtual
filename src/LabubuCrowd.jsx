@@ -107,13 +107,14 @@ function Crowd() {
           const material = dressMaterial(m.material.clone())
           const colorKey = name === 'Fur' ? 'fur' : name === 'Shirt' ? 'shirt' : null
           if (colorKey) material.color.set('#ffffff') // instance color carries the tint
-          out.push({ key: `${face}-${clothes}-${m.name}`, geometry, material, items, colorKey })
-          if (FUR_ON && FUR[name]) {
-            // seated students are 4 m or more away: fewer, shorter shells than the walking Labubus,
-            // batched per room so a room's shells are culled and thinned as one
-            const cfg = { ...FUR[name], shells: CROWD_SHELLS, len: FUR[name].len * 0.8 }
-            for (const room of new Set(who.map((s) => s.room))) {
-              const mine = items.filter((_, k) => who[k].room === room)
+          // batched per room, so rooms outside the view are frustum-culled (the subdivided seated
+          // students are about 4.6k triangles each, 240 of them)
+          const cfg = FUR[name] && { ...FUR[name], shells: CROWD_SHELLS, len: FUR[name].len * 0.8 }
+          for (const room of new Set(who.map((s) => s.room))) {
+            const mine = items.filter((_, k) => who[k].room === room)
+            out.push({ key: `${face}-${clothes}-${m.name}-${room}`, geometry, material, items: mine, colorKey })
+            if (FUR_ON && cfg) {
+              // seated students are 4 m or more away: fewer, shorter shells than the walking Labubus
               const shell = shellMaterial(material, cfg, { items: mine.length, clothes: clothes === 'tee' ? 1 : 2 })
               out.push({ key: `${face}-${clothes}-${m.name}-shells-${room}`, geometry, material: shell, items: mine, colorKey, shells: CROWD_SHELLS, shadow: false })
             }

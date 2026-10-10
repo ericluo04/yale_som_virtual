@@ -27,7 +27,7 @@ function cam(f, t) {
 
 export const SHOTS = {
   // Dumbledore at the front of 2400 (he faces -X), seen from the third row with the front rows between
-  classroom: { from: [-31.2, 2.75, 29.9], to: [-28.5, 1.3, 32.4] },
+  classroom: { from: [-31.6, 2.35, 31.0], to: [-28.65, 1.4, 32.3] },
   // the crowd view for frame-rate readings: the whole seated class from the front corner
   crowd: { from: [-28.1, 2.5, 27.2], to: [-34.5, 0.9, 35.5] },
   courtyard: { from: [-1.5, -2.6, 10.5], to: [0.5, -4.4, -0.5] },

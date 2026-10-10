@@ -354,7 +354,14 @@ export function useRigInstance(name, setup, deps = [], opts = {}) {
       if (!m.isMesh) return
       m.castShadow = true
       m.receiveShadow = true
-      m.frustumCulled = false // skinned bounds follow the bind pose, not the animation
+      // skinned bounds follow the bind pose, not the animation: cull with the bind-pose sphere grown
+      // 0.5 m (hops, raised arms). Drawing every Labubu in the building each frame cost about 10 fps
+      // once the bodies were subdivided.
+      if (m.isSkinnedMesh) {
+        if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere()
+        m.boundingSphere = m.geometry.boundingSphere.clone()
+        m.boundingSphere.radius += 0.5
+      } else m.frustumCulled = false
       m.material = dressMaterial(m.material)
     })
     const cloneMat = (matName) => {
