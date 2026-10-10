@@ -213,7 +213,7 @@ shelves.forEach((sh, i) => {
   const front = [Math.sin(sh.r), Math.cos(sh.r)]
   BOARDS.forEach((b, j) => {
     if (b * sy > 2.2) return
-    books.push({ p: [sh.p[0] + front[0] * 0.13, b * sy + 0.02, sh.p[2] + front[1] * 0.13], r: sh.r + ((i + j) % 2 ? Math.PI : 0), s: [1.65, 1, 1] })
+    books.push({ p: [sh.p[0] + front[0] * 0.13, b * sy + 0.02, sh.p[2] + front[1] * 0.13], r: sh.r, s: [1.65, 1, 1] })
   })
 })
 const clocks = [{ p: [(x0 + x1) / 2 + 2.5, 2.7, LIBRARY.z1 - 0.12], r: Math.PI, s: 1.3 }]

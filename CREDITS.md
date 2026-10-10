@@ -25,7 +25,7 @@ Downloaded at 1K, then compressed with glTF-Transform (WebP textures at 512 or 1
 | `round_table.glb` | Round Wooden Table 01 by Ulan Cabanilla, Poly Haven, https://polyhaven.com/a/round_wooden_table_01 | CC0 1.0 | decimated to 40% |
 | `study_table.glb` | Wooden Table 02 by Serhii Khromov, Poly Haven, https://polyhaven.com/a/wooden_table_02 | CC0 1.0 | top recoloured white in code |
 | `shelf.glb` | Shelf 01 by Gabriel Radić, Poly Haven, https://polyhaven.com/a/Shelf_01 | CC0 1.0 | recoloured white in code |
-| `books.glb` | Book Encyclopedia Set 01 by John Malcolm, Poly Haven, https://polyhaven.com/a/book_encyclopedia_set_01 | CC0 1.0 | decimated to 2.5% |
+| `books.glb` | Book Encyclopedia Set 01 by John Malcolm, Poly Haven, https://polyhaven.com/a/book_encyclopedia_set_01 | CC0 1.0 | decimated to 1% |
 | `wall_clock.glb` | Wall Clock by PierreB3D, Poly Haven, https://polyhaven.com/a/wall_clock | CC0 1.0 | |
 | `extinguisher.glb` | Korean Fire Extinguisher 01 by UM JOORIN, Poly Haven, https://polyhaven.com/a/korean_fire_extinguisher_01 | CC0 1.0 | |
 | `laptop.glb` | Classic Laptop by Arrangemonk, Poly Haven, https://polyhaven.com/a/classic_laptop | CC0 1.0 | decimated to 15% |
