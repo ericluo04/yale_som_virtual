@@ -6,9 +6,11 @@ import { POIS, Walker, fromPoi, ringNodes, ringToSeat, seatToRing, seatY, toPoi 
 import { rand, timed, turnToward, useLabubuRig } from './common.js'
 
 // Classroom life on top of the static seated crowd (LabubuCrowd):
-//   extras    4 students per room are skinned Labubus (their static copies only draw while the room is far).
-//             They cycle RaiseHand, Nod, Type, Yawn and Whisper on a seeded schedule (a hand goes up about every
-//             10 s in each room), and react 0.5 s after the professor raises the wand.
+//   extras    6 students per room, in the two front rows, are skinned Labubus (their static copies only draw
+//             while the room is far). They cycle Nod, Type, Yawn and Whisper on a seeded schedule; every 6 s
+//             one of them does something visible from the back row (a hand above the head, standing on the seat
+//             to stretch, or turning to whisper to a neighbor), and two react 0.5 s after the professor raises
+//             the wand.
 //   commuters two Labubus that leave a free seat, hop over the desks and out of the door, roam the cloister to
 //             a point of interest, then walk into a room and sit in another free seat (so seats free and fill
 //             while the head count stays the same).
@@ -22,7 +24,9 @@ const wandCycle = (t, i) => {
   return { cyc, rising: w - cyc * 2 * Math.PI < Math.PI }
 }
 
-const DUR = { Sit: [3, 7], Type: [4, 9], Nod: [2.6, 2.7], Yawn: [2.1, 2.2], Whisper: [4, 6], RaiseHand: [3, 4.5] }
+const DUR = { Sit: [3, 7], Type: [4, 9], Nod: [2.6, 2.7], Yawn: [2.1, 2.2], Whisper: [4, 6], RaiseHand: [3, 4.5], Stretch: [2.4, 2.4] }
+const EVENT_EVERY = 6 // seconds between visible events in each room
+const EVENTS = [['RaiseHand', 0.45], ['Stretch', 0.35], ['Whisper', 0.2]]
 function nextClip(r, laptop) {
   const k = r()
   if (laptop) return k < 0.5 ? 'Type' : k < 0.66 ? 'Nod' : k < 0.84 ? 'Sit' : k < 0.92 ? 'Yawn' : 'Whisper'
@@ -34,7 +38,7 @@ function Extra({ s, ctl }) {
   useFrame(
     timed((state, dt) => {
       const c = ctl.clip
-      rig.play(c, { fade: 0.35 })
+      rig.play(c, { fade: 0.35, once: c === 'Stretch' })
       rig.setFace(c === 'Yawn' ? 'sleepy' : ctl.surprised ? 'surprised' : s.face)
       if (c === 'Type') TYPING.add(s)
       else TYPING.delete(s)
@@ -54,8 +58,9 @@ function RoomExtras({ room, index }) {
   const st = useMemo(() => {
     const r = rand(31337 + index * 101)
     const ctl = extras.map((s, k) => ({ clip: 'Sit', until: r() * 4, laptop: s.prop === 'laptop', k }))
-    return { r, ctl, nextHand: 2 + r() * 6, react: null, lastCyc: null }
+    return { r, ctl, nextEvent: 1 + r() * 3, react: null, lastCyc: null }
   }, [extras, index])
+  if (import.meta.env.DEV && typeof window !== 'undefined') ((window.__life ||= {}).extras ||= {})[room.id] = st.ctl
   const reach = Math.max(room.rx, room.rz) + LIVE_PAD
   useFrame(
     timed(({ clock, camera }) => {
@@ -64,15 +69,17 @@ function RoomExtras({ room, index }) {
       if (live !== LIVE.has(room.id)) live ? LIVE.add(room.id) : LIVE.delete(room.id)
       group.current.visible = live
       const { r, ctl } = st
-      // a hand goes up about every 10 s
-      if (t > st.nextHand) {
-        const free = ctl.filter((c) => c.clip !== 'RaiseHand')
+      // every 6 s one student who is not already doing an event raises a hand, stretches or whispers
+      if (t > st.nextEvent) {
+        const free = ctl.filter((c) => !EVENTS.some(([e]) => e === c.clip))
         if (free.length) {
           const c = free[Math.floor(r() * free.length)]
-          c.clip = 'RaiseHand'
-          c.until = t + DUR.RaiseHand[0] + r() * (DUR.RaiseHand[1] - DUR.RaiseHand[0])
+          let k = r()
+          c.clip = EVENTS.find(([, p]) => (k -= p) < 0)?.[0] || 'RaiseHand'
+          const [a, b] = DUR[c.clip]
+          c.until = t + a + r() * (b - a)
         }
-        st.nextHand = t + 8 + r() * 4
+        st.nextEvent = t + EVENT_EVERY
       }
       // the wand goes up: half a second later a couple of students nod or put a hand up
       const w = wandCycle(t, index)

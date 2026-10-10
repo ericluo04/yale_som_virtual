@@ -349,16 +349,17 @@ def life_clips(A):
     """Clips for the living building (src/life, LabubuCrowd extras). Bone axes (lib.armature): arms and legs
     swing forward about local X; arm.R raises sideways with negative local Z, arm.L with positive; head and
     spine nod about X (positive is down), turn about Y (positive turns toward the character's left)."""
-    # RaiseHand: seated, right arm straight up with a small eager wave, left paw on the lap, 60 frames (loops)
+    # RaiseHand: seated, right arm up beside the head with the paw above the ear tips, a small eager wave,
+    # left paw on the lap, 60 frames (loops). The head is far wider than the shoulders, so the body leans away
+    # from the raised arm (spine about -Z, toward the left) and the arm is stretched to reach past the ears.
     sit_legs(A, (1, 61))
     for f, w in ((1, 0), (16, 1), (31, 0), (46, -1), (61, 0)):
-        # the head is wider than the shoulders: straight up buries the paw in it, so the arm goes up and out
-        A.key("arm.R", "rotation_euler", f, (0.3, 0, -2.15 - 0.12 * w))
-        A.key("arm.R", "scale", f, (1, 1.8, 1))
+        A.key("arm.R", "rotation_euler", f, (0.35, 0, -2.3 - 0.1 * w))
+        A.key("arm.R", "scale", f, (1.35, 3.4, 1.35))  # thicker too, so it reads from the back row
         A.key("arm.L", "rotation_euler", f, LAP_L)
-        A.key("spine", "rotation_euler", f, (-0.05, 0, -0.1 + 0.02 * w))
-        A.key("head", "rotation_euler", f, (-0.1, 0, -0.12 + 0.04 * w))
-        A.key("root", "location", f, (0, 0.012 * abs(w), 0))
+        A.key("spine", "rotation_euler", f, (-0.05, 0, -0.22 + 0.02 * w))
+        A.key("head", "rotation_euler", f, (-0.1, 0, 0.04 * w))
+        A.key("root", "location", f, (0, 0.03 + 0.012 * abs(w), 0))
     A.push("RaiseHand")
 
     # Nod: seated, two nods in 40 frames
@@ -395,10 +396,26 @@ def life_clips(A):
     sit_legs(A, (1, 61))
     for f, k in ((1, 0), (10, 1), (25, 0.8), (40, 1), (52, 1), (61, 0)):
         A.key("spine", "rotation_euler", f, (0, 0.4 * k, -0.18 * k))
-        A.key("head", "rotation_euler", f, (0.05 * k, 0.45 * k, -0.12 * k + 0.03 * math.sin(f)))
+        A.key("head", "rotation_euler", f, (0.05 * k, 0.61 * k, -0.12 * k + 0.03 * math.sin(f)))  # head turned 35 degrees
         A.key("arm.L", "rotation_euler", f, (0.8 + 1.0 * k, 0, -0.25 + 0.55 * k))
         A.key("arm.R", "rotation_euler", f, LAP_R)
     A.push("Whisper")
+
+    # Stretch: a seated student stands up on the seat (legs straighten, feet on the cushion), stretches both
+    # arms high with a sway, and sits back down; 72 frames, played once. Standing on the floor would hide it
+    # behind the desk, so it stands on the chair.
+    for f, k, sw in ((1, 0, 0), (12, 1, 0), (24, 1, 1), (36, 1, -1), (48, 1, 0), (62, 0, 0), (73, 0, 0)):
+        A.key("leg.L", "rotation_euler", f, (1.5 * (1 - k), 0, 0.05))
+        A.key("leg.R", "rotation_euler", f, (1.5 * (1 - k), 0, -0.05))
+        A.key("root", "location", f, (0, 0.13 * k, 0))
+        # arms in a wide V beside the head (straight up hides them behind it)
+        A.key("arm.L", "rotation_euler", f, (0.8 - 0.55 * k, 0, -0.25 + 2.2 * k))
+        A.key("arm.R", "rotation_euler", f, (0.8 - 0.55 * k, 0, 0.25 - 2.2 * k))
+        A.key("arm.L", "scale", f, (1, 1 + 2.0 * k, 1))
+        A.key("arm.R", "scale", f, (1, 1 + 2.0 * k, 1))
+        A.key("spine", "rotation_euler", f, (-0.08 * k, 0, 0.14 * sw))
+        A.key("head", "rotation_euler", f, (-0.2 * k, 0, 0.1 * sw))
+    A.push("Stretch")
 
     # Walk: bouncy two-leg walk, 24 frames (two steps); the root bobs on every step
     for i in range(0, 25, 3):
@@ -537,7 +554,8 @@ def previews(rig, meshes, name, costume="none", fur="#e9dcc6", shirt="#00356b", 
     ]
     if lib.args().get("life"):
         shots = [
-            ("RaiseHand", 16, (0, 0, 0.6), 2.6, -35, 0.3, ""), ("Nod", 8, (0, 0, 0.55), 2.4, -70, 0.2, ""),
+            ("RaiseHand", 16, (0, 0, 0.6), 2.6, -35, 0.3, ""), ("RaiseHand", 16, (0, 0, 0.6), 2.6, 0, 0.1, "_front"),
+            ("RaiseHand", 16, (0, 0, 0.6), 2.6, 180, 0.3, "_back"), ("Stretch", 30, (0, 0, 0.7), 2.8, -20, 0.2, ""), ("Nod", 8, (0, 0, 0.55), 2.4, -70, 0.2, ""),
             ("Type", 6, (0, 0, 0.55), 2.4, -40, 0.3, ""), ("Yawn", 20, (0, 0, 0.6), 2.6, -25, 0.2, ""),
             ("Whisper", 40, (0, 0, 0.55), 2.4, -20, 0.2, ""), ("Walk", 7, (0, 0, 0.6), 2.6, -80, 0.2, ""),
             ("Walk", 19, (0, 0, 0.6), 2.6, -80, 0.2, ""), ("Throw", 7, (0, 0, 0.6), 2.6, -30, 0.2, ""),

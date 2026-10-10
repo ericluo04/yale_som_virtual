@@ -29,7 +29,15 @@ export const POIS = [
   // the courtyard glass in the north and south cloisters, looking down at the lawn
   poi('glassN', [[-6, -22.6], [-6.5, -21.0]], Math.PI),
   poi('glassS', [[9.5, 22.7], [9.5, 21.3]], 0),
+  // more glass stops, so every cloister has a few (Roamers.jsx gives each roamer a beat of stops in one cloister)
+  poi('glassN2', [[8, -22.6], [8, -21.0]], Math.PI),
+  poi('glassS2', [[-9.5, 22.7], [-9.5, 21.3]], 0),
+  poi('glassW', [[-23.4, -6], [-22.4, -6]], -Math.PI / 2),
+  poi('glassE', [[23.4, 6], [22.4, 6]], Math.PI / 2),
+  poi('glassN3', [[-15, -22.6], [-15, -21.0]], Math.PI),
+  poi('glassW2', [[-23.4, 9], [-22.4, 9]], -Math.PI / 2),
 ]
+export const poiByName = (name) => POIS.find((q) => q.name === name)
 
 const node = (p, o = {}) => ({ x: p[0], z: p[1], y: 0, hop: false, free: true, ...o })
 

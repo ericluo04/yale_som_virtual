@@ -6,8 +6,8 @@ import Life from './life/index.jsx'
 
 // Labubus playing on the courtyard lawn (ground floor, y = -5).
 // Courtyard trees stand at (-11,-8) (0,-10.5) (11,-8) (-13,5) (13,5) (-5,9.5) (6,10) (COURT_TREES in render/Scenery.jsx).
-// The ring circles the birch at (0,-10.5): the nearer aspen at (-5,9.5) stands 3.7 m from a frisbee player.
-const RING = { center: [0, -10.5], radius: 3, speed: 0.9 }
+// The ring circles the maple at (11,-8); the birch at (0,-10.5) is behind the spell class (src/life/Spells.jsx).
+const RING = { center: [11, -8], radius: 3, speed: 0.9 }
 const RING_GAP = (Math.PI * 2) / RING.speed / 4 // four friends evenly spaced around the tree
 
 const CREW = [
