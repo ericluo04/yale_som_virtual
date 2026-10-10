@@ -86,7 +86,8 @@ export default function App() {
     setTouchOn(on)
   }
   const frozen = useStore(ui, (s) => s.frozen) // a dialogue is open: keep the start overlay away
-  const playing = locked || touchOn || frozen
+  const awaitLock = useStore(ui, (s) => s.awaitLock) // lock refused or pending: a hint, not the card
+  const playing = locked || touchOn || frozen || awaitLock
   // the start card: a click, tap, Enter or Space walks in and starts the audio
   const enter = () => {
     sound.start()
@@ -170,6 +171,7 @@ export default function App() {
         {showMap ? 'hide map' : 'map'}
       </button>}
       {playing && <div className="crosshair" />}
+      {awaitLock && !locked && !frozen && <div className="lockhint">click to look</div>}
       <InteractUI />
       {touchOn && <TouchControls touchRef={touchRef} onPause={() => setTouch(false)} />}
 

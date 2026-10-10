@@ -26,4 +26,5 @@ export function useStore(store, select = (s) => s) {
 // Shared UI state the player, HUD and dialogue all read.
 // frozen: a dialogue (or anything modal) owns the input; the player stops moving and looking.
 // playing: pointer locked, touch mode on, or ?nolock; Player.jsx keeps it current.
-export const ui = createStore({ frozen: false, playing: false, touch: false })
+// awaitLock: a pointer-lock request is pending or was refused; the next click retries (Player.jsx).
+export const ui = createStore({ frozen: false, playing: false, touch: false, awaitLock: false })

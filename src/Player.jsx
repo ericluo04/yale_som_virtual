@@ -55,18 +55,34 @@ export default function Player({ lockRef, mapRef, touchRef, onLock, onWhere }) {
       camera.rotation.set(DEBUG_CAM.pitch, DEBUG_CAM.yaw, 0, 'YXZ')
       devY.current = DEBUG_CAM.y
     }
-    lockRef.current = () => controls.lock()
+    // The browser refuses pointer lock for about a second after Esc. A request sets
+    // ui.awaitLock; the lock event clears it. While it is set, App shows a small "click to look"
+    // hint in place of the start card and the next click asks again. three's own
+    // pointerlockerror handler only logs a console error, so it comes off.
+    const doc = gl.domElement.ownerDocument
+    doc.removeEventListener('pointerlockerror', controls._onPointerlockError)
+    let lastTry = 0
+    const tryLock = () => {
+      lastTry = performance.now()
+      ui.set({ awaitLock: true })
+      try {
+        gl.domElement.requestPointerLock()?.catch?.(() => {})
+      } catch {
+        // refused synchronously (older browsers); the next click retries
+      }
+    }
+    lockRef.current = tryLock
     // the dialogue closes with a click or key press, which is a user gesture, so lock can come back
-    ui.set({
-      relock: () => {
-        try {
-          gl.domElement.requestPointerLock()?.catch?.(() => {})
-        } catch {
-          // browser refused (cooldown after Esc); the start overlay takes over
-        }
-      },
-    })
-    const on = () => onLock(true)
+    ui.set({ relock: tryLock })
+    const retry = () => {
+      const s = ui.get()
+      if (s.awaitLock && !controls.isLocked && !s.frozen && performance.now() - lastTry > 150) tryLock()
+    }
+    window.addEventListener('click', retry)
+    const on = () => {
+      ui.set({ awaitLock: false })
+      onLock(true)
+    }
     const off = () => {
       keys.current = {} // keys held during Esc never get a keyup
       onLock(false)
@@ -74,6 +90,8 @@ export default function Player({ lockRef, mapRef, touchRef, onLock, onWhere }) {
     controls.addEventListener('lock', on)
     controls.addEventListener('unlock', off)
     const down = (e) => {
+      // Esc while waiting for the lock means pause: let the start card come back
+      if (e.code === 'Escape' && ui.get().awaitLock && !controls.isLocked) ui.set({ awaitLock: false })
       keys.current[e.code] = true
       if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault()
     }
@@ -86,6 +104,7 @@ export default function Player({ lockRef, mapRef, touchRef, onLock, onWhere }) {
       controls.removeEventListener('lock', on)
       controls.removeEventListener('unlock', off)
       controls.dispose()
+      window.removeEventListener('click', retry)
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
       window.removeEventListener('blur', blur)
