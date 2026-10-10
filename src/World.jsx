@@ -27,6 +27,43 @@ const PROC = !BAKED
 const TAU = Math.PI * 2
 
 // ---------- helpers
+// baked meshes that World.jsx redraws unbaked: the courtyard T-section mullions, the 22 cm level 4
+// rail and the transom at 3.1 m read as heavy black bars from across the courtyard
+const HIDDEN_BAKED = ['mullions', 'rail', 'transom']
+function HideBaked({ roles }) {
+  const { scene } = useThree()
+  useLayoutEffect(() => {
+    const hidden = []
+    scene.traverse((o) => {
+      if (o.isMesh && o.userData.baked && roles.includes(o.userData.role)) {
+        o.visible = false
+        hidden.push(o)
+      }
+    })
+    return () => hidden.forEach((o) => (o.visible = true))
+  }, [scene, roles])
+  return null
+}
+
+// points every `step` metres along a closed polyline pushed out by d: [x, z, heading]
+function alongLoop(pts, d, step) {
+  const loop = d ? offsetLoop(pts, d) : pts
+  const out = []
+  let acc = 0
+  for (let i = 0; i < loop.length; i++) {
+    const a = loop[i]
+    const b = loop[(i + 1) % loop.length]
+    const l = Math.hypot(b[0] - a[0], b[1] - a[1])
+    while (acc <= l) {
+      const t = acc / l
+      out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, Math.atan2(b[0] - a[0], b[1] - a[1])])
+      acc += step
+    }
+    acc -= l
+  }
+  return out
+}
+
 function Instanced({ items, material, geometry, bake }) {
   const ref = useRef()
   useLayoutEffect(() => {
@@ -160,6 +197,9 @@ function useMaterials() {
       mural: std({ map: T.muralTex(), roughness: 0.9, side: THREE.DoubleSide }),
       velvet: std({ color: '#0d0b10', roughness: 1 }),
       mullion: std({ color: '#2a2d33', roughness: 0.4, metalness: 0.6 }),
+      // courtyard curtain wall: silver-grey aluminium (NOTES.md); the env boost keeps the metal
+      // reading silver under the dim interior environment
+      courtMullion: std({ color: '#9aa3a8', metalness: 0.9, roughness: 0.35, envMapIntensity: 2.5, side: THREE.DoubleSide }),
       steel: std({ color: '#c9ced6', metalness: 0.9, roughness: 0.25 }),
       tableGlass: std({ color: '#cfe6ee', transparent: true, opacity: 0.45, roughness: 0.05, metalness: 0.3 }),
       screen: new THREE.MeshBasicMaterial({ map: T.screenTex() }),
@@ -253,6 +293,13 @@ function Courtyard({ M }) {
     () => COURTYARD.filter((_, i) => i % 2 === 0).map(([x, z]) => ({ p: [x, (ROOF - 5) / 2, z], s: [0.06, ROOF + 5, 0.06] })),
     [],
   )
+  const slim = useMemo(() => {
+    // 9 x 12 cm silver mullions every 1.6 m of glass, lawn to roof, and one slim rail at the
+    // level 4 line; these replace the baked T sections, rail and transom (HideBaked below)
+    const items = alongLoop(COURTYARD, 0, 1.6).map(([x, z, r]) => ({ p: [x, (ROOF - 5) / 2, z], r: r - Math.PI / 2, s: [0.09, ROOF + 5, 0.12] }))
+    const rail = ribbon(offsetLoop(COURTYARD, 0.07), H - 0.34, H - 0.28)
+    return { items, rail }
+  }, [])
   const cafeTables = useMemo(() => {
     const r = rng(4)
     const out = []
@@ -268,6 +315,12 @@ function Courtyard({ M }) {
       <Cafe M={M} />
       <Level4 M={M} />
       {PROC && <Instanced items={mullions} material={M.mullion} geometry={BOX} />}
+      {!PROC && (
+        <>
+          <Instanced items={slim.items} material={M.courtMullion} geometry={BOX} />
+          <mesh geometry={slim.rail} material={M.courtMullion} />
+        </>
+      )}
       {/* the lawn trees are scanned models now (render/Scenery.jsx) */}
       <CourtyardFrame M={M} />
       <Instanced items={cafeTables} material={M.board} geometry={BOX} />
@@ -324,24 +377,7 @@ function Cafe({ M }) {
   }, [])
   const items = useMemo(() => {
     const y = CAFE.y0
-    // points every `step` metres along a loop at distance d behind the glass
-    const along = (d, step) => {
-      const loop = offsetLoop(COURTYARD, d)
-      const out = []
-      let acc = 0
-      for (let i = 0; i < loop.length; i++) {
-        const a = loop[i]
-        const b = loop[(i + 1) % loop.length]
-        const l = Math.hypot(b[0] - a[0], b[1] - a[1])
-        while (acc <= l) {
-          const t = acc / l
-          out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, Math.atan2(b[0] - a[0], b[1] - a[1])])
-          acc += step
-        }
-        acc -= l
-      }
-      return out
-    }
+    const along = (d, step) => alongLoop(COURTYARD, d, step)
     const counter = { x0: -5, x1: 5, z: -26.2 }
     const nearCounter = ([x, z]) => z < -22 && x > counter.x0 - 1.5 && x < counter.x1 + 1.5
     const tables = along(3.2, 3.4).filter((p) => !nearCounter(p) && !COLUMNS.some((c) => Math.hypot(c.x - p[0], c.z - p[1]) < 1.2))
@@ -818,6 +854,7 @@ export default function World() {
       {BAKED && (
         <Suspense fallback={null}>
           <BakedBuilding M={M} />
+          <HideBaked roles={HIDDEN_BAKED} />
         </Suspense>
       )}
       <FloorAndCeiling M={M} />
