@@ -10,3 +10,30 @@ Third-party assets bundled in `public/`. All are released under CC0 1.0 (public 
 | `public/hdri/kloofendal_48d_partly_cloudy_puresky_1k.hdr` | Kloofendal 48d Partly Cloudy (Pure Sky) by Greg Zaal and Jarod Guest, Poly Haven, https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky | CC0 1.0 |
 
 The ambientCG sets were downloaded at 1K and re-encoded as JPG (colour and roughness at quality 80, normal maps at quality 90). Only the colour, OpenGL normal, and roughness maps are kept.
+
+## Scenery models and backdrop (`public/scenery/`)
+
+Downloaded at 1K, then compressed with glTF-Transform (WebP textures at 512 or 1024 px, Draco geometry). Some were decimated in Blender first to fit the frame budget; the ratio is in the last column.
+
+| File | Source | Licence | Notes |
+|---|---|---|---|
+| `plant_a.glb` | Potted Plant 01 by Rico Cilliers, Poly Haven, https://polyhaven.com/a/potted_plant_01 | CC0 1.0 | decimated to 12% |
+| `plant_b.glb` | Potted Plant 02 by Rico Cilliers, Poly Haven, https://polyhaven.com/a/potted_plant_02 | CC0 1.0 | decimated to 25% |
+| `lounge_chair.glb` | Mid Century Lounge Chair by Kuutti Siitonen, Poly Haven, https://polyhaven.com/a/mid_century_lounge_chair | CC0 1.0 | |
+| `side_table.glb` | Coffee Table Round 01 by Ulan Cabanilla, Poly Haven, https://polyhaven.com/a/coffee_table_round_01 | CC0 1.0 | |
+| `dining_chair.glb` | Dining Chair 02 by James Ray Cock, Poly Haven, https://polyhaven.com/a/dining_chair_02 | CC0 1.0 | decimated to 12% |
+| `round_table.glb` | Round Wooden Table 01 by Ulan Cabanilla, Poly Haven, https://polyhaven.com/a/round_wooden_table_01 | CC0 1.0 | decimated to 40% |
+| `study_table.glb` | Wooden Table 02 by Serhii Khromov, Poly Haven, https://polyhaven.com/a/wooden_table_02 | CC0 1.0 | top recoloured white in code |
+| `shelf.glb` | Shelf 01 by Gabriel Radić, Poly Haven, https://polyhaven.com/a/Shelf_01 | CC0 1.0 | recoloured white in code |
+| `books.glb` | Book Encyclopedia Set 01 by John Malcolm, Poly Haven, https://polyhaven.com/a/book_encyclopedia_set_01 | CC0 1.0 | decimated to 2.5% |
+| `wall_clock.glb` | Wall Clock by PierreB3D, Poly Haven, https://polyhaven.com/a/wall_clock | CC0 1.0 | |
+| `extinguisher.glb` | Korean Fire Extinguisher 01 by UM JOORIN, Poly Haven, https://polyhaven.com/a/korean_fire_extinguisher_01 | CC0 1.0 | |
+| `laptop.glb` | Classic Laptop by Arrangemonk, Poly Haven, https://polyhaven.com/a/classic_laptop | CC0 1.0 | decimated to 15% |
+| `office_chair.glb` | chairDesk from the Furniture Kit by Kenney, https://kenney.nl/assets/furniture-kit | CC0 1.0 | recoloured black in code |
+| `trash_bin.glb` | trashcan from the Furniture Kit by Kenney, https://kenney.nl/assets/furniture-kit | CC0 1.0 | recoloured in code |
+| `tree_maple.glb`, `tree_aspen.glb`, `tree_birch.glb` | Grown for this project in Blender 5.2 with the Sapling Tree Gen add-on (https://extensions.blender.org/add-ons/sapling-tree-gen/, GPL; its output carries no licence of its own) from the small maple, quaking aspen and white birch presets. Bark: Bark 001 and Bark 007 by ambientCG (https://ambientcg.com/view?id=Bark001, https://ambientcg.com/view?id=Bark007). Leaf-twig cards composited from Leaf 001 by ambientCG (https://ambientcg.com/view?id=Leaf001) | CC0 1.0 | |
+| `backdrop_museumplein_2k.jpg` | Museumplein by Greg Zaal, Poly Haven, https://polyhaven.com/a/museumplein | CC0 1.0 | 2K HDR tone mapped (ACES) to an 8-bit equirectangular JPG |
+| `tex/leather_*.jpg` | Leather 037 by ambientCG, https://ambientcg.com/view?id=Leather037 | CC0 1.0 | normal and roughness at 512 px |
+| `tex/metal_*.jpg` | Metal 027 by ambientCG, https://ambientcg.com/view?id=Metal027 | CC0 1.0 | normal and roughness at 512 px |
+
+No CC0 water cooler was found on Poly Haven, Kenney or Quaternius, so none is placed.
