@@ -13,6 +13,7 @@ import { DPR, HUD, NOLOCK, OFF, QUALITY, STATS } from './render/debugCam.js'
 import { InteractScene, ui } from './interact/index.jsx'
 import { useStore } from './interact/store.js'
 import InteractUI from './ui/InteractUI.jsx'
+import { sound } from './interact/sound.js'
 import EggsA from './eggs/eggsA.jsx'
 import EggsB from './eggs/eggsB.jsx'
 import Loading, { LoadingProbe, useLoaded } from './ui/Loading.jsx'
@@ -45,6 +46,23 @@ export default function App() {
   }
   const frozen = useStore(ui, (s) => s.frozen) // a dialogue is open: keep the start overlay away
   const playing = locked || touchOn || frozen
+  // the start card: a click, tap, Enter or Space walks in and starts the audio
+  const enter = () => {
+    sound.start()
+    if (isTouch) setTouch(true)
+    else lockRef.current?.()
+  }
+  const cardUp = !playing && !NOLOCK && loaded
+  useEffect(() => {
+    if (!cardUp) return
+    const k = (e) => {
+      if (e.code !== 'Enter' && e.code !== 'Space') return
+      e.preventDefault()
+      enter()
+    }
+    window.addEventListener('keydown', k)
+    return () => window.removeEventListener('keydown', k)
+  })
   useEffect(() => {
     const k = (e) => e.code === 'KeyM' && setShowMap((v) => !v)
     window.addEventListener('keydown', k)
@@ -110,17 +128,20 @@ export default function App() {
       {touchOn && <TouchControls touchRef={touchRef} onPause={() => setTouch(false)} />}
 
       {!playing && !NOLOCK && (
-        <div className="overlay" onClick={() => (isTouch ? setTouch(true) : lockRef.current?.())}>
+        <div className="overlay" onClick={enter}>
           <div className="card">
-            <div className="kicker">Yale SOM · Evans Hall</div>
-            <h1>Floor 2</h1>
+            <div className="kicker">MGT 409 · Yale SOM</div>
+            <h1>
+              Evans Hall <span className="accent">·</span> Floor 2
+            </h1>
             <p className="sub">Classroom drums, the cloister, Ross Library, the Beinecke Terrace Room, and the courtyard.</p>
-            <button className="go">{isTouch ? 'Tap to walk in' : 'Click to walk in'}</button>
+            <button className="go">{isTouch ? 'Tap to enter' : 'Press to enter'}</button>
             {!isTouch && (
               <button
                 className="go alt"
                 onClick={(e) => {
                   e.stopPropagation()
+                  sound.start()
                   setTouch(true)
                 }}
               >
@@ -129,20 +150,48 @@ export default function App() {
             )}
             {isTouch ? (
               <div className="keys">
-                <span><b>Left thumb</b> joystick to walk (push all the way to hurry)</span>
-                <span><b>Right thumb</b> drag to look</span>
+                <span>
+                  <kbd>Left thumb</kbd> joystick to walk (push all the way to hurry)
+                </span>
+                <span>
+                  <kbd>Right thumb</kbd> drag to look
+                </span>
               </div>
             ) : (
               <div className="keys">
-                <span><b>WASD</b> move · <b>mouse or arrows</b> look · <b>Space</b> hop</span>
-                <span><b>Shift</b> sprint</span>
-                <span><b>C</b> crouch</span>
-                <span><b>M</b> map</span>
-                <span><b>E</b> interact</span>
-                <span><b>N</b> sound</span>
-                <span><b>Esc</b> pause</span>
+                <span>
+                  <kbd>W</kbd>
+                  <kbd>A</kbd>
+                  <kbd>S</kbd>
+                  <kbd>D</kbd> move
+                </span>
+                <span>
+                  <kbd>mouse</kbd> or <kbd>arrows</kbd> look
+                </span>
+                <span>
+                  <kbd>Space</kbd> hop
+                </span>
+                <span>
+                  <kbd>Shift</kbd> sprint
+                </span>
+                <span>
+                  <kbd>C</kbd> crouch
+                </span>
+                <span>
+                  <kbd>E</kbd> interact
+                </span>
+                <span>
+                  <kbd>M</kbd> map
+                </span>
+                <span>
+                  <kbd>N</kbd> sound
+                </span>
+                <span>
+                  <kbd>Esc</kbd> pause
+                </span>
               </div>
             )}
+            <div className="credit">Built for MGT 409 · Yale SOM</div>
           </div>
         </div>
       )}

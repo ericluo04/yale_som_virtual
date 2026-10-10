@@ -24,7 +24,9 @@ const SHOTS = {
   library: '-29,1.65,11,20,-4',
 }
 // SHOTS=name or name=x,y,z,yaw,pitch (an ad hoc camera); separate entries with ';'
-const pick = process.env.SHOTS
+const pick = process.env.SHOTS === 'none'
+  ? []
+  : process.env.SHOTS
   ? process.env.SHOTS.split(';').map((e) => {
       const [n, cam] = e.split('=')
       if (cam) SHOTS[n] = cam
@@ -84,7 +86,7 @@ if (process.env.LOADING) {
   // loading screen: slow the network so the panel is mid-load when captured
   const page = await browser.newPage()
   const cdp = await page.createCDPSession()
-  await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 80, downloadThroughput: 1.5e6 / 8 * 8, uploadThroughput: 1e6 })
+  await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 80, downloadThroughput: 1.5e6, uploadThroughput: 1e6 })
   await cdp.send('Network.setCacheDisabled', { cacheDisabled: true })
   await page.goto(base + '?quality=high', { waitUntil: 'domcontentloaded' })
   await page.waitForSelector('.loading', { timeout: 60000 }).catch(() => {})
