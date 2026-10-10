@@ -176,6 +176,24 @@ function Plane({ p, rot = 0, w, h, material }) {
 }
 
 // ---------- materials
+// No point lights on a material. The classroom lights (Lighting.jsx, one per drum) cast no
+// shadows, so shiny surfaces outside the drums caught them through the walls: the north glass
+// mirrored the 2210 and 2220 lights as two bright discs in the sky (one per face of the 0.2 m
+// pane), and the brightened silver mullions flared under the same lights.
+function noPointLights(m) {
+  const prev = m.onBeforeCompile
+  const key = m.customProgramCacheKey()
+  m.onBeforeCompile = (sh, r) => {
+    prev?.(sh, r)
+    sh.fragmentShader = sh.fragmentShader.replace(
+      '#include <lights_fragment_begin>',
+      THREE.ShaderChunk.lights_fragment_begin.replace('#if ( NUM_POINT_LIGHTS > 0 ) && defined( RE_Direct )', '#if 0'),
+    )
+  }
+  m.customProgramCacheKey = () => `${key}|noPoint`
+  return m
+}
+
 function useMaterials() {
   return useMemo(() => {
     const std = (o) => new THREE.MeshStandardMaterial(o)
@@ -187,7 +205,7 @@ function useMaterials() {
         envMapIntensity: 1.4, side: THREE.DoubleSide, depthWrite: false,
       })
       m.userData.glassEnv = true // GlassEnv below gives it a reflection room without light panels
-      return m
+      return noPointLights(m)
     }
     const plaster = pbr('plaster', { color: false })
     const wood = pbr('wood')
@@ -249,9 +267,14 @@ function useMaterials() {
       mural: std({ map: T.muralTex(), roughness: 0.9, side: THREE.DoubleSide }),
       velvet: std({ color: '#0d0b10', roughness: 1 }),
       mullion: std({ color: '#2a2d33', roughness: 0.4, metalness: 0.6 }),
-      // courtyard curtain wall: silver-grey aluminium (NOTES.md); the env boost keeps the metal
-      // reading silver under the dim interior environment
-      courtMullion: std({ color: '#9aa3a8', metalness: 0.9, roughness: 0.35, envMapIntensity: 2.5, side: THREE.DoubleSide }),
+      // courtyard and perimeter curtain wall: silver aluminium (NOTES.md); the env boost keeps the
+      // metal reading silver under the dim interior environment, and a faint emissive lifts the
+      // side facing the room, which read dark grey against the bright sky (round 3)
+      courtMullion: (() => {
+        const m = noPointLights(std({ color: '#c8ccd0', metalness: 0.85, roughness: 0.3, emissive: '#30343a', emissiveIntensity: 0.4, envMapIntensity: 2.5, side: THREE.DoubleSide }))
+        m.userData.panelFreeEnv = true // GlassEnv: the room's light panels flared on the brighter metal
+        return m
+      })(),
       steel: std({ color: '#c9ced6', metalness: 0.9, roughness: 0.25 }),
       tableGlass: std({ color: '#cfe6ee', transparent: true, opacity: 0.45, roughness: 0.05, metalness: 0.3 }),
       screen: new THREE.MeshBasicMaterial({ map: T.screenTex() }),
@@ -381,10 +404,10 @@ function GlassEnv({ M }) {
     for (const o of panels) o.removeFromParent()
     const pm = new THREE.PMREMGenerator(gl)
     const env = pm.fromScene(room, 0.04).texture
-    const mats = Object.values(M).flat().filter((m) => m.userData.glassEnv)
+    const mats = Object.values(M).flat().filter((m) => m.userData.glassEnv || m.userData.panelFreeEnv)
     for (const m of mats) {
       m.envMap = env
-      m.envMapIntensity = 1.4 * ENV_INTENSITY
+      m.envMapIntensity = (m.userData.glassEnv ? 1.4 : 2.5) * ENV_INTENSITY
       m.needsUpdate = true
     }
     return () => {
