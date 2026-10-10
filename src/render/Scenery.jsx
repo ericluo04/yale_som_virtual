@@ -3,6 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import { OFF } from './debugCam.js'
 import { rng } from '../textures.js'
+import { unbakedFill } from './Baked.jsx'
 import * as THREE from 'three'
 import {
   COUNTERS, PLANTS, PLANTS_EXTRA, BINS, LOUNGES, LIBRARY, BEIN_TABLES, DRUMS, MEETING, BENCHES, ellPt,
@@ -95,13 +96,17 @@ const whiteShelf = memo((m) => {
   c.color.set('#ecebe6')
   return c
 })
-// office chair: black upholstery on a dark frame
+// office chair (meeting rooms, library): black fabric shell on a brushed-metal frame, with the
+// indirect-light lift unbaked furniture needs (Baked.jsx unbakedFill)
 const blackChair = memo((m) => {
   const c = m.clone()
-  c.color.set(m.name === 'carpet' ? '#141416' : '#3a3c40')
-  c.roughness = m.name === 'carpet' ? 0.9 : 0.4
-  c.metalness = m.name === 'carpet' ? 0 : 0.6
-  return c
+  const fabric = m.name === 'carpet'
+  c.color.set(fabric ? '#26262a' : '#9a9fa5')
+  c.roughness = fabric ? 0.7 : 0.35
+  c.metalness = fabric ? 0.1 : 0.85
+  c.envMapIntensity = 0.6
+  if (!fabric) Object.assign(c, METAL)
+  return unbakedFill(c, 3)
 })
 // Beinecke Terrace Room (photo 16): honey-oak round tops and slim black upholstered chairs. The
 // scan's walnut map is reddish, so a colour factor alone only gives brighter mahogany. The shader
@@ -128,9 +133,11 @@ const oakTable = memo((m) => {
 const blackDiningChair = memo((m) => {
   const c = m.clone()
   c.map = null
-  c.color.set('#18181a')
+  c.color.set('#1a1a1c')
   c.roughness = 0.55
-  return c
+  c.metalness = 0.1
+  c.envMapIntensity = 0.6
+  return unbakedFill(c, 3)
 })
 const greyBin = memo((m) => {
   const c = m.clone()

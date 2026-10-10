@@ -20,7 +20,7 @@ import Lighting from './render/Lighting.jsx'
 import { pbr, worldUV } from './render/pbr.js'
 import Props from './render/Props.jsx'
 import { EXPORT, BakeExport } from './render/exportGLB.js'
-import BakedBuilding, { BAKED } from './render/Baked.jsx'
+import BakedBuilding, { BAKED, unbakedFill } from './render/Baked.jsx'
 
 // procedural architecture is drawn only when the baked building (render/Baked.jsx) is off
 const PROC = !BAKED
@@ -209,7 +209,10 @@ function useMaterials() {
       })(),
       plinth: std({ color: '#2b2b2b', roughness: 0.6 }),
       orange: std({ color: '#d4552a', roughness: 0.8 }),
-      chair: std({ color: '#141417', roughness: 0.6, metalness: 0.2, envMapIntensity: 0.6 }),
+      // classroom chairs: near-black shell, a slightly lighter seat cushion (vertex colours) and a
+      // brushed-metal star base; both lifted by unbakedFill (render/Baked.jsx)
+      chair: unbakedFill(std({ color: '#ffffff', vertexColors: true, roughness: 0.55, metalness: 0.1, envMapIntensity: 0.6 }), 3),
+      chairFrame: unbakedFill(std({ color: '#8e9399', roughness: 0.35, metalness: 0.85, envMapIntensity: 0.6 }), 3),
       // glossy deep-blue glass drums (photos 01-05): clear-coated so they mirror the room
       drum: new THREE.MeshPhysicalMaterial({ map: T.drumTex(), roughness: 0.12, metalness: 0.2, clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensity: 2.4 }),
       // acoustic wall panels change colour from room to room: lavender, sage, gold, beige, grey
@@ -783,24 +786,26 @@ function DeskTops({ M }) {
 // 80 triangles (946 instances);
 // local +z points away from the desk, the seat top is 0.5 m above the floor. The back stays
 // within 0.24 m of the seat centre: the next row's desk panel stands 0.28 m behind it
+// Two meshes: the shell (seat, arm pads, back; vertex colours give the cushion a lighter fabric)
+// and the metal base (star and gas column)
 const CHAIR = (() => {
   const parts = []
-  const box = (w, h, d, x, y, z, rx = 0, ry = 0) => {
-    const g = new THREE.BoxGeometry(w, h, d)
+  const box = (w, h, d, x, y, z, rx, color) => {
+    const g = new THREE.BoxGeometry(w, h, d).toNonIndexed()
     g.rotateX(rx)
-    g.rotateY(ry)
     g.translate(x, y, z)
+    const c = new THREE.Color(color)
+    g.setAttribute('color', new THREE.Float32BufferAttribute(Array.from({ length: g.attributes.position.count }, () => [c.r, c.g, c.b]).flat(), 3))
     parts.push(g)
   }
+  box(0.5, 0.07, 0.46, 0, 0.465, -0.01, 0, '#2a2a2e')
+  for (const x of [-0.26, 0.26]) box(0.06, 0.03, 0.28, x, 0.7, 0.0, 0, '#1a1a1c')
+  box(0.46, 0.56, 0.035, 0, 0.83, 0.19, 0.1, '#1a1a1c')
   const base = new THREE.CylinderGeometry(0.3, 0.3, 0.035, 5)
   base.translate(0, 0.06, 0)
   const col = new THREE.CylinderGeometry(0.025, 0.03, 0.38, 6, 1, true)
   col.translate(0, 0.25, 0)
-  parts.push(base, col)
-  box(0.5, 0.07, 0.46, 0, 0.465, -0.01)
-  for (const x of [-0.26, 0.26]) box(0.06, 0.03, 0.28, x, 0.7, 0.0)
-  box(0.46, 0.56, 0.035, 0, 0.83, 0.19, 0.1)
-  return mergeGeometries(parts.map((g) => g.toNonIndexed()))
+  return { shell: mergeGeometries(parts), frame: mergeGeometries([base, col].map((g) => g.toNonIndexed())) }
 })()
 
 // ---------- classroom drums
@@ -849,7 +854,8 @@ function ClassroomStuff({ M }) {
   return (
     <>
       {/* no sun shadows: almost every chair stands inside a drum, out of the sun */}
-      <Instanced items={chairs} material={M.chair} geometry={CHAIR} noCast />
+      <Instanced items={chairs} material={M.chair} geometry={CHAIR.shell} noCast />
+      <Instanced items={chairs} material={M.chairFrame} geometry={CHAIR.frame} noCast />
       {!PROC && <DeskTops M={M} />}
       {SCREENS.map((s, i) => (
         <Plane key={i} p={[s.x, 2.95, s.z]} rot={s.rot} w={2.1} h={1.18} material={slideMat(s.course, s.kind)} />
