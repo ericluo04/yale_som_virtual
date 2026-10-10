@@ -261,7 +261,8 @@ def run(L, bake_objs, log=print):
 
     # ---- drum door frames, coves, inner baseboards
     steel = material('steel', (0.55, 0.58, 0.62), metallic=0.9, roughness=0.25)
-    plinth = material('plinth', (0.024, 0.024, 0.024), roughness=0.6)
+    # 'dark', not 'plinth': Scenery.jsx puts leather maps on materials coloured like the plinth
+    plinth = material('dark', (0.011, 0.012, 0.014), roughness=0.6)
     frames = Builder()
     bases = Builder()
     DW = L['DRUM_WALL']
@@ -308,7 +309,7 @@ def run(L, bake_objs, log=print):
         ln = math.hypot(bx - ax, bz - az)
         yaw = -math.atan2(bz - az, bx - ax)
         bases.box(((ax + bx) / 2, 0.05, (az + bz) / 2), (ln + 0.05, 0.1, w['t'] + 0.03), yaw)
-    new.append(bases.build('bake_baseboards__plinth', plinth, 'baseboards'))
+    new.append(bases.build('bake_baseboards__dark', plinth, 'baseboards'))
 
     # ---- continuous horseshoe desks
     drop('bake_drumdesks__desk')

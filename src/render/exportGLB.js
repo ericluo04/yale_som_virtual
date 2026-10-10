@@ -19,7 +19,7 @@ import * as THREE from 'three'
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { SUN, SUN_DIR, DOWNLIGHT, ROOM_LIGHT, downlightSpots, roomLightSpots } from './Lighting.jsx'
-import { H } from '../layout.js'
+import { H, ROOF, BOUNDS, COURTYARD, DRUMS, DRUM_WALL, COLUMNS, STAIRS, WALLS, RISE } from '../layout.js'
 
 const params = new URLSearchParams(typeof location === 'undefined' ? '' : location.search)
 export const EXPORT = params.get('exportGLB') === '1'
@@ -47,7 +47,8 @@ function albedo(mat) {
   return c
 }
 
-const skip = (m) => !m || m.transparent || m.transmission > 0 || m.type === 'MeshBasicMaterial' || m.visible === false
+// alpha-tested cut-outs (leaf cards) would cast solid quad shadows in Cycles, so they go too
+const skip = (m) => !m || m.transparent || m.transmission > 0 || m.alphaTest > 0 || m.type === 'MeshBasicMaterial' || m.visible === false
 
 // geometry of one material group, with position, normal and uv only, always indexed
 function subGeometry(geo, group) {
@@ -132,6 +133,38 @@ function collect(scene) {
   return groups
 }
 
+// Plan data for the Blender detail pass (tools/bake/detail.py): it builds mullions, fascia,
+// coves, door frames, baseboards and continuous desks from the same numbers the app uses.
+function layoutData() {
+  const inDrum = (x, z) => DRUMS.find((d) => ((x - d.c[0]) / d.rx) ** 2 + ((z - d.c[1]) / d.rz) ** 2 < 1)
+  const drums = DRUMS.map((d) => {
+    const { F, back } = d.tiers
+    const t = [-back[1], back[0]]
+    // desks of one row share y0; each becomes (radius, angle from the aisle axis)
+    const rows = new Map()
+    for (const w of WALLS) {
+      if (w.mat !== 'desk') continue
+      const mx = (w.a[0] + w.b[0]) / 2
+      const mz = (w.a[1] + w.b[1]) / 2
+      if (inDrum(mx, mz) !== d) continue
+      const v = [mx - F[0], mz - F[1]]
+      const r = Math.hypot(v[0], v[1])
+      const th = Math.atan2(v[0] * t[0] + v[1] * t[1], v[0] * back[0] + v[1] * back[1])
+      if (!rows.has(w.y0)) rows.set(w.y0, [])
+      rows.get(w.y0).push({ r, th, len: Math.hypot(w.b[0] - w.a[0], w.b[1] - w.a[1]), h: w.h, depth: w.t })
+    }
+    return {
+      id: d.id, c: d.c, rx: d.rx, rz: d.rz, gap: d.gap, doors: d.doors, arcs: d.arcs, F, back,
+      front: { fc: d.front.fc, t: d.front.t, half: d.front.half },
+      deskRows: [...rows.entries()].map(([y0, desks]) => ({ y0, desks })),
+    }
+  })
+  const walls = WALLS.filter((w) => !['none', 'exterior', 'libGlass', 'beinGlass', 'meetGlass'].includes(w.mat)).map((w) => ({
+    a: w.a, b: w.b, h: w.h, y0: w.y0, t: w.t, mat: w.mat, inDrum: !!inDrum((w.a[0] + w.b[0]) / 2, (w.a[1] + w.b[1]) / 2),
+  }))
+  return { H, ROOF, RISE, BOUNDS, DRUM_WALL, courtyard: COURTYARD, columns: COLUMNS, stairs: STAIRS, drums, walls }
+}
+
 async function exportBuilding(scene) {
   const out = new THREE.Scene()
   const counts = {}
@@ -156,6 +189,7 @@ async function exportBuilding(scene) {
     downlights: { ...DOWNLIGHT, y: H - 0.004, spots: downlightSpots() },
     points: roomLightSpots().map((s) => ({ p: s.p, intensity: s.i, distance: s.d, decay: ROOM_LIGHT.decay, color: ROOM_LIGHT.color })),
     hdri: 'hdri/kloofendal_48d_partly_cloudy_puresky_1k.hdr',
+    layout: layoutData(),
     triangles: counts,
   }
   return { glb, lights }

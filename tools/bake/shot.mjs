@@ -18,9 +18,11 @@ const p = await b.newPage()
 await p.setViewport({ width: 1440, height: 900, deviceScaleFactor: 1 })
 const errs = []
 p.on('pageerror', (e) => errs.push(e.message))
-p.on('console', (m) => ['error', 'warning'].includes(m.type()) && errs.push(m.text().slice(0, 200)))
+p.on('console', (m) => ['error', 'warning'].includes(m.type()) && errs.push(m.text().slice(0, 600)))
 for (const url of urls) {
   await p.goto(url, { waitUntil: 'load', timeout: 120000 })
+  // the baked building has loaded and its probes are captured (src/render/Probes.jsx)
+  await p.waitForFunction(() => window.__bakedReady || new URLSearchParams(location.search).get('bake') === '0', { timeout: 60000 }).catch(() => console.log('no __bakedReady after 60 s'))
   await new Promise((r) => setTimeout(r, wait))
   if (!fps) {
     await p.screenshot({ path: args[1] })
@@ -38,6 +40,7 @@ for (const url of urls) {
     }
     requestAnimationFrame(f)
   }))
+  r.probeMs = await p.evaluate(() => window.__probeMs?.toFixed(0))
   console.log(url, JSON.stringify(r))
 }
 if (errs.length) console.log('CONSOLE', [...new Set(errs)].slice(0, 8))

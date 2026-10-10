@@ -44,7 +44,7 @@ ROOT = os.path.dirname(os.path.dirname(HERE))
 OUT = os.path.join(HERE, 'out')
 
 argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
-opt = {'samples': 128, 'ao-samples': 128, 'size': 2048, 'ao-size': 1024, 'atlases': 4, 'ao-distance': 1.0}
+opt = {'samples': 256, 'ao-samples': 128, 'size': 2048, 'ao-size': 1024, 'atlases': 4, 'ao-distance': 1.0}
 for i in range(0, len(argv) - 1, 2):
     opt[argv[i].lstrip('-')] = type(opt[argv[i].lstrip('-')])(argv[i + 1])
 SIZE = opt['size']
@@ -64,8 +64,9 @@ WEIGHTS = {
 COVE_STRENGTH = 40.0
 # Baked.jsx multiplies the map by this gain: an exposure for the interior. With the physical
 # sky alone the shaded concourse comes out near a twentieth of the sunlit floor and reads as a
-# cave next to the reference photos; 4 is my judgment by eye. Kept in step with LM_GAIN there.
-LM_GAIN = 4.0
+# cave next to the reference photos; 5.5 is my judgment by eye (the maps shipped on
+# 2026-10-09 divided the library lamps by 4, an earlier value). Kept in step with LM_GAIN there.
+LM_GAIN = 5.5
 SUN_DIRECT_SAMPLES = 8  # the sun-only direct pass is shadow rays from one lamp; low noise
 SKY_CLAMP = 12.0  # HDRI luminance above this is the sun disc (p99.9 of the sky is 7.9)
 PACK_MARGIN = 6 / 2048  # UV-space gap between islands, 6 texels at 2048

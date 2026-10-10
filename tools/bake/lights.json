@@ -14993,141 +14993,6 @@
    },
    {
     "a": [
-     -38,
-     -12.3
-    ],
-    "b": [
-     -38,
-     12.3
-    ],
-    "h": 2.6,
-    "y0": 0,
-    "t": 0.5,
-    "mat": "shelf",
-    "inDrum": false
-   },
-   {
-    "a": [
-     -34.9,
-     -10
-    ],
-    "b": [
-     -34.9,
-     -3
-    ],
-    "h": 1.8,
-    "y0": 0,
-    "t": 0.5,
-    "mat": "shelf",
-    "inDrum": false
-   },
-   {
-    "a": [
-     -34.9,
-     3
-    ],
-    "b": [
-     -34.9,
-     10
-    ],
-    "h": 1.8,
-    "y0": 0,
-    "t": 0.5,
-    "mat": "shelf",
-    "inDrum": false
-   },
-   {
-    "a": [
-     -30.4,
-     -9.1
-    ],
-    "b": [
-     -30.4,
-     -6.9
-    ],
-    "h": 0.76,
-    "y0": 0,
-    "t": 0.9,
-    "mat": "desk",
-    "inDrum": false
-   },
-   {
-    "a": [
-     -30.4,
-     -5.1
-    ],
-    "b": [
-     -30.4,
-     -2.9
-    ],
-    "h": 0.76,
-    "y0": 0,
-    "t": 0.9,
-    "mat": "desk",
-    "inDrum": false
-   },
-   {
-    "a": [
-     -30.4,
-     2.9
-    ],
-    "b": [
-     -30.4,
-     5.1
-    ],
-    "h": 0.76,
-    "y0": 0,
-    "t": 0.9,
-    "mat": "desk",
-    "inDrum": false
-   },
-   {
-    "a": [
-     -30.4,
-     6.9
-    ],
-    "b": [
-     -30.4,
-     9.1
-    ],
-    "h": 0.76,
-    "y0": 0,
-    "t": 0.9,
-    "mat": "desk",
-    "inDrum": false
-   },
-   {
-    "a": [
-     -27.7,
-     -7.5
-    ],
-    "b": [
-     -27.7,
-     -4.5
-    ],
-    "h": 0.45,
-    "y0": 0,
-    "t": 0.9,
-    "mat": "leather",
-    "inDrum": false
-   },
-   {
-    "a": [
-     -27.7,
-     4.5
-    ],
-    "b": [
-     -27.7,
-     7.5
-    ],
-    "h": 0.45,
-    "y0": 0,
-    "t": 0.9,
-    "mat": "leather",
-    "inDrum": false
-   },
-   {
-    "a": [
      -35,
      17.5
     ],
@@ -15855,9 +15720,7 @@
   "occ__2b3a26": 2,
   "occ__908779": 384,
   "occ__8c95a7": 384,
-  "occ__2a2d33": 13968,
-  "occ__4a3524": 924,
-  "occ__5d8a3a": 1764,
+  "occ__2a2d33": 13368,
   "bake_paving__paving": 384,
   "bake_canopy__canopy": 228,
   "bake_canopy_back__canopy": 228,
@@ -15865,14 +15728,10 @@
   "bake_fascia_back__canopy": 72,
   "bake_columns__column": 1600,
   "occ__fbfbf8": 264,
-  "occ__2f4a25": 17640,
   "bake_walls__white": 624,
   "bake_walls__sage": 96,
   "bake_walls__slats": 384,
-  "bake_walls__desk": 48,
   "bake_drumdesks__desk": 4920,
-  "bake_walls__shelf": 36,
-  "bake_walls__leather": 24,
   "bake_drum_2400__drum": 288,
   "bake_drumin_2400__drumIn0": 288,
   "bake_room_2400__roomCarpet": 48,
@@ -15913,7 +15772,7 @@
   "bake_tiers_2220__stepEdge": 516,
   "bake_tiers_2230__tierCarpet": 496,
   "bake_tiers_2230__stepEdge": 516,
-  "occ__0a0a0b": 23904,
+  "occ__0a0a0b": 22704,
   "occ__1b1c20": 396,
   "bake_bein_floor__beinCarpet": 64,
   "bake_bein_ceiling__ceiling": 64,
@@ -15925,13 +15784,54 @@
   "bake_bein_column__column": 80,
   "occ__a05926": 896,
   "occ__979694": 14,
-  "occ__2b2b2b": 2888,
   "occ__f4f3ef": 60,
-  "occ__b8bec4": 12,
+  "occ__2e3033": 240,
+  "occ__b8bec4": 60,
+  "occ__2b2b2b": 2840,
   "occ__111214": 24,
-  "occ__d9d6cf": 400,
-  "occ__2a2018": 400,
-  "occ__3f7a35": 1600,
+  "occ__606163": 104,
+  "occ__aeb3b8": 5880,
+  "occ__646566": 52,
+  "occ__636465": 156,
+  "occ__626465": 52,
+  "occ__646567": 52,
+  "occ__5c5e60": 52,
+  "occ__5f6062": 156,
+  "occ__626365": 52,
+  "occ__606263": 52,
+  "occ__626364": 104,
+  "occ__606162": 104,
+  "occ__515254": 52,
+  "occ__515355": 52,
+  "occ__525456": 52,
+  "occ__7f7d77": 173120,
+  "occ__a19e85": 172872,
+  "occ__9d6f4e": 73656,
+  "occ__a86c4a": 59108,
+  "occ__b9bec3": 88,
+  "occ__55595e": 184,
+  "occ__9d9e94": 28132,
+  "occ__252525": 26,
+  "occ__f1f0ec": 1568,
+  "occ__3a3c40": 7936,
+  "occ__141416": 1472,
+  "occ__756153": 49184,
+  "occ__858994": 8088,
+  "occ__ecebe6": 9464,
+  "occ__4c3226": 86320,
+  "occ__d1c3b4": 81640,
+  "occ__979ca2": 3130,
+  "occ__8e514a": 19122,
+  "occ__472c1c": 24185,
+  "occ__2e2018": 110922,
+  "occ__636d33": 8,
+  "occ__a69c78": 8,
+  "occ__b9b5ac": 48,
+  "occ__4b4c4d": 4,
+  "occ__7f7b7b": 24,
+  "occ__5b5d60": 24,
+  "occ__cfc7b6": 72,
+  "occ__867d7b": 24,
   "occ__9a5530": 5656,
   "occ__6b4a2e": 48,
   "occ__dad1c9": 2,

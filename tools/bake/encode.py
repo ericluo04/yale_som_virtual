@@ -23,9 +23,10 @@ OUT = os.path.join(HERE, 'out')
 PUB = os.path.join(ROOT, 'public', 'baked')
 
 ap = argparse.ArgumentParser()
-ap.add_argument('--format', default='jpg')
+ap.add_argument('--format', default='png')  # JPEG blocks showed on the smooth soffit
 ap.add_argument('--quality', type=int, default=92)
 args = ap.parse_args()
+DESATURATE = 0.4
 
 n = len(glob.glob(os.path.join(OUT, 'lm[0-9].npy')))
 lms = [np.load(os.path.join(OUT, f'lm{i}.npy')).astype(np.float32)[::-1] for i in range(n)]  # Blender rows run bottom-up
@@ -40,6 +41,10 @@ def srgb(x):
 
 files, aofiles, total = [], [], 0
 for i, a in enumerate(lms):
+    # pull the bounce colour 40% toward grey: the green lawn bounce tinted the white soffit far
+    # more than the reference photos show (my judgment by eye)
+    lum = (a * np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)).sum(-1, keepdims=True)
+    a = lum + (a - lum) * (1 - DESATURATE)
     v = np.clip(srgb(np.clip(a / scale, 0, 1)) * 255 + 0.5, 0, 255).astype(np.uint8)
     f = f'lm{i}.{args.format}'
     im = Image.fromarray(v)
