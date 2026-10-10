@@ -281,7 +281,9 @@ for (const p of BEIN_TABLES) {
 
 // cloister furniture: cognac benches, orange sofas, plants
 const CW = CLOISTER_W
-export const PLANTS = [[-CW, -10.5], [8.8, -21], [-7, 21], [CW, 8], [-CW, 9.5]]
+// scanned potted plants (render/Scenery.jsx), kept 1.2 m off each walkway centerline and 0.5 m off
+// Handsome Dan's loop: the west pair stands against the library glass, the east one by a column
+export const PLANTS = [[-25.95, -10.5], [8.8, -20.55], [-7, 20.55], [27.2, 7.75], [-25.95, 9.5]]
 // curved cognac "banana" banquettes (photos 03-05): drawn in World.jsx, colliders here
 export const BENCHES = [
   { c: [-CW - 0.3, -2], len: 4.2, rot: 0 },
@@ -316,6 +318,30 @@ for (const k of COUNTERS) W([k.x - k.w / 2, k.z], [k.x + k.w / 2, k.z], 'none', 
 export const RECEPTION = { x: LIBRARY.x1 - 1.6, z: -2.4, w: 2.8, d: 0.8 }
 W([RECEPTION.x, RECEPTION.z - RECEPTION.w / 2], [RECEPTION.x, RECEPTION.z + RECEPTION.w / 2], 'none', { t: RECEPTION.d })
 export const SIGNAGE = STAIRS.filter((s) => s.id === 'A' || s.id === 'B').map((s) => ({ x: s.c[0], z: s.c[1] - Math.sign(s.c[1]) * (s.d / 2 + 0.03), rot: s.c[1] > 0 ? Math.PI : 0 }))
+
+// ---------- scenery (render/Scenery.jsx draws scanned CC0 models; colliders here)
+// more plants in front of the drums, between the counters and the doors
+export const PLANTS_EXTRA = [[-18.6, -25.3], [3.4, -25.3], [11.9, -25.3], [-18.5, 26.2], [3.5, 26.2], [11.5, 26.2], [-27.4, -22.6], [27.9, 20.4]]
+for (const p of PLANTS_EXTRA) dot(p)
+// waste bins at the four cloister corners, out of both walkways
+export const BINS = [[-27.6, -23.9], [27.9, -21.5], [-27.5, 24.0], [27.9, 21.4]]
+for (const p of BINS) W(p, [p[0] + 0.01, p[1]], 'none', { t: 0.5 })
+// library lounge: four leather lounge chairs round a low table, one group each side of the door
+// (two chairs north of the table, two south), clear of the desk chairs and the reception desk
+export const LOUNGES = [{ x: -28.0, z: -6.4 }, { x: -28.0, z: 6.4 }]
+for (const l of LOUNGES) W([l.x, l.z - 0.9], [l.x, l.z + 0.9], 'none', { t: 1.9 })
+// The library shelves, study desks and leather sofas, and the box chairs in the library and the
+// Beinecke room, are drawn as scanned models now. Their wall entries keep their colliders but stop
+// drawing (mat 'none'), and their box chairs leave CHAIRS (no other module reads those seats).
+{
+  const { x0, x1, z0, z1 } = LIBRARY
+  const inLib = (x, z) => x > x0 - 0.5 && x < x1 && z > z0 && z < z1
+  for (const w of WALLS) if (['shelf', 'desk', 'leather'].includes(w.mat) && inLib(w.a[0], w.a[1])) w.mat = 'none'
+  for (let i = CHAIRS.length - 1; i >= 0; i--) {
+    const c = CHAIRS[i]
+    if (!c.room && (inLib(c.x, c.z) || c.x > EAST)) CHAIRS.splice(i, 1)
+  }
+}
 
 // colliders with bounding boxes for fast rejection
 export const COLLIDERS = WALLS.filter((w) => w.collide).map((w) => ({
