@@ -23,7 +23,7 @@ export default function App() {
   const [where, setWhere] = useState('')
   const [showMap, setShowMap] = useState(true)
   // high quality starts at the display's pixel ratio (capped at 2) and steps down a tier
-  // (2, 1.5, 1) when the frame rate sits under 45 fps for 75% of a 6 s window; it steps back
+  // (2, 1.5, 1) when the frame rate sits under 47 fps for 75% of a 6 s window; it steps back
   // up when it holds above 57 fps for 6 s. A switch remounts the effect chain and drops a few
   // frames, so it waits until the player is below 0.5 m/s (a step down under 30 fps does not
   // wait: a hitch costs less than walking on at that rate), and the last frame stays on screen
@@ -140,7 +140,7 @@ export default function App() {
             ms={500}
             iterations={12}
             flipflops={2}
-            bounds={() => [45, 57]}
+            bounds={() => [47, 57]}
             onDecline={(api) =>
               (pendingTier.current = {
                 urgent: api.fps < 30,
@@ -231,6 +231,9 @@ export default function App() {
                 </span>
                 <span>
                   <kbd>N</kbd> sound
+                </span>
+                <span>
+                  <kbd>T</kbd> eggs
                 </span>
                 <span>
                   <kbd>Esc</kbd> pause
