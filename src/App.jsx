@@ -76,8 +76,10 @@ export default function App() {
   const lockRef = useRef()
   const mapRef = useRef()
   const onLock = useCallback((v) => setLocked(v), [])
-  // dev only: window.__lock(true) shows the locked HUD (aim dot) in a headless browser
+  // dev only: window.__lock(true) shows the locked HUD (aim dot) in a headless browser, and
+  // window.__ui.set({ awaitLock: true }) the "click to look" hint
   if (import.meta.env.DEV) window.__lock = setLocked
+  if (import.meta.env.DEV) window.__ui = ui
   const onWhere = useCallback((w) => setWhere(w), [])
   // phones have no pointer lock, so they get a joystick + drag-to-look instead
   const [isTouch] = useState(() => matchMedia('(pointer: coarse)').matches) // phones + tablets; touchscreen laptops still get mouse mode
