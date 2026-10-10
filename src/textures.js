@@ -97,32 +97,6 @@ export function cafeTex() {
   return tex(c, [1, 1])
 }
 
-// the courtyard curtain wall above level 2 as seen from across the courtyard: the white
-// level 4 slab edge, silver mullions, the roof fascia on top. World.jsx no longer uses it: the
-// level 4 drums are real geometry (Level4), so the painted drums were removed from this tile
-export function courtyardFacadeTex() {
-  const [c, g] = canvas(1024, 512)
-  const sky = g.createLinearGradient(0, 0, 0, 512)
-  sky.addColorStop(0, '#b9cbd8')
-  sky.addColorStop(1, '#7f95a6')
-  g.fillStyle = sky
-  g.fillRect(0, 0, 1024, 512)
-  // interior depth behind the glass: pale ceiling band, darker rooms
-  g.fillStyle = '#e9e7e2'
-  g.fillRect(0, 40, 1024, 28)
-  g.fillStyle = 'rgba(40,52,66,0.55)'
-  g.fillRect(0, 68, 1024, 380)
-  // level 4 slab edge and the roof fascia
-  g.fillStyle = '#eceae6'
-  g.fillRect(0, 448, 1024, 64)
-  g.fillRect(0, 0, 1024, 40)
-  // silver mullions about 1.6 m apart (the tile spans 15 m) and a transom
-  g.fillStyle = '#a7b0b5'
-  for (let x = 0; x < 1024; x += 1024 / 9) g.fillRect(x, 40, 6, 408)
-  g.fillRect(0, 250, 1024, 5)
-  return tex(c, [1, 1])
-}
-
 // buttoned leather cushion, one 0.6 x 0.6 m tile as a normal map: soft bulge between seams
 // across the tile edges (v), three by three buttons pulled into dimples
 export function tuftNormalTex() {
