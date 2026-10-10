@@ -93,7 +93,7 @@ function alongLoop(pts, d, step) {
   return out
 }
 
-function Instanced({ items, material, geometry, bake }) {
+function Instanced({ items, material, geometry, bake, noCast }) {
   const ref = useRef()
   useLayoutEffect(() => {
     if (!ref.current) return // empty item lists render nothing
@@ -113,7 +113,7 @@ function Instanced({ items, material, geometry, bake }) {
     ref.current.instanceMatrix.needsUpdate = true
   }, [items])
   if (!items.length) return null
-  return <instancedMesh ref={ref} args={[geometry, material, items.length]} frustumCulled={false} userData={bake ? { bake } : {}} />
+  return <instancedMesh ref={ref} args={[geometry, material, items.length]} frustumCulled={false} userData={bake ? { bake } : noCast ? { noCast } : {}} />
 }
 
 const BOX = new THREE.BoxGeometry(1, 1, 1)
@@ -226,7 +226,6 @@ function useMaterials() {
       // with box-projected UVs, drawn in front of the baked faces, whose lightmap texels break up
       // into triangles; desks with path-following wood UVs and a dark leather writing strip
       riser: boxUV(std({ ...pbr('carpet', { color: 'concourse' }), color: '#8a8a88', roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }), 0.6),
-      hidden: new THREE.MeshBasicMaterial({ visible: false }),
       deskWood: std({ ...pbr('wood', { repeat: [0.8, 0.8] }), color: '#e8c9a8', roughness: 0.75, side: THREE.DoubleSide }),
       deskLeather: std({ color: '#2b211c', roughness: 0.5, side: THREE.DoubleSide }),
       beinCarpet: std({ ...pbr('carpet', { repeat: [14, 14] }), color: '#e6dccb', roughness: 1 }),
@@ -655,8 +654,22 @@ function Tiers({ M }) {
       }
     return out
   }, [])
-  // baked: only the riser faces are redrawn, over the baked ones (polygon offset)
-  if (!PROC) return geos.map(([, g], i) => <mesh key={i} geometry={g} material={[M.hidden, M.riser]} />)
+  // baked: only the riser faces (each extrusion's side group) are redrawn, merged into one mesh
+  // over the baked ones (polygon offset)
+  const risers = useMemo(() => {
+    if (PROC) return null
+    const sides = geos.map(([, g]) => {
+      const { start, count } = g.groups.find((gr) => gr.materialIndex === 1)
+      const out = new THREE.BufferGeometry()
+      for (const k of ['position', 'normal', 'uv']) {
+        const a = g.attributes[k]
+        out.setAttribute(k, new THREE.BufferAttribute(a.array.slice(start * a.itemSize, (start + count) * a.itemSize), a.itemSize))
+      }
+      return out
+    })
+    return mergeGeometries(sides)
+  }, [geos])
+  if (!PROC) return <mesh geometry={risers} material={M.riser} />
   return geos.map(([id, g], i) => <mesh key={i} geometry={g} material={[M.tierCarpet, M.stepEdge]} userData={{ bake: `tiers_${id}` }} />)
 }
 
@@ -766,7 +779,8 @@ function DeskTops({ M }) {
   )
 }
 
-// office chair: five-star base, gas column, seat, armrests, mesh back leaning 6 degrees;
+// office chair: star base, gas column, seat, armrest pads, mesh back leaning 6 degrees, about
+// 80 triangles (946 instances);
 // local +z points away from the desk, the seat top is 0.5 m above the floor. The back stays
 // within 0.24 m of the seat centre: the next row's desk panel stands 0.28 m behind it
 const CHAIR = (() => {
@@ -778,18 +792,13 @@ const CHAIR = (() => {
     g.translate(x, y, z)
     parts.push(g)
   }
-  for (let i = 0; i < 5; i++) {
-    const a = (i / 5) * TAU
-    box(0.04, 0.035, 0.3, Math.sin(a) * 0.15, 0.06, Math.cos(a) * 0.15, 0, a)
-  }
-  const col = new THREE.CylinderGeometry(0.025, 0.03, 0.38, 10)
+  const base = new THREE.CylinderGeometry(0.3, 0.3, 0.035, 5)
+  base.translate(0, 0.06, 0)
+  const col = new THREE.CylinderGeometry(0.025, 0.03, 0.38, 6, 1, true)
   col.translate(0, 0.25, 0)
-  parts.push(col)
+  parts.push(base, col)
   box(0.5, 0.07, 0.46, 0, 0.465, -0.01)
-  for (const x of [-0.26, 0.26]) {
-    box(0.04, 0.2, 0.04, x, 0.6, 0.02)
-    box(0.06, 0.03, 0.28, x, 0.7, 0.0)
-  }
+  for (const x of [-0.26, 0.26]) box(0.06, 0.03, 0.28, x, 0.7, 0.0)
   box(0.46, 0.56, 0.035, 0, 0.83, 0.19, 0.1)
   return mergeGeometries(parts.map((g) => g.toNonIndexed()))
 })()
@@ -839,7 +848,8 @@ function ClassroomStuff({ M }) {
   const chairs = useMemo(() => CHAIRS.map((c) => ({ p: [c.x, c.y || 0, c.z], r: c.rot })), [])
   return (
     <>
-      <Instanced items={chairs} material={M.chair} geometry={CHAIR} />
+      {/* no sun shadows: almost every chair stands inside a drum, out of the sun */}
+      <Instanced items={chairs} material={M.chair} geometry={CHAIR} noCast />
       {!PROC && <DeskTops M={M} />}
       {SCREENS.map((s, i) => (
         <Plane key={i} p={[s.x, 2.95, s.z]} rot={s.rot} w={2.1} h={1.18} material={slideMat(s.course, s.kind)} />
