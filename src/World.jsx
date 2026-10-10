@@ -20,7 +20,7 @@ import Lighting from './render/Lighting.jsx'
 import { pbr, worldUV } from './render/pbr.js'
 import Props from './render/Props.jsx'
 import { EXPORT, BakeExport } from './render/exportGLB.js'
-import BakedBuilding, { BAKED } from './render/Baked.jsx'
+import BakedBuilding, { BAKED, unbakedFill } from './render/Baked.jsx'
 
 // procedural architecture is drawn only when the baked building (render/Baked.jsx) is off
 const PROC = !BAKED
@@ -209,7 +209,10 @@ function useMaterials() {
       })(),
       plinth: std({ color: '#2b2b2b', roughness: 0.6 }),
       orange: std({ color: '#d4552a', roughness: 0.8 }),
-      chair: std({ color: '#141417', roughness: 0.6, metalness: 0.2, envMapIntensity: 0.6 }),
+      // classroom chairs: near-black shell, a slightly lighter seat cushion (vertex colours) and a
+      // brushed-metal star base; both lifted by unbakedFill (render/Baked.jsx)
+      chair: unbakedFill(std({ color: '#ffffff', vertexColors: true, roughness: 0.55, metalness: 0.1, envMapIntensity: 0.6 }), 3),
+      chairFrame: unbakedFill(std({ color: '#8e9399', roughness: 0.35, metalness: 0.85, envMapIntensity: 0.6 }), 3),
       // glossy deep-blue glass drums (photos 01-05): clear-coated so they mirror the room
       drum: new THREE.MeshPhysicalMaterial({ map: T.drumTex(), roughness: 0.12, metalness: 0.2, clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensity: 2.4 }),
       // acoustic wall panels change colour from room to room: lavender, sage, gold, beige, grey
@@ -226,6 +229,8 @@ function useMaterials() {
       // with box-projected UVs, drawn in front of the baked faces, whose lightmap texels break up
       // into triangles; desks with path-following wood UVs and a dark leather writing strip
       riser: boxUV(std({ ...pbr('carpet', { color: 'concourse' }), color: '#8a8a88', roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }), 0.6),
+      // step tops over the baked ones: the room carpet, lifted like the other unbaked overlays
+      stepTop: unbakedFill(boxUV(std({ ...pbr('carpet', { color: 'concourse' }), color: '#6e6153', roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }), 0.6), 1),
       deskWood: std({ ...pbr('wood', { repeat: [0.8, 0.8] }), color: '#e8c9a8', roughness: 0.75, side: THREE.DoubleSide }),
       deskLeather: std({ color: '#2b211c', roughness: 0.5, side: THREE.DoubleSide }),
       beinCarpet: std({ ...pbr('carpet', { repeat: [14, 14] }), color: '#e6dccb', roughness: 1 }),
@@ -248,12 +253,44 @@ function useMaterials() {
       poster: new THREE.MeshBasicMaterial({ map: T.posterTex() }),
       board: std({ color: '#fbfbf8', roughness: 0.3 }),
       dark: std({ color: '#1b1c20', roughness: 0.6 }),
-      exit: new THREE.MeshBasicMaterial({ map: T.exitTex() }),
+      // lit exit signs over the stair doors: above 1 and not tone mapped, so they catch a little bloom
+      exit: new THREE.MeshBasicMaterial({ map: T.exitTex(), color: new THREE.Color(1.8, 1.8, 1.8), toneMapped: false }),
       opening: std({ map: T.stairOpeningTex(), roughness: 0.9 }),
       pot: std({ color: '#26262a', roughness: 0.7 }),
       leaf: std({ color: '#3f7a35', roughness: 0.9 }),
       lamp: new THREE.MeshBasicMaterial({ color: '#fffaf0' }),
       column: std({ color: '#e8e8e6', roughness: 0.5 }),
+    }
+    // The plaster walls' lightmap texels show as soft 30 cm patches in shade. A second sample of
+    // the plaster maps at 5.37 times the frequency (about 37 cm tiles at the walls' 2 m) adds a
+    // fine grain the eye reads as texture: a detail normal for the sunlit side and a +-4% albedo
+    // grain from the roughness map for the shade, where the normal map changes nothing. The
+    // baked clones inherit it (Baked.jsx chains onBeforeCompile).
+    for (const m of [M.white, M.sage]) {
+      const prev = m.onBeforeCompile
+      const key = m.customProgramCacheKey()
+      m.onBeforeCompile = (sh, r) => {
+        prev(sh, r)
+        sh.fragmentShader = sh.fragmentShader
+          .replace(
+            '#include <roughnessmap_fragment>',
+            `#include <roughnessmap_fragment>
+            #ifdef USE_ROUGHNESSMAP
+              float plGrain = texture2D( roughnessMap, vRoughnessMapUv * 5.37 + 0.31 ).g;
+              float plMean = textureLod( roughnessMap, vec2( 0.5 ), 12.0 ).g;
+              diffuseColor.rgb *= clamp( 1.0 + 0.6 * ( plGrain - plMean ), 0.96, 1.04 );
+            #endif`,
+          )
+          .replace(
+            '#include <normal_fragment_maps>',
+            `#include <normal_fragment_maps>
+            #ifdef USE_NORMALMAP_TANGENTSPACE
+              vec3 plDetail = texture2D( normalMap, vNormalMapUv * 5.37 + 0.31 ).xyz * 2.0 - 1.0;
+              normal = normalize( tbn * vec3( mapN.xy + plDetail.xy * 0.25, mapN.z ) );
+            #endif`,
+          )
+      }
+      m.customProgramCacheKey = () => `${key}|plasterDetail`
     }
     // the bake exporter (render/exportGLB.js) and the baked loader find materials by key
     for (const [k, m] of Object.entries(M)) (Array.isArray(m) ? m : [m]).forEach((x, i) => (x.userData.key = Array.isArray(m) ? `${k}${i}` : k))
@@ -655,22 +692,35 @@ function Tiers({ M }) {
       }
     return out
   }, [])
-  // baked: only the riser faces (each extrusion's side group) are redrawn, merged into one mesh
-  // over the baked ones (polygon offset)
-  const risers = useMemo(() => {
-    if (PROC) return null
-    const sides = geos.map(([, g]) => {
-      const { start, count } = g.groups.find((gr) => gr.materialIndex === 1)
-      const out = new THREE.BufferGeometry()
-      for (const k of ['position', 'normal', 'uv']) {
-        const a = g.attributes[k]
-        out.setAttribute(k, new THREE.BufferAttribute(a.array.slice(start * a.itemSize, (start + count) * a.itemSize), a.itemSize))
+  // baked: the riser faces (each extrusion's side group) and the step tops (the up-facing half
+  // of its cap group) are redrawn over the baked ones, merged into one mesh each (polygon
+  // offset). The bake's denoiser left soft dark patches on the step tops, worst in the aisles.
+  const [risers, tops] = useMemo(() => {
+    if (PROC) return [null, null]
+    const pick = (g, index, keep) => {
+      const { start, count } = g.groups.find((gr) => gr.materialIndex === index)
+      const out = { position: [], normal: [], uv: [] }
+      const n = g.attributes.normal
+      for (let t = start; t < start + count; t += 3) {
+        if (!keep(n.getY(t))) continue
+        for (const k of Object.keys(out)) {
+          const a = g.attributes[k]
+          out[k].push(...a.array.slice(t * a.itemSize, (t + 3) * a.itemSize))
+        }
       }
-      return out
-    })
-    return mergeGeometries(sides)
+      const geo = new THREE.BufferGeometry()
+      for (const k of Object.keys(out)) geo.setAttribute(k, new THREE.Float32BufferAttribute(out[k], g.attributes[k].itemSize))
+      return geo
+    }
+    return [mergeGeometries(geos.map(([, g]) => pick(g, 1, () => true))), mergeGeometries(geos.map(([, g]) => pick(g, 0, (ny) => ny > 0.9)))]
   }, [geos])
-  if (!PROC) return <mesh geometry={risers} material={M.riser} />
+  if (!PROC)
+    return (
+      <>
+        <mesh geometry={risers} material={M.riser} />
+        <mesh geometry={tops} material={M.stepTop} />
+      </>
+    )
   return geos.map(([id, g], i) => <mesh key={i} geometry={g} material={[M.tierCarpet, M.stepEdge]} userData={{ bake: `tiers_${id}` }} />)
 }
 
@@ -784,24 +834,26 @@ function DeskTops({ M }) {
 // 80 triangles (946 instances);
 // local +z points away from the desk, the seat top is 0.5 m above the floor. The back stays
 // within 0.24 m of the seat centre: the next row's desk panel stands 0.28 m behind it
+// Two meshes: the shell (seat, arm pads, back; vertex colours give the cushion a lighter fabric)
+// and the metal base (star and gas column)
 const CHAIR = (() => {
   const parts = []
-  const box = (w, h, d, x, y, z, rx = 0, ry = 0) => {
-    const g = new THREE.BoxGeometry(w, h, d)
+  const box = (w, h, d, x, y, z, rx, color) => {
+    const g = new THREE.BoxGeometry(w, h, d).toNonIndexed()
     g.rotateX(rx)
-    g.rotateY(ry)
     g.translate(x, y, z)
+    const c = new THREE.Color(color)
+    g.setAttribute('color', new THREE.Float32BufferAttribute(Array.from({ length: g.attributes.position.count }, () => [c.r, c.g, c.b]).flat(), 3))
     parts.push(g)
   }
+  box(0.5, 0.07, 0.46, 0, 0.465, -0.01, 0, '#2a2a2e')
+  for (const x of [-0.26, 0.26]) box(0.06, 0.03, 0.28, x, 0.7, 0.0, 0, '#1a1a1c')
+  box(0.46, 0.56, 0.035, 0, 0.83, 0.19, 0.1, '#1a1a1c')
   const base = new THREE.CylinderGeometry(0.3, 0.3, 0.035, 5)
   base.translate(0, 0.06, 0)
   const col = new THREE.CylinderGeometry(0.025, 0.03, 0.38, 6, 1, true)
   col.translate(0, 0.25, 0)
-  parts.push(base, col)
-  box(0.5, 0.07, 0.46, 0, 0.465, -0.01)
-  for (const x of [-0.26, 0.26]) box(0.06, 0.03, 0.28, x, 0.7, 0.0)
-  box(0.46, 0.56, 0.035, 0, 0.83, 0.19, 0.1)
-  return mergeGeometries(parts.map((g) => g.toNonIndexed()))
+  return { shell: mergeGeometries(parts), frame: mergeGeometries([base, col].map((g) => g.toNonIndexed())) }
 })()
 
 // ---------- classroom drums
@@ -850,7 +902,8 @@ function ClassroomStuff({ M }) {
   return (
     <>
       {/* no sun shadows: almost every chair stands inside a drum, out of the sun */}
-      <Instanced items={chairs} material={M.chair} geometry={CHAIR} noCast />
+      <Instanced items={chairs} material={M.chair} geometry={CHAIR.shell} noCast />
+      <Instanced items={chairs} material={M.chairFrame} geometry={CHAIR.frame} noCast />
       {!PROC && <DeskTops M={M} />}
       {SCREENS.map((s, i) => (
         <Plane key={i} p={[s.x, 2.95, s.z]} rot={s.rot} w={2.1} h={1.18} material={slideMat(s.course, s.kind)} />

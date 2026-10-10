@@ -41,9 +41,13 @@ Downloaded at 1K, then compressed with glTF-Transform (WebP textures at 512 or 1
 | `tex/paving_*_2k.jpg` | Paving Stones 128 by ambientCG, https://ambientcg.com/view?id=PavingStones128 | CC0 1.0 | courtyard paving |
 | `tex/sidewalk_*.jpg` | Paving Stones 136 by ambientCG, https://ambientcg.com/view?id=PavingStones136 | CC0 1.0 | sidewalks outside |
 | `tex/grass_*.jpg` | Grass 004 by ambientCG, https://ambientcg.com/view?id=Grass004 | CC0 1.0 | lawn outside, 512 px |
-| `tex/facade_brick_*.jpg` | Facade 018 A by ambientCG, https://ambientcg.com/view?id=Facade018A | CC0 1.0 | neighbour buildings; colour at 2K, normal and roughness at 1K |
-| `tex/facade_brown_*.jpg` | Facade 020 A by ambientCG, https://ambientcg.com/view?id=Facade020A | CC0 1.0 | as above |
+| `tex/facade_brick_*.jpg` | Facade 018 A by ambientCG, https://ambientcg.com/view?id=Facade018A | CC0 1.0 | source of `brick_red_tile.jpg`; no longer referenced at run time since the canvas facades |
+| `tex/facade_brown_*.jpg` | Facade 020 A by ambientCG, https://ambientcg.com/view?id=Facade020A | CC0 1.0 | source of `brick_brown_tile.jpg`; no longer referenced at run time |
 | `tex/fabric_*.jpg` | Fabric 030 by ambientCG, https://ambientcg.com/view?id=Fabric030 | CC0 1.0 | Beinecke curtain weave; normal and roughness at 512 px |
 | `tex/lawn_*.jpg` | Grass 005 by ambientCG, https://ambientcg.com/view?id=Grass005 | CC0 1.0 | courtyard lawn; colour and normal at 2K, roughness at 1K |
+| `tex/brick_red_tile.jpg`, `tex/brick_brown_tile.jpg` | Cut from the Facade 018 A and Facade 020 A scans above (the full-width brick bands and the dark brick piers, re-tiled to 512 px, about 5 m square) | CC0 1.0 | brick for the canvas facades of the neighbourhood (`src/render/Town.jsx`) |
+| `car_sedan.glb`, `car_suv.glb`, `car_van.glb`, `car_taxi.glb`, `car_sedan-sports.glb`, `car_hatchback-sports.glb` | Car Kit 3.1 by Kenney, https://kenney.nl/assets/car-kit | CC0 1.0 | body and wheels joined into one mesh, Draco-compressed with the colour map embedded (about 30 KB each); parked along Whitney Avenue and the north street |
 
 No CC0 water cooler was found on Poly Haven, Kenney or Quaternius, so none is placed.
+
+The painted skyline on the distance wall, the facades, the street furniture, the low-poly ring trees and the terrace furniture are drawn in code (canvas and three.js primitives) and carry no third-party assets.

@@ -87,6 +87,22 @@ function bakedMaterial(src, lm, ao) {
   return m
 }
 
+// Unbaked furniture (chairs) sees only the 0.22 hemisphere, the 0.05 ambient and the 0.35 room
+// environment, while the baked floors and walls around it carry the lightmap at LM_GAIN, so a
+// black chair read as a hole (sRGB about 7, 8, 11). This lifts its indirect diffuse by k, as
+// if it caught the same bounce light; shaderPatch() above only ever runs on the baked clones.
+// k is my judgment against the baked carpet in the screenshots.
+export function unbakedFill(m, k) {
+  const prev = m.onBeforeCompile
+  m.onBeforeCompile = (sh, r) => {
+    prev?.(sh, r)
+    sh.fragmentShader = sh.fragmentShader.replace('#include <lights_fragment_end>', `#include <lights_fragment_end>\nreflectedLight.indirectDiffuse *= ${k.toFixed(2)};`)
+  }
+  const key = m.customProgramCacheKey()
+  m.customProgramCacheKey = () => `${key}|fill${k}`
+  return m
+}
+
 const coveMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.86, 0.68).multiplyScalar(3), toneMapped: false })
 
 export default function BakedBuilding({ M }) {
