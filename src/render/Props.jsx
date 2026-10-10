@@ -1,6 +1,7 @@
-import { Suspense, useMemo } from 'react'
+import { Suspense, useLayoutEffect, useMemo } from 'react'
+import { useThree } from '@react-three/fiber'
 import * as THREE from 'three'
-import { COUNTERS, RECEPTION, SIGNAGE, DRUMS, MEETING, LIBRARY, ellPt } from '../layout.js'
+import { COUNTERS, RECEPTION, SIGNAGE, DRUMS, MEETING, LIBRARY, STAIRS, ellPt } from '../layout.js'
 import { slideTex, COURSE_KEYS } from '../slides.js'
 import Scenery, { METAL } from './Scenery.jsx'
 import Backdrop from './Backdrop.jsx'
@@ -93,22 +94,32 @@ function ExitSigns() {
 }
 
 // ---------- wayfinding: brushed-aluminium plates with a bevelled edge and a printed face
-// face drawn on a canvas at 512 px per metre so the type stays crisp up close
-function plateTex(w, h, draw) {
+// face drawn on a canvas at 512 px per metre so the type stays crisp up close. Inter comes from
+// Google Fonts (index.html); the face is drawn again once the font has arrived.
+const FONT = "Inter, Helvetica, Arial, sans-serif"
+function plateTex(w, h, draw, bg = '#2f3237') {
   const PX = 512
   const c = document.createElement('canvas')
   c.width = Math.round(w * PX)
   c.height = Math.round(h * PX)
   const g = c.getContext('2d')
-  g.fillStyle = '#2f3237'
-  g.fillRect(0, 0, c.width, c.height)
-  g.fillStyle = '#f4f3ef'
-  g.textBaseline = 'middle'
-  draw(g, c.width, c.height)
+  const paint = () => {
+    g.textAlign = 'left'
+    g.fillStyle = bg
+    g.fillRect(0, 0, c.width, c.height)
+    g.fillStyle = '#f4f3ef'
+    g.textBaseline = 'middle'
+    draw(g, c.width, c.height)
+  }
+  paint()
   const t = new THREE.CanvasTexture(c)
   t.colorSpace = THREE.SRGBColorSpace
   t.anisotropy = 8
   t.repeat.set(1 / w, 1 / h) // the extruded face's UVs are its shape coordinates in metres
+  document.fonts?.load(`700 40px Inter`).then(() => {
+    paint()
+    t.needsUpdate = true
+  })
   return t
 }
 const plateEdge = new THREE.MeshStandardMaterial({ color: '#aeb3b8', metalness: 0.8, roughness: 0.35 })
@@ -133,11 +144,11 @@ function plateGeo(w, h) {
   }
   return plateGeos.get(k)
 }
-function Plate({ p, rot, w, h, draw }) {
+function Plate({ p, rot, w, h, draw, bg }) {
   const mat = useMemo(() => {
-    const t = plateTex(w, h, draw) // UVs were generated before the geometry was centred
+    const t = plateTex(w, h, draw, bg) // UVs were generated before the geometry was centred
     return new THREE.MeshStandardMaterial({ map: t, roughness: 0.5, metalness: 0.1 })
-  }, [w, h, draw])
+  }, [w, h, draw, bg])
   return <mesh geometry={plateGeo(w, h)} material={[mat, plateEdge]} position={p} rotation={[0, rot, 0]} castShadow />
 }
 
@@ -157,40 +168,133 @@ function RoomPlates() {
   })
 }
 
-// directional signs: one destination per line, arrow on the side it points to
+// directional signs: a Yale-blue header over a white panel, one destination per line, arrow on
+// the side it points to. Sized to read from 3 m: cap height about 55 mm on the lines, the same
+// order as building wayfinding guidance (about 25 mm of letter height per metre of reading
+// distance, my reading of the usual rule of thumb).
+const YALE_BLUE = '#00356b'
 const ARROW = { left: '\u2190', right: '\u2192', up: '\u2191' }
-const dirSign = (lines) => (g, w, h) => {
-  const lh = h / lines.length
+const SIGN_W = 1.5
+const HEAD_H = 0.2
+const LINE_H = 0.2
+const dirSign = (lines, head = 'Level 2') => (g, w, h) => {
+  const hh = (HEAD_H / (HEAD_H + LINE_H * lines.length)) * h
+  g.fillStyle = YALE_BLUE
+  g.fillRect(0, 0, w, hh)
+  g.fillStyle = '#ffffff'
+  g.font = `700 ${hh * 0.46}px ${FONT}`
+  g.fillText(head, w * 0.05, hh * 0.54)
+  const lh = (h - hh) / lines.length
   lines.forEach(([dir, text], i) => {
-    const y = lh * (i + 0.5)
-    g.font = `${lh * 0.36}px Helvetica, Arial, sans-serif`
-    g.fillStyle = '#f4f3ef'
+    const y = hh + lh * (i + 0.5)
+    g.fillStyle = '#16181c'
+    g.font = `600 ${lh * 0.4}px ${FONT}`
     if (dir === 'right') {
       g.textAlign = 'right'
-      g.fillText(`${text}   ${ARROW.right}`, w * 0.94, y)
+      g.fillText(text, w * 0.84, y)
     } else {
       g.textAlign = 'left'
-      g.fillText(`${ARROW[dir]}   ${text}`, w * 0.06, y)
+      g.fillText(text, w * 0.16, y)
     }
+    g.textAlign = 'center'
+    g.fillStyle = YALE_BLUE
+    g.font = `700 ${lh * 0.5}px ${FONT}`
+    g.fillText(ARROW[dir], dir === 'right' ? w * 0.92 : w * 0.08, y)
     if (i) {
-      g.fillStyle = '#5a5e64'
-      g.fillRect(w * 0.04, lh * i - 1, w * 0.92, 2)
+      g.fillStyle = '#c4c7cc'
+      g.fillRect(w * 0.04, hh + lh * i - 2, w * 0.92, 4)
     }
   })
+  g.textAlign = 'left'
 }
+// centred where the old 1.0 m plates were, so the larger plates cover their baked contact shadows
 const SIGNS = [
   // library's north outer wall, read facing south: east (the library door, Beinecke) is on the left
-  { p: [-30.5, 2.1, LIBRARY.z0 - 0.105], rot: Math.PI, lines: [['left', 'Ross Library  2100'], ['left', 'Beinecke Terrace Room  2300']] },
+  { p: [-30.5, 2.0, LIBRARY.z0 - 0.105], rot: Math.PI, lines: [['left', 'Ross Library  2100'], ['left', 'Beinecke Terrace Room  2300']] },
   // library's south outer wall, read facing north: east is on the right
-  { p: [-28.2, 2.1, LIBRARY.z1 + 0.105], rot: 0, lines: [['right', 'Ross Library  2100'], ['right', 'Beinecke Terrace Room  2300']] },
+  { p: [-28.2, 2.0, LIBRARY.z1 + 0.105], rot: 0, lines: [['right', 'Ross Library  2100'], ['right', 'Beinecke Terrace Room  2300']] },
   // east column, read facing east toward the Beinecke door: north on the left, south on the right
-  { p: [26.36, 2.1, -3.8], rot: -Math.PI / 2, lines: [['up', 'Beinecke Terrace Room  2300'], ['left', 'Classrooms  2210 \u2013 2230'], ['right', 'Classrooms  2410 \u2013 2430']] },
+  { p: [26.36, 2.0, -3.8], rot: -Math.PI / 2, lines: [['up', 'Beinecke Terrace Room  2300'], ['left', 'Classrooms  2210 \u2013 2230'], ['right', 'Classrooms  2410 \u2013 2430']] },
 ]
 function DirectionSigns() {
   return SIGNS.map((sg, i) => {
-    const h = 0.17 * sg.lines.length
-    return <Plate key={i} p={sg.p} rot={sg.rot} w={1.0} h={h} draw={dirSign(sg.lines)} />
+    const h = HEAD_H + LINE_H * sg.lines.length
+    return <Plate key={i} p={sg.p} rot={sg.rot} w={SIGN_W} h={h} draw={dirSign(sg.lines)} bg="#f7f7f5" />
   })
+}
+
+// ---------- stair doors: a pair of painted steel leaves in a steel frame, each with a narrow
+// wired-glass vision panel and a horizontal push bar, plus a "Stair X" plate beside the frame.
+// The stair cores are baked (render/Baked.jsx), so this sits on top of the wall; the World's
+// flat opening picture (material key 'opening') is hidden.
+const doorMats = {
+  leaf: new THREE.MeshStandardMaterial({ color: '#d6d5d0', roughness: 0.45, metalness: 0.2, ...METAL, normalScale: new THREE.Vector2(0.15, 0.15) }),
+  frame: new THREE.MeshStandardMaterial({ color: '#8c9196', roughness: 0.35, metalness: 0.8 }),
+  vision: new THREE.MeshPhysicalMaterial({ color: '#4a5560', roughness: 0.08, metalness: 0.1, transparent: true, opacity: 0.55, envMapIntensity: 1.5 }),
+}
+const DOOR_W = 1.8 // clear width of the pair, as the opening it replaces
+const DOOR_H = 2.25
+const FR = 0.06 // frame face width
+const stairPlate = (id) => (g, w, h) => {
+  g.fillStyle = YALE_BLUE
+  g.fillRect(0, 0, w, h)
+  g.fillStyle = '#ffffff'
+  g.font = `700 ${h * 0.4}px ${FONT}`
+  g.fillText(`Stair ${id}`, w * 0.1, h * 0.38)
+  g.font = `500 ${h * 0.18}px ${FONT}`
+  g.fillText('Exit  \u00b7  Levels 1 \u2013 4', w * 0.1, h * 0.76)
+}
+function StairDoor({ s }) {
+  const ext = s.face[0] !== 0 ? s.w / 2 : s.d / 2
+  const off = ext + 0.1 // wall face: the core outline plus half the 0.2 m wall
+  const p = [s.c[0] + s.face[0] * off, 0, s.c[1] + s.face[1] * off]
+  const rot = Math.atan2(s.face[0], s.face[1])
+  const leafW = DOOR_W / 2 - 0.01
+  return (
+    <group position={p} rotation={[0, rot, 0]}>
+      {/* frame: two jambs and a head, proud of the wall */}
+      {[-1, 1].map((sx) => (
+        <mesh key={sx} geometry={box} material={doorMats.frame} position={[sx * (DOOR_W / 2 + FR / 2), (DOOR_H + FR) / 2, 0.03]} scale={[FR, DOOR_H + FR, 0.06]} castShadow />
+      ))}
+      <mesh geometry={box} material={doorMats.frame} position={[0, DOOR_H + FR / 2, 0.03]} scale={[DOOR_W + 2 * FR, FR, 0.06]} castShadow />
+      {[-1, 1].map((sx) => {
+        const cx = sx * (DOOR_W / 4)
+        return (
+          <group key={sx} position={[cx, 0, 0.025]}>
+            <mesh geometry={box} material={doorMats.leaf} position={[0, DOOR_H / 2, 0]} scale={[leafW, DOOR_H - 0.01, 0.04]} castShadow receiveShadow />
+            {/* vision panel near the meeting stiles, steel bead round it */}
+            <mesh geometry={box} material={doorMats.frame} position={[-sx * 0.2, 1.5, 0.021]} scale={[0.17, 0.66, 0.006]} />
+            <mesh geometry={box} material={doorMats.vision} position={[-sx * 0.2, 1.5, 0.025]} scale={[0.13, 0.62, 0.004]} />
+            {/* push bar: a steel tube on two end brackets */}
+            <mesh material={doorMats.frame} position={[0, 1.0, 0.075]} rotation={[0, 0, Math.PI / 2]} castShadow>
+              <cylinderGeometry args={[0.018, 0.018, leafW - 0.16, 14]} />
+            </mesh>
+            {[-1, 1].map((e) => (
+              <mesh key={e} geometry={box} material={doorMats.frame} position={[e * (leafW / 2 - 0.07), 1.0, 0.045]} scale={[0.05, 0.09, 0.06]} castShadow />
+            ))}
+            {/* kick plate */}
+            <mesh geometry={box} material={doorMats.frame} position={[0, 0.13, 0.021]} scale={[leafW - 0.04, 0.24, 0.004]} />
+          </group>
+        )
+      })}
+      <Plate p={[DOOR_W / 2 + FR + 0.28, 1.55, 0.012]} rot={0} w={0.44} h={0.2} draw={stairPlate(s.id)} bg={YALE_BLUE} />
+    </group>
+  )
+}
+function StairDoors() {
+  const { scene, gl } = useThree()
+  useLayoutEffect(() => {
+    const hidden = []
+    scene.traverse((o) => {
+      if (o.isMesh && o.material?.userData?.key === 'opening') {
+        o.visible = false
+        hidden.push(o)
+      }
+    })
+    gl.shadowMap.needsUpdate = true
+    return () => hidden.forEach((o) => (o.visible = true))
+  }, [scene, gl])
+  return STAIRS.map((s) => <StairDoor key={s.id} s={s} />)
 }
 
 export default function Props() {
@@ -204,6 +308,7 @@ export default function Props() {
       <ExitSigns />
       <RoomPlates />
       <DirectionSigns />
+      <StairDoors />
       <Suspense fallback={null}>
         {!OFF.has('scenery') && <Scenery />}
         {!OFF.has('backdrop') && <Backdrop />}
