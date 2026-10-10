@@ -5,10 +5,13 @@ import Dialogue from './Dialogue.jsx'
 import { useDiscoveries } from './discoveries.js'
 import { Counter, hudState } from './hudSlots.jsx'
 import { toastState } from './toast.js'
+import { HUD } from '../render/debugCam.js'
 import './ui.css'
 
+// ?hud=0 (clean screenshots) hides every slot: the egg pills, the counters and the prompt
 function Slot({ name, children }) {
   const items = useStore(hudState, (s) => s[name])
+  if (!HUD) return null
   return (
     <div className={`hud-slot hud-${name}`}>
       {children}

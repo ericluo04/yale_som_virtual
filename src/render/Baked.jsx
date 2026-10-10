@@ -117,8 +117,14 @@ export default function BakedBuilding({ M }) {
         return
       }
       // each drum shell gets its own material so Probes.jsx can give it its own reflection
-      const ck = /^drum_/.test(o.userData.role) ? o.userData.role : `${key}|${atlas}`
-      if (!cache.has(ck)) cache.set(ck, bakedMaterial(byKey(key), lms[atlas], aos[atlas]))
+      // the canopy's inner edge faces sit 0.3 mm behind the fascia's: pull the fascia forward
+      const fascia = o.userData.role === 'fascia'
+      const ck = /^drum_/.test(o.userData.role) ? o.userData.role : `${key}|${atlas}${fascia ? '|fascia' : ''}`
+      if (!cache.has(ck)) {
+        const m = bakedMaterial(byKey(key), lms[atlas], aos[atlas])
+        if (fascia) Object.assign(m, { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 })
+        cache.set(ck, m)
+      }
       o.material = cache.get(ck)
       o.matrixAutoUpdate = false
       o.updateMatrix()

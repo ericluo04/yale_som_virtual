@@ -322,3 +322,27 @@ div.hud-ask kbd {
   .dlg-scrim { padding-bottom: 16px; }
   .dlg-text { font-size: 15px; }
 }
+
+/* pointer lock refused or pending (App.jsx); shows after 250 ms so a granted lock never flashes it */
+.lockhint {
+  position: fixed;
+  left: 50%;
+  top: calc(50% + 28px);
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  background: var(--ui-panel);
+  border: 1px solid rgba(255, 79, 163, 0.55);
+  border-radius: 999px;
+  color: #fff;
+  font: 13px var(--ui-sans);
+  pointer-events: none;
+  animation: lockhint-in 0.2s ease-out 0.25s both;
+}
+@keyframes lockhint-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
