@@ -1,5 +1,6 @@
 import Labubu, { EXPRESSIONS, TossBall, YALE_BLUE } from './Labubu.jsx'
 import { MEETING } from './layout.js'
+import Life from './life/index.jsx'
 
 // Labubus playing on the courtyard lawn (ground floor, y = -5).
 // Courtyard trees stand at (-10,-9) (0,-11.5) (10,-8.5) (-12,3) (12,4) (-5,11) (7,11.5) (-2,1).
@@ -31,12 +32,16 @@ const CREW = [
 
 export default function LabubuParty({ y = -5, height = 1.3 }) {
   return (
-    <group position={[0, y, 0]}>
-      {CREW.map((c, i) => (
-        <Labubu key={i} height={(c.height ?? 1) * height} phase={c.phase ?? i * 0.37} {...c} />
-      ))}
-      <TossBall from={[7, -1]} to={[11.5, -1]} height={height} />
-    </group>
+    <>
+      <group position={[0, y, 0]}>
+        {CREW.map((c, i) => (
+          <Labubu key={i} height={(c.height ?? 1) * height} phase={c.phase ?? i * 0.37} {...c} />
+        ))}
+        <TossBall from={[7, -1]} to={[11.5, -1]} height={height} />
+      </group>
+      {/* roamers, frisbee, spell practice, ambient Labubus and birds (src/life), in world coordinates */}
+      <Life />
+    </>
   )
 }
 
