@@ -609,6 +609,7 @@ function Level4({ M }) {
       fascia: ribbon(edge, H - 0.05, L4.floor + 0.02),
       rail: ribbon(offsetLoop(COURTYARD, L4.slot - 0.03), L4.floor, L4.floor + 1.05),
       handrail: ribbon(offsetLoop(COURTYARD, L4.slot - 0.03), L4.floor + 1.03, L4.floor + 1.08),
+      shoe: ribbon(offsetLoop(COURTYARD, L4.slot - 0.05), L4.floor - 0.02, L4.floor + 0.09),
       drum,
       walls: ribbon([[xMin, zMin], [xMax, zMin], [xMax, zMax], [xMin, zMax]], H, L4.top, 0.1),
     }
@@ -621,6 +622,7 @@ function Level4({ M }) {
       ceil: std({ color: '#f2f1ed', emissive: '#fff6e8', emissiveIntensity: 0.35, roughness: 1 }),
       fascia: std({ color: '#efeeea', roughness: 0.8, side: THREE.DoubleSide }),
       walls: std({ color: '#d9d8d3', roughness: 1, side: THREE.DoubleSide }),
+      shoe: std({ color: '#33363b', roughness: 0.6, metalness: 0.4, side: THREE.DoubleSide }),
     }
   }, [])
   return (
@@ -631,11 +633,89 @@ function Level4({ M }) {
       <mesh geometry={geos.fascia} material={mats.fascia} />
       <mesh geometry={geos.rail} material={M.rail} />
       <mesh geometry={geos.handrail} material={M.silver} />
+      {/* shadow line: a dark base channel under the glass balustrade */}
+      <mesh geometry={geos.shoe} material={mats.shoe} />
+      <Level4Offices M={M} />
       <mesh geometry={geos.walls} material={mats.walls} />
       {DRUMS.map((d) => (
         <mesh key={d.id} geometry={geos.drum} material={M.drum} position={[d.c[0], (L4.floor + L4.top) / 2, d.c[1]]} scale={[d.rx, 1, d.rz]} />
       ))}
     </group>
+  )
+}
+
+// Level 4 offices: what fills the band between the upper drums across the courtyard. Four runs
+// of glazed office fronts (east and west across the courtyard, north and south behind the drum
+// rows), two tiers high, with slim silver mullions every 1.6 m like the level 2 glass and a slab
+// band between the tiers. Behind the glass, 3.2 m offices with white partitions, a desk, a
+// monitor and a chair in dark silhouette, and a warm lit back wall and ceiling strip in about
+// two of three of them. Unbaked and shadowless; only the courtyard view reaches it.
+const OFFICE = { module: 3.2, depth: 2.0, tier: 3.45 }
+const OFFICE_RUNS = [
+  { a: [26.6, -14.4], b: [26.6, 14.4], out: [1, 0] },
+  { a: [-26.6, -14.4], b: [-26.6, 14.4], out: [-1, 0] },
+  { a: [-24, -38.6], b: [24, -38.6], out: [0, -1] },
+  { a: [-24, 44.6], b: [24, 44.6], out: [0, 1] },
+]
+function Level4Offices({ M }) {
+  const parts = useMemo(() => {
+    const r = rng(41)
+    const P = { glass: [], mull: [], band: [], part: [], lit: [], dim: [], strip: [], desk: [], dark: [], chair: [] }
+    for (const run of OFFICE_RUNS) {
+      const [ax, az] = run.a
+      const [bx, bz] = run.b
+      const L = Math.hypot(bx - ax, bz - az)
+      const t = [(bx - ax) / L, (bz - az) / L]
+      const o = run.out
+      const rot = -Math.atan2(t[1], t[0]) // box local x along the run
+      const at = (s, d, y) => [ax + t[0] * s + o[0] * d, y, az + t[1] * s + o[1] * d]
+      const h = L4.top - L4.floor
+      P.glass.push({ p: at(L / 2, 0, L4.floor + h / 2), r: rot, s: [L, h, 0.02] })
+      const nm = Math.round(L / 1.6)
+      for (let i = 0; i <= nm; i++) P.mull.push({ p: at((L * i) / nm, -0.03, L4.floor + h / 2), r: rot, s: [0.07, h, 0.1] })
+      for (let k = 0; k < 2; k++) {
+        const y0 = L4.floor + k * OFFICE.tier
+        P.band.push({ p: at(L / 2, -0.06, y0 + 3.1), r: rot, s: [L, 0.05, 0.08] }) // transom
+        if (k) P.band.push({ p: at(L / 2, 0.02, y0 - 0.2), r: rot, s: [L, 0.4, 0.06] }) // slab edge between tiers
+        const n = Math.floor(L / OFFICE.module)
+        for (let j = 0; j <= n; j++) {
+          const sj = (L - n * OFFICE.module) / 2 + j * OFFICE.module
+          P.part.push({ p: at(sj, OFFICE.depth / 2, y0 + 1.6), r: rot + Math.PI / 2, s: [OFFICE.depth, 3.2, 0.1] })
+          if (j === n) continue
+          const sm = sj + OFFICE.module / 2
+          const lit = r() < 0.65
+          ;(lit ? P.lit : P.dim).push({ p: at(sm, OFFICE.depth - 0.02, y0 + 1.6), r: rot, s: [OFFICE.module - 0.1, 3.2, 0.02] })
+          if (lit) P.strip.push({ p: at(sm, OFFICE.depth * 0.55, y0 + 3.18), r: rot, s: [OFFICE.module * 0.6, 0.02, 0.25] })
+          const dx = (r() - 0.5) * 0.8
+          P.desk.push({ p: at(sm + dx, OFFICE.depth * 0.62, y0 + 0.37), r: rot, s: [1.5, 0.74, 0.7] })
+          P.dark.push({ p: at(sm + dx + (r() - 0.5) * 0.5, OFFICE.depth * 0.72, y0 + 0.98), r: rot, s: [0.55, 0.36, 0.04] }) // monitor
+          P.chair.push({ p: at(sm + dx + (r() - 0.5) * 0.6, OFFICE.depth * 0.38, y0 + 0.45), r: rot, s: [0.45, 0.9, 0.45] }) // chair
+        }
+      }
+    }
+    return P
+  }, [])
+  const mats = useMemo(() => ({
+    part: new THREE.MeshStandardMaterial({ color: '#e9e7e2', roughness: 0.9 }),
+    lit: new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.78, 0.52).multiplyScalar(1.25) }),
+    dim: new THREE.MeshStandardMaterial({ color: '#9a9893', roughness: 1 }),
+    strip: new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.95, 0.85).multiplyScalar(1.6), toneMapped: false }),
+    dark: new THREE.MeshStandardMaterial({ color: '#2a2b2f', roughness: 0.7 }),
+    chair: new THREE.MeshStandardMaterial({ color: '#4a4c52', roughness: 0.8 }),
+  }), [])
+  return (
+    <>
+      <Instanced items={parts.part} material={mats.part} geometry={BOX} noCast />
+      <Instanced items={parts.lit} material={mats.lit} geometry={BOX} noCast />
+      <Instanced items={parts.dim} material={mats.dim} geometry={BOX} noCast />
+      <Instanced items={parts.strip} material={mats.strip} geometry={BOX} noCast />
+      <Instanced items={parts.desk} material={mats.dark} geometry={BOX} noCast />
+      <Instanced items={parts.dark} material={mats.dark} geometry={BOX} noCast />
+      <Instanced items={parts.chair} material={mats.chair} geometry={BOX} noCast />
+      <Instanced items={parts.mull} material={M.courtMullion} geometry={BOX} noCast />
+      <Instanced items={parts.band} material={M.courtMullion} geometry={BOX} noCast />
+      <Instanced items={parts.glass} material={M.glass} geometry={BOX} noCast />
+    </>
   )
 }
 
