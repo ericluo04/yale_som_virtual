@@ -14,8 +14,9 @@ export default function App() {
   const [locked, setLocked] = useState(false)
   const [where, setWhere] = useState('')
   const [showMap, setShowMap] = useState(true)
-  // high quality starts at dpr 1 and climbs toward 2 while the frame rate holds at the
-  // display rate; post-processing at dpr 2 is about 30 fps on an M1 at 1440x900
+  // high quality starts at dpr 1 and climbs toward 2 in 0.1 steps while the frame rate holds
+  // at the display rate; after three up-down flips it settles at 1. Post-processing at dpr 2
+  // is about 30 fps on an M1 at 1440x900.
   const [dpr, setDpr] = useState(DPR ?? 1)
   const lockRef = useRef()
   const mapRef = useRef()
@@ -55,7 +56,7 @@ export default function App() {
         {/* N8AO keeps stale half-res buffers across a pixel-ratio change, so the chain remounts */}
         <Effects key={dpr} />
         {QUALITY !== 'low' && !DPR && (
-          <PerformanceMonitor factor={0} step={0.25} bounds={() => [50, 59]} onChange={({ factor }) => setDpr(1 + factor)} />
+          <PerformanceMonitor factor={0} step={0.1} flipflops={3} bounds={() => [52, 59]} onChange={({ factor }) => setDpr(1 + factor)} onFallback={() => setDpr(1)} />
         )}
         {STATS && <Stats />}
       </Canvas>
