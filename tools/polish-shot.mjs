@@ -12,6 +12,7 @@ const args = process.argv.slice(2)
 const out = args.find((a) => !a.startsWith('--')) || '/tmp/polish-shots'
 const names = args.filter((a) => !a.startsWith('--') && a !== out)
 const FPS = args.includes('--fps')
+const extra = (args.find((a) => a.startsWith('--q=')) || '--q=').slice(4) // extra query, e.g. --q=fur=0
 const port = (args.find((a) => a.startsWith('--port=')) || '--port=5192').split('=')[1]
 
 // yaw/pitch in degrees for a camera at `f` looking at `t` (three.js camera looks down -Z at yaw 0)
@@ -49,7 +50,7 @@ for (const name of pick) {
   const s = SHOTS[name]
   const page = await browser.newPage()
   page.on('pageerror', (e) => console.log(`[${name}] pageerror ${e.message}`))
-  const url = `http://localhost:${port}/?nolock=1&hud=0&quality=high&dpr=1&cam=${cam(s.from, s.to)}`
+  const url = `http://localhost:${port}/?nolock=1&hud=0&quality=high&dpr=1&cam=${cam(s.from, s.to)}${extra ? '&' + extra : ''}`
   await page.goto(url, { waitUntil: 'load', timeout: 120000 })
   await new Promise((r) => setTimeout(r, 12000)) // models load, shaders compile, shadows settle
   if (s.follow) {
@@ -84,21 +85,38 @@ for (const name of pick) {
     if (ok !== 'ok') console.log(`[${name}] follow: ${ok}`)
   }
   if (FPS) {
-    const fps = await page.evaluate(
+    // median frame interval over 6 s, plus triangles and draw calls per frame (renderer.info summed over
+    // every render call in the frame: shadow maps, the scene pass and the post passes)
+    const r = await page.evaluate(
       () =>
         new Promise((res) => {
-          let n = 0
-          const t0 = performance.now()
+          const gl = window.__three?.gl
+          if (gl) gl.info.autoReset = false
+          const dts = []
+          const tri = []
+          const calls = []
+          let last = performance.now()
+          const t0 = last
           const f = () => {
-            n++
-            if (performance.now() - t0 < 6000) requestAnimationFrame(f)
-            else res((n * 1000) / (performance.now() - t0))
+            const now = performance.now()
+            dts.push(now - last)
+            last = now
+            if (gl) {
+              tri.push(gl.info.render.triangles)
+              calls.push(gl.info.render.calls)
+              gl.info.reset()
+            }
+            if (now - t0 < 6000) requestAnimationFrame(f)
+            else {
+              const med = (a) => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)]
+              res({ fps: 1000 / med(dts.slice(2)), mean: (1000 * (dts.length - 2)) / dts.slice(2).reduce((x, y) => x + y, 0), tris: med(tri.slice(2)), calls: med(calls.slice(2)) })
+            }
           }
           requestAnimationFrame(f)
         }),
     )
-    results[name] = Number(fps.toFixed(1))
-    console.log(`[fps] ${name} ${fps.toFixed(1)}`)
+    results[name] = r
+    console.log(`[fps] ${name} median ${r.fps.toFixed(1)} mean ${r.mean.toFixed(1)} tris ${r.tris} calls ${r.calls}`)
   }
   const file = path.join(out, `${name}.jpg`)
   await page.screenshot({ path: file, type: 'jpeg', quality: 88 })
