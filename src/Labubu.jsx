@@ -57,6 +57,7 @@ function LabubuModel({ model = 'labubu', fur = '#5a3d2e', expression = 'grin', s
       if (wear.kind) cloneMat('Shirt')?.color.set(wear.color)
     },
     [fur, face, wear.kind, wear.color],
+    { clothes: wear.kind === 'Tee' ? 1 : wear.kind === 'Hoodie' ? 2 : 0 }, // fur shells stop under the clothes
   )
   const play = useClipPlayer(actions, 0.3)
   const want = clip || clipFor(anim, sitting)

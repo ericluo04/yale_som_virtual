@@ -2,7 +2,7 @@ import { Suspense, useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { YALE_BLUE } from './Labubu.jsx'
 import { CHAIRS, DRUMS } from './layout.js'
-import { dressMaterial, preloadModel, useModel } from './characters/rig.js'
+import { FUR, FUR_ON, dressMaterial, preloadModel, shellMaterial, useModel } from './characters/rig.js'
 
 // ~30 seated Labubu students per classroom, instanced from public/models/labubu_seated.glb.
 // Variation is cheap combinatorics, not more models:
@@ -11,6 +11,7 @@ import { dressMaterial, preloadModel, useModel } from './characters/rig.js'
 //   and a laptop or a coffee cup on the desk in front of some students. Everything is seeded.
 const STUDENTS_PER_ROOM = 30
 const HEIGHT = 0.95
+const CROWD_SHELLS = 6
 export const FURS = ['#efe3cf', '#9a9aa2', '#6b4a3a', '#ff9ccc', '#9fe0c6', '#bba7e8', '#8cc3ff', '#3a3a3e'] // cream, grey, brown, pink, mint, lavender, sky, charcoal
 const SHIRT_COLORS = [YALE_BLUE, YALE_BLUE, '#a6192e', '#2f6b4f', '#3a3a3e', '#5b3f8c', '#1f7a8c', '#c8641e']
 const FACES = ['grin', 'grin', 'surprised', 'sleepy'] // the classic grin is the most common
@@ -36,6 +37,7 @@ export const STUDENTS = DRUMS.flatMap((d, di) => {
     const rot = c.rot + Math.PI
     const k = r()
     return {
+      room: d.id,
       x: c.x,
       y: (c.y || 0) + 0.51 - 0.11 * HEIGHT,
       z: c.z,
@@ -57,21 +59,34 @@ const Q = new THREE.Quaternion()
 const E = new THREE.Euler()
 const compose = (p, ry, s = [1, 1, 1]) => new THREE.Matrix4().compose(V.set(...p), Q.setFromEuler(E.set(0, ry, 0)), S.set(...s))
 
-// one InstancedMesh per (variant, material primitive); only Fur and Shirt take per-instance color
-function Batch({ geometry, material, items, colorKey }) {
+// one InstancedMesh per (variant, material primitive); only Fur and Shirt take per-instance color.
+// `shells` > 1 draws the fur shells: the items repeat once per shell (shell-major), see shellMaterial.
+const CAM = new THREE.Vector3()
+function Batch({ geometry, material, items, colorKey, shells = 1, shadow = true }) {
   const ref = useRef()
   useLayoutEffect(() => {
     const im = ref.current
     const c = new THREE.Color()
-    items.forEach((it, i) => {
-      im.setMatrixAt(i, it.m)
-      if (colorKey) im.setColorAt(i, c.set(it[colorKey]))
-    })
+    for (let k = 0; k < shells; k++)
+      items.forEach((it, i) => {
+        im.setMatrixAt(k * items.length + i, it.m)
+        if (colorKey) im.setColorAt(k * items.length + i, c.set(it[colorKey]))
+      })
     im.instanceMatrix.needsUpdate = true
     if (im.instanceColor) im.instanceColor.needsUpdate = true
     im.computeBoundingSphere()
-  }, [items, colorKey])
-  return <instancedMesh ref={ref} args={[geometry, material, items.length]} castShadow receiveShadow />
+    if (shells > 1) {
+      // one shell batch per room: fewer shells with distance from the room, none past about 20 m
+      const sph = im.boundingSphere
+      im.onBeforeRender = (r, sc, cam) => {
+        const d = Math.max(0, cam.getWorldPosition(CAM).distanceTo(sph.center) - sph.radius * 0.6)
+        const k = d < 6 ? shells : d < 12 ? Math.ceil(shells / 2) : d < 20 ? 2 : 0
+        im.count = items.length * k
+        material.userData.fur.uShellCount.value = Math.max(k, 1)
+      }
+    }
+  }, [items, colorKey, shells, material])
+  return <instancedMesh ref={ref} args={[geometry, material, items.length * shells]} castShadow={shadow} receiveShadow />
 }
 
 function Crowd() {
@@ -92,7 +107,18 @@ function Crowd() {
           const material = dressMaterial(m.material.clone())
           const colorKey = name === 'Fur' ? 'fur' : name === 'Shirt' ? 'shirt' : null
           if (colorKey) material.color.set('#ffffff') // instance color carries the tint
-          out.push({ key: `${face}-${clothes}-${m.name}`, geometry, material, items, colorKey })
+          // batched per room, so rooms outside the view are frustum-culled (the subdivided seated
+          // students are about 4.6k triangles each, 240 of them)
+          const cfg = FUR[name] && { ...FUR[name], shells: CROWD_SHELLS, len: FUR[name].len * 0.8 }
+          for (const room of new Set(who.map((s) => s.room))) {
+            const mine = items.filter((_, k) => who[k].room === room)
+            out.push({ key: `${face}-${clothes}-${m.name}-${room}`, geometry, material, items: mine, colorKey })
+            if (FUR_ON && cfg) {
+              // seated students are 4 m or more away: fewer, shorter shells than the walking Labubus
+              const shell = shellMaterial(material, cfg, { items: mine.length, clothes: clothes === 'tee' ? 1 : 2 })
+              out.push({ key: `${face}-${clothes}-${m.name}-shells-${room}`, geometry, material: shell, items: mine, colorKey, shells: CROWD_SHELLS, shadow: false })
+            }
+          }
         })
       }
     return out

@@ -70,9 +70,10 @@ def hexrgb(h):
 class Parts:
     """Collects part objects, each tagged with the bone it is rigidly bound to."""
 
-    def __init__(self, lod=1.0):
+    def __init__(self, lod=1.0, subd=0):
         self.objs = []
         self.lod = lod  # multiplies segment counts (the seated crowd builds at a lower lod)
+        self.subd = subd  # default Catmull-Clark levels for spheres and tori (applied, so the GLB carries it)
 
     def n(self, k, lo=4):
         return max(lo, int(round(k * self.lod)))
@@ -87,7 +88,7 @@ class Parts:
         self.objs.append(o)
         return o
 
-    def sphere(self, name, loc, radii, m, bone, rot=(0, 0, 0), seg=16, rings=10, taper=None, displace=0.0):
+    def sphere(self, name, loc, radii, m, bone, rot=(0, 0, 0), seg=16, rings=10, taper=None, displace=0.0, subd=None):
         bpy.ops.mesh.primitive_uv_sphere_add(segments=self.n(seg, 6), ring_count=self.n(rings, 4), radius=1)
         o = bpy.context.active_object
         if taper:  # pull the top toward a point: taper=(start, amount); start in [-1,1] of local z
@@ -102,6 +103,7 @@ class Parts:
             v.co = Vector((v.co.x * radii[0], v.co.y * radii[1], v.co.z * radii[2]))
         if displace:
             fuzz(o, displace)
+        subdivide(o, self.subd if subd is None else subd)
         o.rotation_euler = rot
         o.location = loc
         apply_tf(o)
@@ -128,11 +130,12 @@ class Parts:
         apply_tf(o)
         return self._finish(o, name, m, bone, smooth=False)
 
-    def torus(self, name, loc, R, r, m, bone, rot=(0, 0, 0), seg=20, minor=8, scale=(1, 1, 1)):
+    def torus(self, name, loc, R, r, m, bone, rot=(0, 0, 0), seg=20, minor=8, scale=(1, 1, 1), subd=None):
         bpy.ops.mesh.primitive_torus_add(major_radius=R, minor_radius=r, major_segments=self.n(seg, 8), minor_segments=self.n(minor, 4))
         o = bpy.context.active_object
         for v in o.data.vertices:
             v.co = Vector((v.co.x * scale[0], v.co.y * scale[1], v.co.z * scale[2]))
+        subdivide(o, self.subd if subd is None else subd)
         o.rotation_euler = rot
         o.location = loc
         apply_tf(o)
@@ -145,6 +148,88 @@ class Parts:
         o = bpy.data.objects.new(name, me)
         bpy.context.scene.collection.objects.link(o)
         return self._finish(o, name, m, bone, smooth=smooth)
+
+    def strand(self, name, pts, r0, r1, m, bone, sides=4, flat=1.0, wide=None, blend=None):
+        """Tapered tube along the polyline `pts` (radius r0 at the root to r1 at the tip), closed at both ends.
+        flat < 1 squashes the cross-section into a ribbon whose wide side lies along `wide` (a direction).
+        blend=(bone2, z_hi, z_lo): vertices fade from `bone` (above z_hi) to bone2 (below z_lo), so a beard
+        hangs from the head at the chin and from the chest at its tip."""
+        P = [Vector(q) for q in pts]
+        n = len(P)
+        t = (P[1] - P[0]).normalized()
+        ref = Vector(wide) if wide else (Vector((0, 0, 1)) if abs(t.z) < 0.9 else Vector((1, 0, 0)))
+        u = (ref - t * ref.dot(t)).normalized()
+        verts, faces, prev = [], [], t
+        for i, q in enumerate(P):
+            t = (P[min(i + 1, n - 1)] - P[max(i - 1, 0)]).normalized()
+            ax = prev.cross(t)
+            if ax.length > 1e-7:
+                u = Matrix.Rotation(prev.angle(t), 3, ax.normalized()) @ u
+            prev = t
+            v = t.cross(u).normalized()
+            u = v.cross(t).normalized()
+            k = i / (n - 1)
+            r = r0 * (1 - k) ** 0.85 + r1 * k
+            for j in range(sides):
+                a = 2 * math.pi * j / sides
+                verts.append(q + u * (math.cos(a) * r) + v * (math.sin(a) * r * flat))
+        for i in range(n - 1):
+            for j in range(sides):
+                j1 = (j + 1) % sides
+                faces.append((i * sides + j, i * sides + j1, (i + 1) * sides + j1, (i + 1) * sides + j))
+        root, tip = len(verts), len(verts) + 1
+        verts.append(P[0])
+        verts.append(P[-1] + t * max(r1, 0.0005))
+        last = (n - 1) * sides
+        for j in range(sides):
+            j1 = (j + 1) % sides
+            faces.append((root, j1, j))
+            faces.append((tip, last + j, last + j1))
+        o = self.poly(name, verts, faces, m, bone, smooth=True)
+        if blend:
+            b2, zh, zl = blend
+            g1, g2 = o.vertex_groups[bone], o.vertex_groups.new(name=b2)
+            for vv in o.data.vertices:
+                w = min(1.0, max(0.0, (zh - vv.co.z) / (zh - zl)))
+                g1.add([vv.index], 1.0 - w, "REPLACE")
+                g2.add([vv.index], w, "REPLACE")
+        return o
+
+    def lathe(self, name, profile, m, bone, seg=32, loc=(0, 0, 0), rot=(0, 0, 0), disp=None, closed=False, subd=0):
+        """Surface of revolution about local Z from (r, z) pairs, with an optional radial offset disp(theta, z).
+        Draw a closed profile counterclockwise (outer side going up) so the normals face out of the solid."""
+        verts, faces = [], []
+        for r, z in profile:
+            for j in range(seg):
+                th = 2 * math.pi * j / seg
+                rr = r + (disp(th, z) if disp else 0.0)
+                verts.append((rr * math.cos(th), rr * math.sin(th), z))
+        rings = len(profile)
+        for i in range(rings if closed else rings - 1):
+            i1 = (i + 1) % rings
+            for j in range(seg):
+                j1 = (j + 1) % seg
+                faces.append((i * seg + j, i * seg + j1, i1 * seg + j1, i1 * seg + j))
+        me = bpy.data.meshes.new(name)
+        me.from_pydata(verts, [], faces)
+        me.update()
+        # UVs for the cloth normal map: u around (4 repeats), v up the profile in meters x 4
+        uv = me.uv_layers.new(name="UVMap")
+        for poly in me.polygons:
+            for li in poly.loop_indices:
+                vi = me.loops[li].vertex_index
+                i, j = divmod(vi, seg)
+                if j == 0 and any(me.loops[l].vertex_index % seg == seg - 1 for l in poly.loop_indices):
+                    j = seg  # the seam column closes at u = 1
+                uv.data[li].uv = (4 * j / seg, 4 * profile[i][1])
+        o = bpy.data.objects.new(name, me)
+        bpy.context.scene.collection.objects.link(o)
+        bpy.context.view_layer.objects.active = o
+        subdivide(o, subd)
+        o.rotation_euler = rot
+        o.location = loc
+        apply_tf(o)
+        return self._finish(o, name, m, bone)
 
     def text(self, name, body, m, bone, size, place):
         """Flat text mesh in the XZ plane (reads from -Y), then `place(v)` maps each vertex onto a surface."""
@@ -192,6 +277,30 @@ def apply_tf(o):
     o.select_set(True)
     bpy.context.view_layer.objects.active = o
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+
+
+def subdivide(o, levels):
+    """Apply Catmull-Clark, then rescale about the centre so the bounding box matches the cage (subdivision
+    shrinks a coarse sphere by a few percent). Runs before the part gets its single-bone vertex group, so the
+    rigid weight of 1.0 holds for every new vertex."""
+    if not levels:
+        return
+    def box(o):
+        xs = [v.co for v in o.data.vertices]
+        lo = Vector((min(c.x for c in xs), min(c.y for c in xs), min(c.z for c in xs)))
+        hi = Vector((max(c.x for c in xs), max(c.y for c in xs), max(c.z for c in xs)))
+        return lo, hi
+    lo0, hi0 = box(o)
+    m = o.modifiers.new("subd", "SUBSURF")
+    m.levels = m.render_levels = levels
+    bpy.context.view_layer.objects.active = o
+    bpy.ops.object.modifier_apply(modifier=m.name)
+    lo1, hi1 = box(o)
+    c0, c1 = (lo0 + hi0) / 2, (lo1 + hi1) / 2
+    k = [((hi0[i] - lo0[i]) / (hi1[i] - lo1[i])) if hi1[i] - lo1[i] > 1e-9 else 1.0 for i in range(3)]
+    for v in o.data.vertices:
+        d = v.co - c1
+        v.co = Vector((c0.x + d.x * k[0], c0.y + d.y * k[1], c0.z + d.z * k[2]))
 
 
 def fuzz(o, amount, size=0.035):
