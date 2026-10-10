@@ -63,27 +63,43 @@ export function drumTex() {
   return tex(c, [10, 1])
 }
 
-// level 1 café glazing below the concourse: warm-lit interior behind clear glass, silver mullions
+// level 1 café back wall (photo 07), one 12 m x 4.1 m tile: warm wood panelling to 2.4 m,
+// cream wall above with two striped colour-field paintings
 export function cafeTex() {
-  const [c, g] = canvas(1024, 256)
-  const grd = g.createLinearGradient(0, 0, 0, 256)
-  grd.addColorStop(0, '#f1e3c4')
-  grd.addColorStop(0.35, '#8a7a62')
-  grd.addColorStop(1, '#3b3631')
-  g.fillStyle = grd
-  g.fillRect(0, 0, 1024, 256)
+  const PX = 128 // pixels per metre
+  const [c, g] = canvas(12 * PX, 524)
+  g.fillStyle = '#efe4cf'
+  g.fillRect(0, 0, c.width, c.height)
+  const woodTop = c.height - 2.4 * PX
   const r = rng(41)
-  g.fillStyle = 'rgba(40,36,32,0.8)'
-  for (let i = 0; i < 26; i++) g.fillRect(r() * 1024, 150 + r() * 40, 30 + r() * 30, 6)
-  g.fillStyle = '#eceae6'
-  g.fillRect(0, 0, 1024, 18)
-  g.fillStyle = '#a7b0b5'
-  for (let x = 0; x < 1024; x += 1024 / 9) g.fillRect(x, 18, 5, 238)
+  for (let x = 0; x < c.width; x += 1.2 * PX) {
+    g.fillStyle = `hsl(${24 + r() * 5}, ${48 + r() * 8}%, ${36 + r() * 6}%)`
+    g.fillRect(x, woodTop, 1.2 * PX, c.height - woodTop)
+    g.fillStyle = 'rgba(30,15,5,0.55)'
+    g.fillRect(x, woodTop, 2, c.height - woodTop)
+  }
+  g.fillStyle = 'rgba(30,15,5,0.4)'
+  g.fillRect(0, woodTop, c.width, 3)
+  const stripes = ['#e2392f', '#f2b51d', '#2f6fbe', '#3aa35a', '#e86a9a', '#f07a1f', '#7a4fb0']
+  for (const [x0, k] of [[1.4, 0], [7.2, 3]]) {
+    const x = x0 * PX
+    const y = 0.4 * PX
+    const w = 2.4 * PX
+    const h = 1.15 * PX
+    for (let i = 0; i < 14; i++) {
+      g.fillStyle = stripes[(i + k) % stripes.length]
+      g.fillRect(x + (i * w) / 14, y, w / 14 + 1, h)
+    }
+    g.strokeStyle = '#2a2420'
+    g.lineWidth = 3
+    g.strokeRect(x, y, w, h)
+  }
   return tex(c, [1, 1])
 }
 
 // the courtyard curtain wall above level 2 as seen from across the courtyard: the white
-// level 4 slab edge, blue drums behind clear glass, silver mullions, the roof fascia on top
+// level 4 slab edge, silver mullions, the roof fascia on top. World.jsx no longer uses it: the
+// level 4 drums are real geometry (Level4), so the painted drums were removed from this tile
 export function courtyardFacadeTex() {
   const [c, g] = canvas(1024, 512)
   const sky = g.createLinearGradient(0, 0, 0, 512)
@@ -96,18 +112,6 @@ export function courtyardFacadeTex() {
   g.fillRect(0, 40, 1024, 28)
   g.fillStyle = 'rgba(40,52,66,0.55)'
   g.fillRect(0, 68, 1024, 380)
-  // one level 4 drum per tile
-  const dg = g.createLinearGradient(0, 110, 0, 400)
-  dg.addColorStop(0, '#1554a8')
-  dg.addColorStop(1, '#00356b')
-  g.fillStyle = dg
-  g.beginPath()
-  g.roundRect(150, 100, 724, 300, 90)
-  g.fill()
-  g.fillStyle = 'rgba(2,10,30,0.6)'
-  for (let y = 150; y < 400; y += 50) g.fillRect(150, y, 724, 3)
-  g.fillStyle = 'rgba(200,220,255,0.18)'
-  g.fillRect(220, 110, 90, 280)
   // level 4 slab edge and the roof fascia
   g.fillStyle = '#eceae6'
   g.fillRect(0, 448, 1024, 64)
@@ -117,6 +121,48 @@ export function courtyardFacadeTex() {
   for (let x = 0; x < 1024; x += 1024 / 9) g.fillRect(x, 40, 6, 408)
   g.fillRect(0, 250, 1024, 5)
   return tex(c, [1, 1])
+}
+
+// buttoned leather cushion, one 0.6 x 0.6 m tile as a normal map: soft bulge between seams
+// across the tile edges (v), three by three buttons pulled into dimples
+export function tuftNormalTex() {
+  const N = 256
+  const h = new Float32Array(N * N)
+  const btn = [1 / 6, 1 / 2, 5 / 6]
+  for (let y = 0; y < N; y++)
+    for (let x = 0; x < N; x++) {
+      const u = x / N
+      const v = y / N
+      const dv = Math.min(v, 1 - v) // distance to the seam
+      let z = Math.min(1, dv / 0.08) ** 0.5 * 0.6 // bulge rising from the seam
+      for (const bu of btn)
+        for (const bv of btn) {
+          const d2 = ((u - bu) ** 2 + (v - bv) ** 2) / 0.0016
+          z -= 0.35 * Math.exp(-d2)
+        }
+      h[y * N + x] = z
+    }
+  const [c, g] = canvas(N, N)
+  const img = g.createImageData(N, N)
+  const at = (x, y) => h[((y + N) % N) * N + ((x + N) % N)]
+  const k = 6 // slope gain: height units to normal tilt
+  for (let y = 0; y < N; y++)
+    for (let x = 0; x < N; x++) {
+      const nx = -(at(x + 1, y) - at(x - 1, y)) * k
+      const ny = (at(x, y + 1) - at(x, y - 1)) * k
+      const l = Math.hypot(nx, ny, 1)
+      const i = (y * N + x) * 4
+      img.data[i] = (nx / l * 0.5 + 0.5) * 255
+      img.data[i + 1] = (ny / l * 0.5 + 0.5) * 255
+      img.data[i + 2] = (1 / l * 0.5 + 0.5) * 255
+      img.data[i + 3] = 255
+    }
+  g.putImageData(img, 0, 0)
+  const t = new THREE.CanvasTexture(c)
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  t.repeat.set(1 / 0.6, 1 / 0.6) // the cushion UVs are metres
+  t.anisotropy = 8
+  return t
 }
 
 export function slatsTex() {
