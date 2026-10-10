@@ -63,13 +63,27 @@ function MuteButton() {
   )
 }
 
+function MusicButton() {
+  const music = useStore(soundState, (s) => s.music)
+  return (
+    <button className="hud-pill hud-btn" onClick={() => sound.toggleMusic()} title="music (B)">
+      <span className="hud-label">music</span>
+      <span className="hud-num">{music ? 'on' : 'off'}</span>
+      <kbd>B</kbd>
+    </button>
+  )
+}
+
 // Mount once in App, outside the <Canvas>: HUD slots, the interact prompt, toasts, dialogue.
 export default function InteractUI() {
   return (
     <>
       <Slot name="status" />
       <Slot name="counters">
-        <MuteButton />
+        <div className="hud-row">
+          <MuteButton />
+          <MusicButton />
+        </div>
       </Slot>
       <Slot name="prompt">
         <Prompt />

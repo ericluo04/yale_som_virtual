@@ -1,6 +1,8 @@
 import { useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { BEIN, COURTYARD, EAST, MEETING, MEET_DOOR, inPoly } from '../layout.js'
+import { BEIN, COURTYARD, DRUMS, EAST, LECTERNS, MEETING, MEET_DOOR, inPoly } from '../layout.js'
+import { ROOM_PROFESSOR } from '../Faculty.jsx'
+import { motion } from '../Player.jsx'
 import { sound } from './sound.js'
 import { ui } from './store.js'
 
@@ -14,15 +16,22 @@ export function surfaceAt(x, z) {
 const DOOR_NEAR = 2.4 // m; matches the open radius of GlassDoor in World.jsx
 const doorMids = MEETING.map((m) => [m.door.hinge[0] + MEET_DOOR / 2, m.door.hinge[1]])
 
+// one footstep per 0.75 m at the 5.5 m/s walk; strides stretch to 1 m at a sprint and shrink to
+// 0.55 m crouching (my judgment: a real walking stride is 0.7 to 0.8 m)
+const STRIDE = 0.75
+const strideFor = (speed) => (speed > 7.5 ? 1.0 : speed < 3 ? 0.55 : STRIDE)
+const inDrum = (x, z) => DRUMS.findIndex((d) => ((x - d.c[0]) / d.rx) ** 2 + ((z - d.c[1]) / d.rz) ** 2 < 1)
+
 // Mount once inside <Canvas>. Moves the audio listener with the camera, plays footsteps from
-// the camera's own motion (so Player.jsx needs no sound code), and plays door swings.
+// Player.jsx's `motion` (distance walked on the ground), tells sound.js which classroom you are
+// in (the professor's murmur), and plays door swings.
 export function SoundLoop() {
   const { camera } = useThree()
-  const last = useRef(null)
+  const lastDist = useRef(null)
   const stride = useRef(0)
+  const room = useRef(-1)
   const doorOpen = useRef(doorMids.map(() => false))
-  useFrame((_, rawDt) => {
-    const dt = Math.min(rawDt, 0.05)
+  useFrame(() => {
     const p = camera.position
     const e = camera.matrixWorld.elements // forward is -Z column
     const fx = -e[8]
@@ -30,23 +39,33 @@ export function SoundLoop() {
     const fl = Math.hypot(fx, fz) || 1
     sound.listen(p.x, p.y, p.z, fx / fl, fz / fl)
 
-    if (last.current) {
-      const d = Math.hypot(p.x - last.current[0], p.z - last.current[2])
-      const grounded = Math.abs(p.y - last.current[1]) < 0.03 // no steps mid-jump
-      const speed = d / Math.max(dt, 1e-3)
-      if (d > 2) stride.current = 0 // teleport, not a step
-      else if (speed > 0.8 && grounded && !ui.get().frozen) {
-        stride.current += d
-        const len = speed > 7.5 ? 1.25 : speed < 3 ? 0.6 : 0.85 // stride grows with pace
-        if (stride.current > len) {
-          stride.current = 0
-          sound.step(surfaceAt(p.x, p.z), speed)
-        }
+    // footsteps: distance walked on the ground since the last frame. In the air the stride restarts,
+    // so the first step after a landing comes a full stride later; pushing into a wall adds nothing.
+    const d = lastDist.current == null ? 0 : motion.dist - lastDist.current
+    lastDist.current = motion.dist
+    const st = sound.stats // dev counters: distance on the ground and in the air
+    st.airborne = !motion.grounded
+    if (d > 0 && d < 2) st[motion.grounded ? 'groundDist' : 'airDist'] = (st[motion.grounded ? 'groundDist' : 'airDist'] || 0) + d
+    if (!motion.grounded) {
+      stride.current = 0
+    } else if (motion.blocked) {
+      stride.current = Math.min(stride.current, strideFor(motion.speed) * 0.5)
+    } else if (d > 0 && d < 2 && !ui.get().frozen) {
+      stride.current += d
+      const len = strideFor(motion.speed)
+      if (stride.current >= len) {
+        stride.current -= len
+        sound.step(surfaceAt(p.x, p.z), motion.speed)
       }
-      last.current[0] = p.x
-      last.current[1] = p.y
-      last.current[2] = p.z
-    } else last.current = [p.x, p.y, p.z]
+    }
+
+    // classroom murmur: which drum the listener is in
+    const r = inDrum(p.x, p.z)
+    if (r !== room.current) {
+      room.current = r
+      const d = DRUMS[r]
+      sound.setRoom(r, r >= 0 ? LECTERNS[r] : null, r >= 0 ? ROOM_PROFESSOR[d.id] : null, r >= 0 ? { x: d.c[0], z: d.c[1] } : null)
+    }
 
     for (let i = 0; i < doorMids.length; i++) {
       const near = Math.hypot(p.x - doorMids[i][0], p.z - doorMids[i][1]) < DOOR_NEAR
