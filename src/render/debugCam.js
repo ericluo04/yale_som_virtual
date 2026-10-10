@@ -8,6 +8,7 @@
 //                         to profile them (feel: head bob, sprint FOV and look damping)
 //   ?on=dof,ssr           switch on features that are off by default (dof: the far blur, ssr: reflections)
 //   ?dpr=1.5              override the pixel-ratio cap
+//   ?sun=5                sun intensity (render/Lighting.jsx)
 //   ?hud=0                hide the location pill and minimap for clean screenshots
 const params = new URLSearchParams(typeof location === 'undefined' ? '' : location.search)
 

@@ -5,10 +5,19 @@ import * as THREE from 'three'
 import { H, ROOF, EAST, BEIN, BOUNDS, COURTYARD, DRUMS, LIBRARY, inPoly } from '../layout.js'
 import { OFF, QUALITY } from './debugCam.js'
 
-// Sun about 60 degrees up from the south-west: high enough that the 7.2 m soffit keeps most
-// of the concourse in shade, so the sunlit strips along the glass read as strips.
-export const SUN_DIR = new THREE.Vector3(-0.42, 1.05, 0.45).normalize()
-export const SUN = { color: '#fff4e2', intensity: 3.2 }
+// Sun 48 degrees up from the west-south-west (53 degrees west of south): afternoon light that
+// reaches about 6.5 m under the 7.2 m soffit, so mullion and column shadows run deep across the
+// north cloister floor. 48 degrees is the sun's own elevation in the sky HDRI, and the direction
+// is 13 degrees from the one tools/bake used (60 degrees up, 43 west of south); the bake keeps
+// only the sun's bounce light, which a 13 degree turn barely moves.
+const SUN_EL = (48 * Math.PI) / 180
+const SUN_AZ_W = (53 * Math.PI) / 180 // west of south
+export const SUN_DIR = new THREE.Vector3(-Math.cos(SUN_EL) * Math.sin(SUN_AZ_W), Math.sin(SUN_EL), Math.cos(SUN_EL) * Math.cos(SUN_AZ_W))
+const sunParam = Number(new URLSearchParams(typeof location === 'undefined' ? '' : location.search).get('sun'))
+// 5 (was 3.2): the lightmap holds no direct sun, so this alone sets how far sunlit floor stands
+// above shade. At 5 the sunlit carpet strip reads near white (sRGB about 230 against 113 in
+// shade) and stays under the 1.6 bloom threshold. ?sun= overrides it for tuning.
+export const SUN = { color: '#fff4e2', intensity: sunParam || 5 }
 const CENTER = new THREE.Vector3((BOUNDS.xMin + EAST + BEIN.terrace) / 2, 0, (BOUNDS.zMin + BOUNDS.zMax) / 2)
 
 // Fit the orthographic shadow camera to the building box in light space, so the 2048 map
@@ -53,18 +62,23 @@ export function requestShadowUpdate(delay = 2) {
 
 function ShadowSetup() {
   const { gl, scene } = useThree()
-  const active = useProgress((s) => s.active)
   useLayoutEffect(() => {
     if (import.meta.env.DEV) window.__three = { gl, scene }
     gl.shadowMap.autoUpdate = false
     gl.shadowMap.needsUpdate = true
   }, [gl])
-  // the loader reports a file done before the GLTF is parsed and mounted, so redraw twice after
-  useEffect(() => {
-    if (active) return
-    requestShadowUpdate(5)
-    requestShadowUpdate(45)
-  }, [active])
+  // The loader reports a file done before the GLTF is parsed and mounted, so redraw twice after.
+  // A store subscription and not the hook: the hook would re-render this component while a
+  // loading component renders, which React warns about.
+  useEffect(
+    () =>
+      useProgress.subscribe((st, prev) => {
+        if (st.active || !prev.active) return
+        requestShadowUpdate(5)
+        requestShadowUpdate(45)
+      }),
+    [],
+  )
   useFrame(() => {
     frameNow++
     if (!due.has(frameNow)) return
