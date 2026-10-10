@@ -8,7 +8,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import {
   H, EAST, BOUNDS, COURTYARD, DRUMS, DRUM_WALL, WALLS, CHAIRS, SCREENS, BOARDS, LECTERNS,
   STAIRS, MEETING, MEET_DOOR, BEIN, BEIN_TABLES, PLANTS, LIBRARY, RISE, inPoly, ellPt, tierOutline,
-  BENCHES, COLUMNS, ROOF, DESK_SURFACES, SKY, planPt, planX,
+  BENCHES, COLUMNS, ROOF, DESK_SURFACES, SKY, planPt, planX, LAWN_PAVERS,
 } from './layout.js'
 import * as T from './textures.js'
 import LabubuParty, { MeetingLabubus } from './LabubuParty.jsx'
@@ -483,13 +483,7 @@ function Courtyard({ M }) {
     return { items, rail }
   }, [])
   const cafeTables = useMemo(() => {
-    const r = rng(4)
-    const out = []
-    for (let i = 0; i < 14; i++) {
-      const a = r() * TAU
-      out.push({ p: [Math.sin(a) * 12, -4.6, Math.cos(a) * 14], s: [0.9, 0.06, 0.9] })
-    }
-    return out
+    return LAWN_PAVERS.map(([x, z]) => ({ p: [x, -4.6, z], s: [0.9, 0.06, 0.9] }))
   }, [])
   return (
     <>

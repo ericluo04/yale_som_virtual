@@ -499,6 +499,22 @@ for (const l of LOUNGES) W([l.x, l.z - 0.9], [l.x, l.z + 0.9], 'none', { t: 1.9 
   for (let i = CHAIRS.length - 1; i >= 0; i--) if (!CHAIRS[i].room && inMeet(CHAIRS[i].x, CHAIRS[i].z)) CHAIRS.splice(i, 1)
 }
 
+// stepping-stone pavers on the lawn (render/Scenery.jsx LawnPavers; World.jsx draws the same ring for
+// the bake): 14 on a 12 x 14 m ellipse at seeded angles (the rng of textures.js, seed 4). Round 4
+// moves eight of them along the ring so none lies within 1 m of a spell-school student or professor
+// (life/SpellSchool.jsx GROUPS): three inside Snape's class round (-10, 10) and the one beside it,
+// two among Flitwick's students and two among McGonagall's. The nudges are radians, about 13 m of
+// ring per radian here (2.6 to 3 m; paver 9 goes 3.6 m so it clears the pair at angle 2.03).
+const PAVER_NUDGE = { 1: 0.2, 2: 0.2, 4: -0.22, 7: 0.2, 9: -0.3, 10: 0.22, 11: -0.2, 13: -0.22 }
+export const LAWN_PAVERS = (() => {
+  let s = (4 * 2654435761) >>> 0 || 1
+  const r = () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296
+  return Array.from({ length: 14 }, (_, i) => {
+    const a = r() * TAU + (PAVER_NUDGE[i] || 0)
+    return [Math.sin(a) * 12, Math.cos(a) * 14]
+  })
+})()
+
 // colliders with bounding boxes for fast rejection
 export const COLLIDERS = WALLS.filter((w) => w.collide).map((w) => ({
   ...w,

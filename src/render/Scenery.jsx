@@ -8,7 +8,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { unbakedFill } from './Baked.jsx'
 import * as THREE from 'three'
 import {
-  COUNTERS, PLANTS, PLANTS_EXTRA, BINS, LOUNGES, LIBRARY, BEIN_TABLES, DRUMS, MEETING, BENCHES, ellPt, planPt,
+  COUNTERS, PLANTS, PLANTS_EXTRA, BINS, LOUNGES, LIBRARY, BEIN_TABLES, DRUMS, MEETING, BENCHES, ellPt, planPt, LAWN_PAVERS,
 } from '../layout.js'
 
 // Scanned CC0 models (Poly Haven, Kenney; see CREDITS.md) placed through the floor. Every model
@@ -435,15 +435,7 @@ function Surfaces() {
 // plain honed stone
 const paverMat = new THREE.MeshStandardMaterial({ color: '#b7b2a8', roughness: 0.92 })
 const paverGeo = new THREE.BoxGeometry(1, 1, 1)
-const PAVERS = (() => {
-  const r = rng(4)
-  const out = []
-  for (let i = 0; i < 14; i++) {
-    const a = r() * TAU
-    out.push([Math.sin(a) * 12, Math.cos(a) * 14])
-  }
-  return out
-})()
+const PAVERS = LAWN_PAVERS
 function LawnPavers() {
   const ref = useRef()
   const { scene, gl } = useThree()
