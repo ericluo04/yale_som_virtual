@@ -5,24 +5,30 @@ import Professor from '../Professor.jsx'
 import { angleTo, rand, sfx, smooth, timed, turnToward, useLabubuRig } from './common.js'
 import { fx } from './fx.jsx'
 
-// Spell practice on the north lawn: Professor Flitwick and three Labubus with wands in a half circle. Each
-// Labubu casts on its own seeded rhythm (the Cast clip flicks on frame 10): a burst of 200 Yale-blue and pink
-// sparks leaves the wand tip and its target answers. A stone paver and a book float up 1 m, wobble and settle
-// (Wingardium Leviosa); a paper plane launches, loops and glides back. Every fourth cast fizzles: a puff of
-// grey smoke, and the caster looks surprised for 2 s.
+// Spell practice on the north lawn, set 9 m out from the north glass so it reads from the north cloister
+// at eye height. Professor Flitwick stands on a stone paver floating 1 m up, facing four Labubus with wands in
+// a half circle that face him and the north glass. Each Labubu casts on its own seeded rhythm (the Cast clip
+// flicks on frame 10): a burst of 300 Yale-blue and pink sparks leaves the wand tip and climbs about 2 m, so
+// it shows above the cloister edge, and its target answers. A stone paver and a book float up 2.5 m, wobble
+// and settle (Wingardium Leviosa); a paper plane launches, loops and glides back. Every fourth cast fizzles: a
+// puff of grey smoke, and the caster looks surprised for 2 s.
 const Y = -5
-const SCALE = 1.3
-// Flitwick stands near the north glass facing south, so from the north cloister you see the class's faces
-const FLIT = [-5.5, -16.8]
-const CLASS = [-0.8, 0, 0.8].map((a, i) => ({
+const SCALE = 1.0
+const FLIT_SCALE = 1.3
+const FLIT_LIFT = 1.0 // Flitwick's paver floats this high over the lawn
+// Flitwick floats on the glass side of the circle facing south; the casters' faces point at the north cloister.
+// No caster sits straight behind him (four on +-0.38 and +-1.05 rad), so from the cloister he never hides one.
+const FLIT = [0, -13.6] // the birch at (0,-10.5) stands between the two middle casters, behind them
+const CLASS = [-1.05, -0.38, 0.38, 1.05].map((a, i) => ({
   i,
-  p: [FLIT[0] + 2.7 * Math.sin(a), FLIT[1] + 2.7 * Math.cos(a)],
-  target: ['paver', 'book', 'plane'][i],
+  p: [FLIT[0] + 3.0 * Math.sin(a), FLIT[1] + 3.0 * Math.cos(a)],
+  target: ['paver', 'book', 'plane', 'paver'][i],
 }))
 const LOOKS = [
   { fur: '#bba7e8', expression: 'grin', shirt: 'yale' },
   { fur: '#3a3a3e', expression: 'mischief', shirt: '#ff4fa3' },
   { fur: '#9fe0c6', expression: 'happy', shirt: '#5b3f8c', pants: '#5b3f8c', overalls: true },
+  { fur: '#f2b36b', expression: 'grin', shirt: '#2f7fd8' },
 ]
 const FLICK = 10 / 30 // seconds into Cast when the wand snaps forward
 
@@ -114,10 +120,11 @@ function Student({ s }) {
         } else {
           const d = [st.tp[0] - p[0], Y + 0.3 - p[1], st.tp[1] - p[2]]
           const l = Math.hypot(...d)
-          fx.sparks(p, { dir: [d[0] / l * 1.4, d[1] / l * 1.4 + 0.3, d[2] / l * 1.4], spread: 0.8, speed: 2.4 })
+          // 300 sparks at twice the default point size, thrown up hard enough to climb about 2 m
+          fx.sparks(p, { count: 300, size: 0.18, life: 1.5, up: 6.5, dir: [d[0] / l * 1.2, 0, d[2] / l * 1.2], spread: 0.9, speed: 2.4 })
           st.effect = { kind: s.target, t0: t + 0.25 }
           // a few sparks where the spell lands
-          setTimeout(() => fx.sparks([st.tp[0], Y + 0.15, st.tp[1]], { count: 60, speed: 1.2, up: 1.2, life: 0.7, size: 0.06 }), 250)
+          setTimeout(() => fx.sparks([st.tp[0], Y + 0.15, st.tp[1]], { count: 90, speed: 1.4, up: 3.5, life: 1.0, size: 0.14 }), 250)
         }
         sfx.cast(p[0], p[1], p[2], fail)
         st.castAt = -1
@@ -146,7 +153,7 @@ function Student({ s }) {
           else if (u < 3.75) h = 0.05 * Math.sin(((u - 3.5) / 0.25) * Math.PI)
           else st.effect = null
           const wob = u > 0 && u < 3.5 ? Math.min(1, u / 0.8) * Math.min(1, (3.5 - u) / 0.6) : 0
-          g.position.y += h * 1.0
+          g.position.y += h * 2.5 // the levitation climbs 2.5 m
           g.rotation.x = 0.18 * wob * Math.sin(u * 3.1)
           g.rotation.z = 0.15 * wob * Math.sin(u * 2.3 + 1)
           g.rotation.y += 0.6 * wob * Math.sin(u * 0.9)
@@ -163,15 +170,15 @@ function Student({ s }) {
             if (k < 0.25) {
               const q = smooth(k / 0.25)
               a = 0.9 * q
-              h = 0.9 * q
+              h = 1.8 * q
             } else if (k < 0.7) {
               const th = ((k - 0.25) / 0.45) * Math.PI * 2
-              a = 0.9 + 0.7 * Math.sin(th)
-              h = 1.6 - 0.7 * Math.cos(th)
+              a = 0.9 + 0.9 * Math.sin(th)
+              h = 2.7 - 0.9 * Math.cos(th)
             } else {
               const q = smooth((k - 0.7) / 0.3)
               a = 0.9 * (1 - q)
-              h = 0.9 * (1 - q)
+              h = 1.8 * (1 - q)
             }
             g.position.x += fwd[0] * a
             g.position.z += fwd[1] * a
@@ -200,10 +207,30 @@ export default function Spells() {
   if (import.meta.env.DEV && typeof window !== 'undefined') (window.__life ||= {}).spells = CLASS.map((s) => [s.p[0], Y, s.p[1]])
   return (
     <group>
-      <Professor who="flitwick" position={[FLIT[0], Y, FLIT[1]]} rotation={0} />
+      <FlitwickPaver />
       {CLASS.map((s) => (
         <Student key={s.i} s={s} />
       ))}
+    </group>
+  )
+}
+
+// Flitwick on a floating paver: the slab bobs 4 cm and turns slowly; he rides it at 1.3 scale
+function FlitwickPaver() {
+  const ref = useRef()
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime
+    ref.current.position.y = Y + FLIT_LIFT + 0.04 * Math.sin(t * 1.3)
+    ref.current.rotation.set(0.02 * Math.sin(t * 0.9), 0, 0.02 * Math.sin(t * 1.1 + 1))
+  })
+  return (
+    <group ref={ref} position={[FLIT[0], Y + FLIT_LIFT, FLIT[1]]}>
+      <mesh position={[0, -0.04, 0]} material={STONE} castShadow receiveShadow>
+        <boxGeometry args={[0.9, 0.08, 0.9]} />
+      </mesh>
+      <group scale={FLIT_SCALE}>
+        <Professor who="flitwick" rotation={0} />
+      </group>
     </group>
   )
 }
