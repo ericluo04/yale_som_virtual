@@ -2,8 +2,7 @@ import { ui, useStore } from '../interact/store.js'
 import { interactState } from '../interact/registry.js'
 import { sound, soundState } from '../interact/sound.js'
 import Dialogue from './Dialogue.jsx'
-import { useDiscoveries } from './discoveries.js'
-import { Counter, hudState } from './hudSlots.jsx'
+import { hudState } from './hudSlots.jsx'
 import { toastState } from './toast.js'
 import { HUD } from '../render/debugCam.js'
 import './ui.css'
@@ -64,18 +63,12 @@ function MuteButton() {
   )
 }
 
-function Discoveries() {
-  const { count, total } = useDiscoveries()
-  return <Counter label="discoveries" value={count} total={total} />
-}
-
 // Mount once in App, outside the <Canvas>: HUD slots, the interact prompt, toasts, dialogue.
 export default function InteractUI() {
   return (
     <>
       <Slot name="status" />
       <Slot name="counters">
-        <Discoveries />
         <MuteButton />
       </Slot>
       <Slot name="prompt">
