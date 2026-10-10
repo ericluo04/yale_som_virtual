@@ -1,4 +1,5 @@
-import { useLayoutEffect, useMemo, useRef } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { useProgress } from '@react-three/drei'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { H, ROOF, EAST, BEIN, BOUNDS, COURTYARD, DRUMS, LIBRARY, inPoly } from '../layout.js'
@@ -31,33 +32,134 @@ function fitShadow(light) {
   cam.updateProjectionMatrix()
 }
 
-// Static geometry casts and receives sun shadows. The map renders for the first frames
-// only (gl.shadowMap.autoUpdate = false): the building does not move, and characters
-// get no sun shadow, which keeps the shadow pass off the per-frame budget.
+// Static geometry casts and receives sun shadows. The static map is not redrawn every frame
+// (gl.shadowMap.autoUpdate = false): redrawing it costs about 4 ms at dpr 1 (courtyard view,
+// 86 to 63 fps uncapped). It is redrawn on demand instead: at frames 1, 30, 60 and 100 after
+// mount, a few frames after every asset batch finishes loading (drei useProgress), and whenever
+// a component calls requestShadowUpdate() (the baked building does once it mounts). Each redraw
+// bumps shadowState.version, which tells Probes.jsx to recapture the drum reflections.
+//
+// Moving things (meshes under a group flagged userData.dynamic: walking characters, doors) stay
+// out of the static map, where they would leave a shadow frozen at their first position. Their
+// casters move to CHAR_LAYER and cast through the character shadow map below. Instanced meshes
+// under a dynamic flag do not move and stay in the static map.
+export const CHAR_LAYER = 5
+export const shadowState = { version: 0 }
+const due = new Set([1, 30, 60, 100])
+let frameNow = 0
+export function requestShadowUpdate(delay = 2) {
+  due.add(frameNow + delay)
+}
+
 function ShadowSetup() {
   const { gl, scene } = useThree()
-  const frames = useRef(0)
+  const active = useProgress((s) => s.active)
   useLayoutEffect(() => {
     if (import.meta.env.DEV) window.__three = { gl, scene }
     gl.shadowMap.autoUpdate = false
     gl.shadowMap.needsUpdate = true
   }, [gl])
+  // the loader reports a file done before the GLTF is parsed and mounted, so redraw twice after
+  useEffect(() => {
+    if (active) return
+    requestShadowUpdate(5)
+    requestShadowUpdate(45)
+  }, [active])
   useFrame(() => {
-    if (frames.current > 90) return
-    frames.current++
-    if (frames.current % 30 !== 1) return
-    const walk = (o) => {
-      if (o.userData.dynamic) return
+    frameNow++
+    if (!due.has(frameNow)) return
+    due.delete(frameNow)
+    const walk = (o, dyn) => {
+      dyn = dyn || !!o.userData.dynamic
       if (o.isMesh) {
         const mats = Array.isArray(o.material) ? o.material : [o.material]
         const solid = mats.every((m) => !m.transparent && !m.transmission && m.type !== 'MeshBasicMaterial')
-        o.castShadow = solid && !o.userData.noCast
-        o.receiveShadow = mats.every((m) => m.type !== 'MeshBasicMaterial')
+        if (dyn && !o.isInstancedMesh) {
+          if (o.castShadow && solid) o.layers.enable(CHAR_LAYER)
+          o.castShadow = false
+        } else if (dyn) {
+          // instanced groups under a dynamic flag (the seated students, about 1.1 M triangles)
+          // never move: they keep their own castShadow and stay in the static map
+          o.castShadow = o.castShadow && solid
+        } else {
+          o.castShadow = solid && !o.userData.noCast
+          o.receiveShadow = mats.every((m) => m.type !== 'MeshBasicMaterial')
+        }
       }
-      o.children.forEach(walk)
+      o.children.forEach((c) => walk(c, dyn))
     }
-    walk(scene)
+    walk(scene, false)
     gl.shadowMap.needsUpdate = true
+    shadowState.version++
+  })
+  return null
+}
+
+// Character shadows. A second, small depth map renders only CHAR_LAYER from the sun every frame:
+// 1024 px over a 40 m square that follows the camera (4 cm texels). Baked.jsx reads it in the
+// baked floors, lawn and walls and darkens the direct sun there, so characters in sunlight throw
+// real moving shadows without redrawing the 2048 static map. Characters standing in shade get
+// nothing from it, which is right, since the sun does not reach them.
+const CHAR_SPAN = 40
+const CHAR_RES = 1024
+export const CHAR_SHADOW = {
+  map: { value: null },
+  matrix: { value: new THREE.Matrix4() },
+  on: { value: 0 },
+}
+function CharShadow() {
+  const { gl, scene, camera } = useThree()
+  const s = useMemo(() => {
+    const rt = new THREE.WebGLRenderTarget(CHAR_RES, CHAR_RES, { depthBuffer: true })
+    rt.depthTexture = new THREE.DepthTexture(CHAR_RES, CHAR_RES, THREE.UnsignedIntType)
+    const h = CHAR_SPAN / 2
+    const cam = new THREE.OrthographicCamera(-h, h, h, -h, 1, 240)
+    cam.layers.set(CHAR_LAYER)
+    const mat = new THREE.MeshBasicMaterial({ colorWrite: false })
+    // light-space basis, fixed because the sun does not move
+    const view = new THREE.Matrix4().lookAt(SUN_DIR, new THREE.Vector3(), new THREE.Vector3(0, 1, 0))
+    const inv = view.clone().invert()
+    return { frame: 0, rt, cam, mat, view, inv, p: new THREE.Vector3(), fwd: new THREE.Vector3(), bias: new THREE.Matrix4().set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1) }
+  }, [])
+  useEffect(() => {
+    CHAR_SHADOW.map.value = s.rt.depthTexture
+    CHAR_SHADOW.on.value = 1
+    return () => {
+      CHAR_SHADOW.on.value = 0
+      s.rt.dispose()
+    }
+  }, [s])
+  useFrame(() => {
+    if (import.meta.env.DEV) window.__charShadow = s
+    // centre 12 m ahead of the camera, snapped to whole texels in light space so the edges
+    // do not crawl
+    const texel = CHAR_SPAN / CHAR_RES
+    camera.getWorldDirection(s.fwd)
+    s.fwd.y = 0
+    const p = s.p.copy(camera.position).addScaledVector(s.fwd.normalize(), 12).applyMatrix4(s.inv)
+    p.x = Math.round(p.x / texel) * texel
+    p.y = Math.round(p.y / texel) * texel
+    p.applyMatrix4(s.view)
+    s.cam.position.copy(p).addScaledVector(SUN_DIR, 120)
+    s.cam.lookAt(p)
+    s.cam.updateMatrixWorld()
+    CHAR_SHADOW.matrix.value.multiplyMatrices(s.cam.projectionMatrix, s.cam.matrixWorldInverse).premultiply(s.bias)
+    // every other frame: a Labubu walks about 2 cm in that time. The pass reuses last frame's
+    // world matrices (matrixWorldAutoUpdate off), which saves a walk over the whole scene.
+    if (++s.frame % 2) return
+    const bg = scene.background
+    const om = scene.overrideMaterial
+    const prev = gl.getRenderTarget()
+    scene.background = null
+    scene.overrideMaterial = s.mat
+    scene.matrixWorldAutoUpdate = false
+    gl.setRenderTarget(s.rt)
+    gl.clear()
+    gl.render(scene, s.cam)
+    gl.setRenderTarget(prev)
+    scene.matrixWorldAutoUpdate = true
+    scene.background = bg
+    scene.overrideMaterial = om
   })
   return null
 }
@@ -155,6 +257,7 @@ export default function Lighting() {
       {!OFF.has('lights') && <RoomLights />}
       <CeilingPanels />
       {QUALITY !== 'low' && <ShadowSetup />}
+      {QUALITY !== 'low' && !OFF.has('shadow') && !OFF.has('charshadow') && <CharShadow />}
     </>
   )
 }

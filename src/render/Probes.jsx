@@ -2,13 +2,15 @@
 // CubeCamera renders the room from five spots (the four cloisters and the courtyard) at
 // 256 px, and each drum shell takes the nearest probe as its envMap, so the blue glass
 // mirrors the columns, the soffit and the courtyard instead of the generic RoomEnvironment.
-// Characters and other dynamic groups are hidden during the capture. The probes render twice:
-// a few frames after load and again once the static sun shadow map has settled (frame 100,
-// see ShadowSetup in Lighting.jsx). ?probes=0 switches them off.
+// Characters and other dynamic groups are hidden during the capture. The probes render a few
+// frames after load, at frame 100, and again three frames after every redraw of the static sun
+// shadow map (shadowState.version, see ShadowSetup in Lighting.jsx), so the reflections always
+// show the current sun and shadows. ?probes=0 switches them off.
 import { useEffect, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { QUALITY } from './debugCam.js'
+import { shadowState } from './Lighting.jsx'
 
 const params = new URLSearchParams(typeof location === 'undefined' ? '' : location.search)
 const ON = params.get('probes') !== '0'
@@ -45,7 +47,7 @@ function capture(gl, scene, cams, pmrem) {
 
 export default function Probes({ root }) {
   const { gl, scene } = useThree()
-  const state = useRef({ frame: 0, cams: null, pmrem: null, tex: {} })
+  const state = useRef({ frame: 0, cams: null, pmrem: null, tex: {}, version: -1, next: 0 })
   useEffect(() => {
     if (!ON) return
     const s = state.current
@@ -69,9 +71,13 @@ export default function Probes({ root }) {
   }, [gl, QUALITY])
   useFrame(() => {
     const s = state.current
-    if (!ON || !s.cams || s.frame > CAPTURE_FRAMES.at(-1)) return
+    if (!ON || !s.cams) return
     s.frame++
-    if (!CAPTURE_FRAMES.includes(s.frame)) return
+    if (shadowState.version !== s.version) {
+      s.version = shadowState.version
+      s.next = s.frame + 3
+    }
+    if (!CAPTURE_FRAMES.includes(s.frame) && s.frame !== s.next) return
     const t0 = performance.now()
     const tex = capture(gl, scene, s.cams, s.pmrem)
     root.traverse((o) => {

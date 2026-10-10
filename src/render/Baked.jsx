@@ -10,12 +10,13 @@
 // shaderPatch() switches off the real-time ambient, hemisphere, point lights and diffuse
 // environment for them, since the map already contains that light.
 // ?bake=0 falls back to the procedural building.
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useGLTF, useTexture } from '@react-three/drei'
 import * as THREE from 'three'
 import manifest from './bakedManifest.json'
 import { EXPORT } from './exportGLB.js'
 import Probes from './Probes.jsx'
+import { CHAR_SHADOW, requestShadowUpdate } from './Lighting.jsx'
 
 const params = new URLSearchParams(typeof location === 'undefined' ? '' : location.search)
 export const BAKED = params.get('bake') !== '0' && !EXPORT
@@ -28,11 +29,42 @@ const AO_INTENSITY = Number(params.get('bakeao') ?? 0.5)
 const LM_GAIN = Number(params.get('lmgain') ?? 5.5)
 
 const POINT_LOOP = '#if ( NUM_POINT_LIGHTS > 0 ) && defined( RE_Direct )'
+const SUN_INFO = 'getDirectionalLightInfo( directionalLight, directLight );'
+// character shadows (Lighting.jsx CharShadow): the map holds only characters, so the receivers
+// here never shadow themselves and the bias only absorbs depth precision (about 2 cm)
+const CHAR_FN = `
+uniform sampler2D charShadowMap;
+uniform mat4 charShadowMatrix;
+uniform float charShadowOn;
+varying vec3 vCharWorld;
+float charShadow() {
+  if ( charShadowOn < 0.5 ) return 1.0;
+  vec4 c = charShadowMatrix * vec4( vCharWorld, 1.0 );
+  if ( any( lessThan( c.xyz, vec3( 0.0 ) ) ) || any( greaterThan( c.xyz, vec3( 1.0 ) ) ) ) return 1.0;
+  float d = c.z - 0.0001;
+  vec2 t = vec2( 1.0 / 1024.0 );
+  float s = step( d, texture2D( charShadowMap, c.xy + t * vec2( -0.7, -0.3 ) ).r );
+  s += step( d, texture2D( charShadowMap, c.xy + t * vec2( 0.3, -0.7 ) ).r );
+  s += step( d, texture2D( charShadowMap, c.xy + t * vec2( 0.7, 0.3 ) ).r );
+  s += step( d, texture2D( charShadowMap, c.xy + t * vec2( -0.3, 0.7 ) ).r );
+  return s * 0.25;
+}
+`
 
 function shaderPatch(sh) {
+  sh.uniforms.charShadowMap = CHAR_SHADOW.map
+  sh.uniforms.charShadowMatrix = CHAR_SHADOW.matrix
+  sh.uniforms.charShadowOn = CHAR_SHADOW.on
+  sh.vertexShader = sh.vertexShader
+    .replace('#include <common>', '#include <common>\nvarying vec3 vCharWorld;')
+    .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvCharWorld = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;')
   // classroom and library point lights are in the map: skip them for baked surfaces
   sh.fragmentShader = sh.fragmentShader
-    .replace('#include <lights_fragment_begin>', THREE.ShaderChunk.lights_fragment_begin.replace(POINT_LOOP, '#if 0') + '\nirradiance = vec3( 0.0 );')
+    .replace('#include <common>', '#include <common>\n' + CHAR_FN)
+    .replace(
+      '#include <lights_fragment_begin>',
+      THREE.ShaderChunk.lights_fragment_begin.replace(POINT_LOOP, '#if 0').replace(SUN_INFO, SUN_INFO + '\ndirectLight.color *= charShadow();') + '\nirradiance = vec3( 0.0 );',
+    )
     .replace('#include <lights_fragment_maps>', '#include <lights_fragment_maps>\n#if defined( STANDARD )\niblIrradiance = vec3( 0.0 );\n#endif')
 }
 
@@ -93,6 +125,8 @@ export default function BakedBuilding({ M }) {
     })
     return scene
   }, [scene, lms, aos, M])
+  // the building arrives after the first static shadow draws; draw them again with it in place
+  useEffect(() => requestShadowUpdate(2), [root])
   return (
     <>
       <primitive object={root} />
