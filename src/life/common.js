@@ -37,8 +37,12 @@ export function lifeCost(frame, ms) {
   costs[costIdx] += ms
 }
 if (typeof window !== 'undefined' && import.meta.env.DEV) window.__lifeMs = () => costs.reduce((a, b) => a + b, 0) / costs.length
-// wraps a useFrame body so its CPU time is counted
+// runtime switch for in-page A/B frame timing (dev: window.__lifeToggle(false)); ?off=life is the hard switch
+export const LIFE = { on: true }
+if (typeof window !== 'undefined' && import.meta.env.DEV) window.__lifeToggle = (v) => (LIFE.on = v)
+// wraps a useFrame body so its CPU time is counted (and skipped while the life switch is off)
 export const timed = (fn) => (state, dt) => {
+  if (!LIFE.on) return
   const t0 = performance.now()
   fn(state, dt)
   lifeCost(state.clock.elapsedTime, performance.now() - t0)
@@ -126,12 +130,13 @@ export function useLabubuRig({ model = 'labubu', fur = '#5a3d2e', expression = '
         return next
       },
       // advance the mixer when the character is within `far` m of the camera and inside the view
-      tick(dt, state, far = 32) {
-        if (!o.visible) return false
+      // and stop drawing it past `hide` m (a Labubu is a few pixels tall there)
+      tick(dt, state, far = 32, hide = 40) {
         const camera = state.camera
         o.getWorldPosition(_p)
         const d = camera.position.distanceTo(_p)
-        if (d > far) return false
+        o.visible = d < hide
+        if (d > far || !o.visible) return false
         if (frustumFrame !== state.clock.elapsedTime) {
           frustumFrame = state.clock.elapsedTime
           _f.setFromProjectionMatrix(_m.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse))

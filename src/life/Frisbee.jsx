@@ -69,7 +69,7 @@ function Player({ i, ctl }) {
       o.position.set(ctl.pos[0], Y, ctl.pos[1])
       turnToward(o, ctl.yaw, Math.min(dt, 0.05) * 9)
       rig.play(ctl.clip, { timeScale: ctl.ts ?? 1, once: ctl.once, fade: 0.2 })
-      rig.tick(dt, state, 45)
+      rig.tick(dt, state, 45, 48)
       // the paw position, for the disc while this player holds it
       const b = rig.bones.armR
       if (b) b.localToWorld(_v.set(0, 0.25, 0.04)), ctl.paw.copy(_v)

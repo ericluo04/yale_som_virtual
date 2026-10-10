@@ -183,7 +183,7 @@ function Student({ s }) {
           } else st.effect = null
         }
       }
-      rig.tick(dt, state, 45)
+      rig.tick(dt, state, 45, 48)
     }),
   )
   return (

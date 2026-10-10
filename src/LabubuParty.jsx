@@ -1,3 +1,5 @@
+import { useRef } from 'react'
+import { useFrame } from '@react-three/fiber'
 import Labubu, { EXPRESSIONS, TossBall, YALE_BLUE } from './Labubu.jsx'
 import { MEETING } from './layout.js'
 import Life from './life/index.jsx'
@@ -72,6 +74,22 @@ const MEETERS = MEETING.flatMap((m, i) => {
   }))
 })
 
+// each meeting room's Labubus draw only while the camera is within 16 m: the rooms sit behind the drums in the
+// back hallways, and from the cloister and the courtyard the frustum took in about 20 of them behind walls
+const ROOMS_OF = MEETING.map((m, i) => ({ m, list: MEETERS.filter((c) => c.key.startsWith(`${i}-`)) }))
+function MeetingRoom({ m, list }) {
+  const ref = useRef()
+  useFrame(({ camera }) => {
+    ref.current.visible = Math.hypot(camera.position.x - m.x, camera.position.z - m.z) < 16
+  })
+  return (
+    <group ref={ref}>
+      {list.map(({ key, ...c }) => (
+        <Labubu key={key} sitting {...c} />
+      ))}
+    </group>
+  )
+}
 export function MeetingLabubus() {
-  return MEETERS.map(({ key, ...c }) => <Labubu key={key} sitting {...c} />)
+  return ROOMS_OF.map((r, i) => <MeetingRoom key={i} {...r} />)
 }

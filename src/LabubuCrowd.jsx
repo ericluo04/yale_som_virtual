@@ -4,7 +4,7 @@ import * as THREE from 'three'
 import { YALE_BLUE } from './Labubu.jsx'
 import { CHAIRS, DRUMS } from './layout.js'
 import { FUR, FUR_ON, dressMaterial, preloadModel, shellMaterial, useModel } from './characters/rig.js'
-import { LIFE_ON, rand as lifeRand } from './life/common.js'
+import { LIFE, LIFE_ON, rand as lifeRand } from './life/common.js'
 import ClassroomLife from './life/Classroom.jsx'
 
 // ~30 seated Labubu students per classroom, instanced from public/models/labubu_seated.glb.
@@ -80,7 +80,7 @@ const compose = (p, ry, s = [1, 1, 1]) => new THREE.Matrix4().compose(V.set(...p
 const CAM = new THREE.Vector3()
 function Batch({ geometry, material, items, colorKey, shells = 1, shadow = true, room = null }) {
   const ref = useRef()
-  useFrame(() => room && (ref.current.visible = !LIVE.has(room)))
+  useFrame(() => room && (ref.current.visible = !(LIFE.on && LIVE.has(room))))
   useLayoutEffect(() => {
     const im = ref.current
     const c = new THREE.Color()
@@ -237,17 +237,23 @@ function LaptopGlow() {
   return <instancedMesh ref={ref} args={[GLOW_GEO, GLOW_MAT, items.length]} />
 }
 
+function LifeGroup() {
+  const ref = useRef()
+  useFrame(() => (ref.current.visible = LIFE.on))
+  return (
+    <group ref={ref}>
+      <LaptopGlow />
+      <ClassroomLife />
+    </group>
+  )
+}
+
 export default function LabubuCrowd() {
   return (
     <Suspense fallback={null}>
       <Crowd />
       <DeskProps />
-      {LIFE_ON && (
-        <>
-          <LaptopGlow />
-          <ClassroomLife />
-        </>
-      )}
+      {LIFE_ON && <LifeGroup />}
     </Suspense>
   )
 }

@@ -1,5 +1,6 @@
-import { Suspense } from 'react'
-import { LIFE_ON } from './common.js'
+import { Suspense, useRef } from 'react'
+import { useFrame } from '@react-three/fiber'
+import { LIFE, LIFE_ON } from './common.js'
 import Roamers from './Roamers.jsx'
 import Frisbee from './Frisbee.jsx'
 import { Bursts } from './fx.jsx'
@@ -10,15 +11,21 @@ import Birds from './Birds.jsx'
 // Everything alive outside the classrooms (the classroom extras mount from LabubuCrowd).
 // Mounted from LabubuParty, at world origin. ?off=life switches it all off.
 export default function Life() {
-  if (!LIFE_ON) return null
+  return LIFE_ON ? <LifeOn /> : null
+}
+function LifeOn() {
+  const ref = useRef()
+  useFrame(() => (ref.current.visible = LIFE.on))
   return (
-    <Suspense fallback={null}>
-      <Roamers />
-      <Frisbee />
-      <Spells />
-      <Ambient />
-      <Birds />
-      <Bursts />
-    </Suspense>
+    <group ref={ref}>
+      <Suspense fallback={null}>
+        <Roamers />
+        <Frisbee />
+        <Spells />
+        <Ambient />
+        <Birds />
+        <Bursts />
+      </Suspense>
+    </group>
   )
 }
