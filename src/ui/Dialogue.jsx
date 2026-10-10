@@ -19,21 +19,27 @@ export default function Dialogue() {
   const done = shown >= full.length
   const shownRef = useRef(0)
   shownRef.current = shown
+  // the typewriter's counter; a skip sets it to the full length so the next tick cannot shrink the line
+  const typed = useRef(0)
+  const finish = () => {
+    typed.current = full.length
+    setShown(full.length)
+  }
 
   // typewriter
   useEffect(() => {
     setShown(0)
     if (!line) return
-    let n = 0
+    typed.current = 0
     const t0 = performance.now()
     const id = setInterval(() => {
       const target = Math.min(full.length, Math.floor(((performance.now() - t0) / 1000) * CPS))
-      if (target > n) {
-        if (Math.floor(target / 3) > Math.floor(n / 3)) sound.tick()
-        n = target
-        setShown(n)
+      if (target > typed.current) {
+        if (Math.floor(target / 3) > Math.floor(typed.current / 3)) sound.tick()
+        typed.current = target
+        setShown(target)
       }
-      if (n >= full.length) clearInterval(id)
+      if (typed.current >= full.length) clearInterval(id)
     }, 16)
     return () => clearInterval(id)
   }, [line, full])
@@ -51,7 +57,7 @@ export default function Dialogue() {
         e.preventDefault()
         e.stopImmediatePropagation()
         if (e.repeat) return
-        if (shownRef.current < full.length) setShown(full.length)
+        if (shownRef.current < full.length) finish()
         else if (!line.choices?.length) advanceDialogue(null, true)
         return
       }
@@ -65,7 +71,7 @@ export default function Dialogue() {
   if (!line) return null
   const click = (e) => {
     e.stopPropagation()
-    if (!done) setShown(full.length)
+    if (!done) finish()
     else if (!line.choices?.length) advanceDialogue(null, true)
   }
   return (
