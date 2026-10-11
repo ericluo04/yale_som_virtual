@@ -4,7 +4,7 @@ import * as THREE from 'three'
 import { angleTo, rand, sfx, smooth, timed, turnToward, useLabubuRig } from './common.js'
 import { fx } from './fx.jsx'
 import { RANGE, Y } from './courtyardLayout.js'
-import { CAST_EVERY, CHIME_EVERY, CHIME_LEVEL, FLICK, STUDENT_SCALE, TeacherModel, WAND_TIP, glowTex, lookOf, wand } from './SpellSchool.jsx'
+import { CAST_EVERY, CHIME_LEVEL, FLICK, STUDENT_SCALE, TeacherModel, WAND_TIP, glowTex, lookOf, wand } from './SpellSchool.jsx'
 
 // Lockhart's long-range class along the whole west side of the lawn (Lan, round 4: "perhaps one of the lessons
 // could be spread out across a whole side for example like casting long distance magic"). Lockhart stands on his
@@ -12,7 +12,9 @@ import { CAST_EVERY, CHIME_EVERY, CHIME_LEVEL, FLICK, STUDENT_SCALE, TeacherMode
 // one of the targets on the north edge 15 to 23 m away: two floating wooden rings, a suit of armour and a
 // scarecrow. A cast sends a thin glowing bolt across the lawn in 0.6 s on a low arc (it clears Hagrid). A hit
 // makes the target glow and spin or rock; one cast in three misses, the bolt sails past and fizzles on the grass.
-// Cast timing and chimes follow SpellSchool.jsx: every 12 to 20 s, one cast in four chimes at half volume.
+// Cast timing follows SpellSchool.jsx (every 12 to 20 s). This class chimes on one cast in six at half volume,
+// sparser than the one in four of the other classes because its five students cast along the whole lawn.
+const RANGE_CHIME_EVERY = 6
 const BOLT_T = 0.6
 const MISS = 1 / 3
 const COLORS = ['#ffd36b', '#ff86d2', '#7fd8ff', '#b99bff', '#9dffb8']
@@ -237,7 +239,7 @@ function Student({ i, G, T, bolt }) {
         STATS.casts++
         STATS.flying++
         G.casts++
-        if (G.casts % CHIME_EVERY === 1) sfx.cast(_p.x, _p.y, _p.z, false, CHIME_LEVEL)
+        if (G.casts % RANGE_CHIME_EVERY === 1) sfx.cast(_p.x, _p.y, _p.z, false, CHIME_LEVEL)
         st.castAt = -1
         st.next = t + CAST_EVERY[0] + r() * (CAST_EVERY[1] - CAST_EVERY[0])
       }
