@@ -216,6 +216,14 @@ export function BakeExport() {
       const { glb, lights } = await exportBuilding(scene)
       return { glb: toBase64(glb), lights }
     }
+    // the same in parts: the enlarged floor's GLB (round 4) is too big to cross the DevTools protocol
+    // as one base64 string, so the driver reads it back in 8 MB slices
+    window.__bakeExportParts = async () => {
+      const { glb, lights } = await exportBuilding(scene)
+      window.__bakeGLB = new Uint8Array(glb)
+      return { size: glb.byteLength, lights }
+    }
+    window.__bakeSlice = (i, n) => toBase64(window.__bakeGLB.subarray(i, i + n))
     if (navigator.webdriver) return // the headless driver calls window.__bakeExport itself
     const t = setTimeout(async () => {
       const { glb, lights } = await exportBuilding(scene)
