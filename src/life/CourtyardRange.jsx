@@ -9,7 +9,7 @@ import { CAST_EVERY, CHIME_EVERY, CHIME_LEVEL, FLICK, STUDENT_SCALE, TeacherMode
 // Lockhart's long-range class along the whole west side of the lawn (Lan, round 4: "perhaps one of the lessons
 // could be spread out across a whole side for example like casting long distance magic"). Lockhart stands on his
 // floating paver at the south end of the line; five students stand 4 m apart down the west edge, each casting at
-// one of the targets on the north edge 15 to 25 m away: two floating wooden rings, a suit of armour and a
+// one of the targets on the north edge 15 to 23 m away: two floating wooden rings, a suit of armour and a
 // scarecrow. A cast sends a thin glowing bolt across the lawn in 0.6 s on a low arc (it clears Hagrid). A hit
 // makes the target glow and spin or rock; one cast in three misses, the bolt sails past and fizzles on the grass.
 // Cast timing and chimes follow SpellSchool.jsx: every 12 to 20 s, one cast in four chimes at half volume.
