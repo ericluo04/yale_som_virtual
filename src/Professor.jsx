@@ -1,6 +1,7 @@
 import { Suspense, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { preloadModel, useClipPlayer, useRigInstance } from './characters/rig.js'
+import ProfBubble from './life/ProfBubble.jsx'
 
 export const PROFESSORS = {
   dumbledore: { name: 'Albus Dumbledore', robe: '#4b2479', trim: '#c9b6e8', skin: '#efd2bd', hair: '#f1f0ec', height: 1.95 },
@@ -37,13 +38,15 @@ function ProfessorModel({ who, position = [0, 0, 0], rotation = 0, phase = 0 }) 
   const root = useRef()
   const { object, actions } = useRigInstance(`professor_${who}`)
   const play = useClipPlayer(actions, 0.35)
+  const clip = useRef('Idle')
   useFrame(({ clock }) => {
     const t = clock.elapsedTime + phase
     root.current.rotation.y = rotation + Math.sin(t * 0.4) * 0.35 // scanning the room
     let u = t % LOOP_LEN
-    for (const [clip, d, once] of LOOP) {
+    for (const [name, d, once] of LOOP) {
       if (u < d) {
-        play(clip, { once })
+        play(name, { once })
+        clip.current = name
         break
       }
       u -= d
@@ -52,6 +55,8 @@ function ProfessorModel({ who, position = [0, 0, 0], rotation = 0, phase = 0 }) 
   return (
     <group ref={root} position={position} rotation={[0, rotation, 0]}>
       <primitive object={object} />
+      {/* the speech bubble shows while lecturing or pointing, never during WandRaise, Idle or Nod */}
+      <ProfBubble who={who} height={PROFESSORS[who].height} phase={phase} speaking={() => clip.current === 'Lecture' || clip.current === 'Point'} />
     </group>
   )
 }

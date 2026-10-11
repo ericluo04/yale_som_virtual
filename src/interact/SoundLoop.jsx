@@ -1,7 +1,6 @@
 import { useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { BEIN, COURTYARD, DRUMS, EAST, LECTERNS, MEETING, MEET_DOOR, inPoly } from '../layout.js'
-import { ROOM_PROFESSOR } from '../Faculty.jsx'
+import { BEIN, COURTYARD, DRUMS, EAST, MEETING, MEET_DOOR, inPoly } from '../layout.js'
 import { motion } from '../Player.jsx'
 import { sound } from './sound.js'
 import { ui } from './store.js'
@@ -24,7 +23,7 @@ const inDrum = (x, z) => DRUMS.findIndex((d) => ((x - d.c[0]) / d.rx) ** 2 + ((z
 
 // Mount once inside <Canvas>. Moves the audio listener with the camera, plays footsteps from
 // Player.jsx's `motion` (distance walked on the ground), tells sound.js which classroom you are
-// in (the professor's murmur), and plays door swings.
+// in (the students' page turns and whispers), and plays door swings.
 export function SoundLoop() {
   const { camera } = useThree()
   const lastDist = useRef(null)
@@ -59,12 +58,11 @@ export function SoundLoop() {
       }
     }
 
-    // classroom murmur: which drum the listener is in
+    // classroom sounds: which drum the listener is in
     const r = inDrum(p.x, p.z)
     if (r !== room.current) {
       room.current = r
-      const d = DRUMS[r]
-      sound.setRoom(r, r >= 0 ? LECTERNS[r] : null, r >= 0 ? ROOM_PROFESSOR[d.id] : null, r >= 0 ? { x: d.c[0], z: d.c[1] } : null)
+      sound.setRoom(r, r >= 0 ? { x: DRUMS[r].c[0], z: DRUMS[r].c[1] } : null)
     }
 
     for (let i = 0; i < doorMids.length; i++) {

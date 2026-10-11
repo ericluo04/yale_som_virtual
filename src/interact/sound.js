@@ -6,7 +6,7 @@ import { createStore } from './store.js'
 // Signal path: effects -> dry bus + reverb send -> master (mute) -> speakers; the music has its
 // own bus (music on/off) and its own longer reverb, also into the master, so N mutes everything.
 // There is no constant ambience bed: the HVAC hum and the formant-noise chatter read as wind
-// and came out in round three. The background is the music loop, the professor's murmur inside
+// and came out in round three. The background is the music loop, a few student sounds inside
 // a classroom, and birdsong by the courtyard.
 
 const LS_MUTE = 'evans.muted'
@@ -81,7 +81,7 @@ function start() {
   master = ctx.createGain()
   master.gain.value = soundState.get().muted ? 0 : 1
   master.connect(ctx.destination)
-  // sfx: every effect (dings, steps, doors, murmur, birds) sums here before the master, so the
+  // sfx: every effect (dings, steps, doors, students, birds) sums here before the master, so the
   // dev meter can compare it with the music bus
   const sfx = ctx.createGain()
   sfx.connect(master)
@@ -96,7 +96,7 @@ function start() {
   noise = makeNoise(2)
   soundState.set({ started: true })
   startMusic()
-  setInterval(scheduler, 100) // music, murmur and birds are scheduled about 0.4 s ahead
+  setInterval(scheduler, 100) // music, student sounds and birds are scheduled about 0.4 s ahead
 }
 
 // out(node, send): route a voice to the dry bus and optionally the reverb
@@ -433,23 +433,17 @@ function scheduleMusic(until) {
   }
 }
 
-// ---------- the classroom you are in: the professor murmurs at the lectern; students now and then
-// room: index into DRUMS (-1 outside a classroom); at: the lectern { x, z }; who: the professor key
-// (sets the voice pitch). SoundLoop calls this when the listener crosses a drum wall.
-const VOICE = { flitwick: 330, hagrid: 105, mcgonagall: 225, trelawney: 240, lockhart: 175, snape: 125, moody: 120, slughorn: 140, dumbledore: 150 }
-let room = { i: -1, at: null, who: null, center: null }
-let murNext = 0
-let talkUntil = 0
-let restUntil = 0
+// ---------- the classroom you are in: students now and then turn a page or whisper. The professor's
+// murmur was removed in round four (Lan found it unpleasant); professors talk in speech bubbles instead
+// (life/ProfBubble.jsx). room: index into DRUMS (-1 outside a classroom); center: the drum's middle { x, z }.
+// SoundLoop calls this when the listener crosses a drum wall.
+let room = { i: -1, center: null }
 let stuNext = 0
 
-function setRoom(i, at = null, who = null, center = null) {
-  room = { i, at, who, center }
+function setRoom(i, center = null) {
+  room = { i, center }
   stats.room = i
-  if (ctx) {
-    murNext = ctx.currentTime + rand(0.3, 0.9)
-    stuNext = ctx.currentTime + rand(2, 5)
-  }
+  if (ctx) stuNext = ctx.currentTime + rand(2, 5)
 }
 
 function roomPanner(x, z, y, ref = 2, roll = 1.4) {
@@ -490,35 +484,8 @@ function syllable(t, f, dur, gain, dest, vowel = rand(500, 1300)) {
 }
 
 function scheduleRoom(now, until) {
-  if (room.i < 0 || !room.at) return
-  // a room entered before the audio context existed leaves murNext at 0; a syllable's consonant
-  // starts 12 ms before it, so a phrase at t 0 threw a negative-time RangeError
-  if (murNext < now) murNext = now + 0.05
-  // talking about 60% of the time: 3.5 to 5.5 s of phrases, then 2 to 3.5 s of quiet
-  while (murNext < until) {
-    if (murNext >= talkUntil && murNext >= restUntil) {
-      talkUntil = murNext + rand(3.5, 5.5)
-      restUntil = talkUntil + rand(2, 3.5)
-    }
-    if (murNext >= talkUntil) {
-      murNext = restUntil
-      continue
-    }
-    const pn = roomPanner(room.at.x, room.at.z, 1.7)
-    const base = (VOICE[room.who] ?? 160) * rand(0.95, 1.05)
-    const n = 4 + Math.floor(Math.random() * 6) // 4 to 9 syllables
-    let t = murNext
-    for (let k = 0; k < n; k++) {
-      const contour = 1.12 - (0.22 * k) / n + rand(-0.1, 0.1) // a phrase falls in pitch toward its end
-      const dur = rand(0.07, 0.12)
-      syllable(t, base * contour * 2, dur, 0.03, pn) // an octave up: the cartoon register
-      stats.murmurSyllables++
-      if (room.i < 0) stats.murmurOutside++
-      t += dur + rand(0.02, 0.05)
-    }
-    murNext = t + rand(0.3, 0.7)
-  }
-  // students: a whispered two or three syllables, or a page turn, every 4 to 10 s
+  if (room.i < 0) return
+  // students: a whispered two or three syllables, or a page turn, every 8 to 15 s
   if (stuNext < until && room.center) {
     const t = Math.max(stuNext, now)
     const x = room.center.x + rand(-3, 3)
@@ -541,7 +508,7 @@ function scheduleRoom(now, until) {
       }
     }
     stats.studentSounds++
-    stuNext = t + rand(4, 10)
+    stuNext = t + rand(8, 15)
   }
 }
 
