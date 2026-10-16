@@ -170,6 +170,17 @@ export const STAIRS = [
   { id: 'I', c: [-38, 48.5], w: 3, d: 4, face: [0, -1], seed: 6 },
 ].map((s) => ({ ...s, c: planPt(s.c) }))
 
+// ---------- Metaverse Web (mvw/0.1): arrival points and the portal back to Metaverse Square
+// ?spawn=<id> picks one (mvw.js pickSpawn); yaw in radians, 0 looks north (-z), positive turns west.
+// The ids are public (other worlds link to them), so keep them; move the points freely.
+// The portal stands against the south face of stair A's core, facing the drums, west of the bin.
+export const SQUARE_PORTAL = { x: STAIRS[0].c[0] - 0.6, z: STAIRS[0].c[1] + STAIRS[0].d / 2 + 0.12, rot: 0 }
+export const SPAWNS = {
+  default: { x: SPAWN.x, z: SPAWN.z, yaw: 0 },
+  // 2.2 m in front of the square portal, looking east down the south cloister
+  from_square: { x: SQUARE_PORTAL.x, z: SQUARE_PORTAL.z + 2.2, yaw: -Math.PI / 2 },
+}
+
 // ---------- library (west side): its glass stays on the west cloister, its back wall moves west
 // with the wider corner block (12 m deep -> 14.8 m)
 export const LIBRARY = { x0: planX(-38.4), x1: planX(-26.4), z0: -13.3, z1: 13.3, door: 1.2 }

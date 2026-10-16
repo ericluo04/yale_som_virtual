@@ -29,6 +29,10 @@ Open http://localhost:5173 and click **Click to walk in**.
 
 **Phone / tablet:** tap **Tap to walk in**. The left-thumb joystick walks (push it all the way to sprint), dragging anywhere else looks around, and there are on-screen jump and pause buttons. On a laptop, click **Use on-screen joystick** to try the phone controls. WASD still works in that mode.
 
+## Metaverse Web
+
+This world is on the [Metaverse Web](https://github.com/zlisto/metaverse_web/blob/main/PROTOCOL.md) (`mvw/0.1`) as `yale_som_virtual`. A glowing portal on the south face of stair A goes to [Metaverse Square](https://zlisto.github.io/hub_world/). `?spawn=default` starts by Class of 1980 and `?spawn=from_square` starts in front of that portal. The manifest is `public/.well-known/metaverse.json`, `src/mvw.js` and `src/Portal.jsx` are copied unchanged from [zlisto/darul_kebab](https://github.com/zlisto/darul_kebab/tree/main/src), and the spawn points live in `SPAWNS` in `src/layout.js`.
+
 ## How it's built
 
 - `src/layout.js`: the floor plan in meters (+x east, -z north). It holds the drums, library, Beinecke, stairs, meeting rooms, wall colliders, and room lookup. Each classroom faces the courtyard, with the whiteboard and podium on the inner side and stadium-seating rows (32 cm risers) stepping up toward the outer wall; its two doors are at the front corners. You climb the center-aisle steps one riser at a time.

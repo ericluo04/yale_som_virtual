@@ -1,0 +1,18 @@
+{
+  "protocol": "mvw/0.1",
+  "name": "Evans Hall · Floor 2",
+  "description": "The second floor of Yale SOM's Evans Hall: blue classroom drums where Hogwarts professors teach MBA classes to Labubu students, the glass cloister round the courtyard, Ross Library, the Beinecke Terrace Room, and a few easter eggs.",
+  "spawns": {
+    "default": "The southwest corner of the cloister by the Class of 1980 classroom, facing north along the west cloister",
+    "from_square": "In front of the Metaverse Square portal on the south face of stair A, facing the cloister and the courtyard"
+  },
+  "portals": [
+    {
+      "id": "to_metaverse_square",
+      "label": "Metaverse Square",
+      "href": "https://zlisto.github.io/hub_world/",
+      "spawn": "by_yale_som_virtual",
+      "where": "The south face of stair A, at the southwest corner of the cloister"
+    }
+  ]
+}

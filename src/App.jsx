@@ -8,7 +8,9 @@ import CameraFeel from './render/CameraFeel.jsx'
 import Player, { motion } from './Player.jsx'
 import Minimap from './Minimap.jsx'
 import TouchControls from './TouchControls.jsx'
-import { EYE, SPAWN } from './layout.js'
+import { EYE, SPAWNS, SQUARE_PORTAL } from './layout.js'
+import Portal from './Portal.jsx'
+import { pickSpawn, presence } from './mvw.js'
 import { DPR, HUD, NOLOCK, OFF, QUALITY, STATS } from './render/debugCam.js'
 import { InteractScene, ui } from './interact/index.jsx'
 import { useStore } from './interact/store.js'
@@ -18,6 +20,8 @@ import { sound } from './interact/sound.js'
 import EggsA from './eggs/eggsA.jsx'
 import EggsB from './eggs/eggsB.jsx'
 import Loading, { LoadingProbe, useLoaded } from './ui/Loading.jsx'
+
+const START = pickSpawn(SPAWNS) // ?spawn=<id> (Metaverse Web); Player.jsx turns the camera
 
 export default function App() {
   const [locked, setLocked] = useState(false)
@@ -80,7 +84,10 @@ export default function App() {
   // window.__ui.set({ awaitLock: true }) the "click to look" hint
   if (import.meta.env.DEV) window.__lock = setLocked
   if (import.meta.env.DEV) window.__ui = ui
-  const onWhere = useCallback((w) => setWhere(w), [])
+  const onWhere = useCallback((w) => {
+    setWhere(w)
+    presence(`Evans Hall · ${w}`) // the Metaverse Browser shows it in its status bar
+  }, [])
   // phones have no pointer lock, so they get a joystick + drag-to-look instead
   const [isTouch] = useState(() => matchMedia('(pointer: coarse)').matches) // phones + tablets; touchscreen laptops still get mouse mode
   const [touchOn, setTouchOn] = useState(false)
@@ -120,7 +127,7 @@ export default function App() {
   return (
     <>
       <Canvas
-        camera={{ fov: 72, near: 0.05, far: 800, position: [SPAWN.x, EYE, SPAWN.z] }}
+        camera={{ fov: 72, near: 0.05, far: 800, position: [START.x, EYE, START.z] }}
         dpr={dpr}
         shadows={QUALITY === 'low' || OFF.has('shadow') ? false : 'soft'}
         gl={{ antialias: QUALITY === 'low', powerPreference: 'high-performance' }}
@@ -137,6 +144,8 @@ export default function App() {
           <EggsA />
           <EggsB />
         </Suspense>
+        {/* Metaverse Web: back to Metaverse Square, arriving in front of this world's portal there */}
+        <Portal {...SQUARE_PORTAL} href="https://zlisto.github.io/hub_world/" spawn="by_yale_som_virtual" back="from_square" label="Metaverse Square" />
         <Player lockRef={lockRef} mapRef={mapRef} touchRef={touchRef} onLock={onLock} onWhere={onWhere} />
         <CameraFeel />
         <LoadingProbe />

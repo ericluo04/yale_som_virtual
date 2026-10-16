@@ -7,8 +7,11 @@ import { DEBUG_CAM, NOLOCK } from './render/debugCam.js'
 import { ui } from './interact/store.js'
 import { sound } from './interact/sound.js'
 import { pushOut } from './interact/registry.js'
+import { pickSpawn } from './mvw.js'
 
-const { COLLIDERS, EYE, MAX_STEP, R_PLAYER, SPAWN, floorAt, locate } = LAYOUT
+const { COLLIDERS, EYE, MAX_STEP, R_PLAYER, SPAWNS, floorAt, locate } = LAYOUT
+// where this visit starts: ?spawn=<id> (Metaverse Web), else the default by Class of 1980
+const START = pickSpawn(SPAWNS)
 const CROUCH_EYE = 1.05
 const GRAVITY = 12
 // a 1.1 m hop (v = sqrt(2 g h)), so a desk top (0.75 m on the floor, about 0.95 m with its
@@ -134,8 +137,8 @@ export default function Player({ lockRef, mapRef, touchRef, onLock, onWhere }) {
   const euler = useMemo(() => new THREE.Euler(0, 0, 0, 'YXZ'), [])
 
   useEffect(() => {
-    camera.position.set(SPAWN.x, EYE, SPAWN.z)
-    camera.rotation.set(0, 0, 0)
+    camera.position.set(START.x, EYE, START.z)
+    camera.rotation.set(0, START.yaw, 0, 'YXZ')
     if (DEBUG_CAM) {
       camera.position.set(DEBUG_CAM.x, DEBUG_CAM.y, DEBUG_CAM.z)
       camera.rotation.set(DEBUG_CAM.pitch, DEBUG_CAM.yaw, 0, 'YXZ')

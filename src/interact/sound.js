@@ -620,6 +620,47 @@ function setMusic(on) {
   if (musicBus) musicBus.gain.setTargetAtTime(on ? MUSIC_GAIN : 0, ctx.currentTime, 0.4)
 }
 
+// Metaverse Web portal trips (src/audio.js hands these to Portal.jsx): the music fades out over
+// 0.4 s and a whoosh (a band of noise sweeping up and away over a low swoop) plays
+function fadeOut(seconds = 0.4) {
+  if (!musicBus) return
+  musicBus.gain.cancelScheduledValues(ctx.currentTime)
+  musicBus.gain.setValueAtTime(musicBus.gain.value, ctx.currentTime)
+  musicBus.gain.linearRampToValueAtTime(0, ctx.currentTime + seconds)
+}
+
+function whoosh() {
+  start()
+  if (!ctx) return
+  const t = ctx.currentTime + 0.02
+  const n = ctx.createBufferSource()
+  n.buffer = noise
+  n.loop = true
+  const bp = ctx.createBiquadFilter()
+  bp.type = 'bandpass'
+  bp.Q.value = 1.2
+  bp.frequency.setValueAtTime(250, t)
+  bp.frequency.exponentialRampToValueAtTime(3200, t + 0.45)
+  bp.frequency.exponentialRampToValueAtTime(400, t + 1.1)
+  const p = ctx.createStereoPanner()
+  p.pan.setValueAtTime(-0.7, t)
+  p.pan.linearRampToValueAtTime(0.7, t + 1.1)
+  const e = ctx.createGain()
+  env(e, t, 0.6, 0.35, 0.1, 0.7)
+  n.connect(bp).connect(e).connect(p).connect(master)
+  n.start(t)
+  n.stop(t + 1.3)
+  const o = ctx.createOscillator()
+  o.frequency.setValueAtTime(90, t)
+  o.frequency.exponentialRampToValueAtTime(300, t + 0.5)
+  o.frequency.exponentialRampToValueAtTime(60, t + 1.1)
+  const oe = ctx.createGain()
+  env(oe, t, 0.18, 0.3, 0.1, 0.7)
+  o.connect(oe).connect(master)
+  o.start(t)
+  o.stop(t + 1.3)
+}
+
 export const sound = {
   start,
   step,
@@ -634,6 +675,8 @@ export const sound = {
   setMusic,
   toggleMusic: () => setMusic(!soundState.get().music),
   setRoom,
+  fadeOut,
+  whoosh,
   stats,
   get context() {
     return ctx
