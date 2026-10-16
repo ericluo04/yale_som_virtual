@@ -31,7 +31,7 @@ Open http://localhost:5173 and click **Click to walk in**.
 
 ## Metaverse Web
 
-This world is on the [Metaverse Web](https://github.com/zlisto/metaverse_web/blob/main/PROTOCOL.md) (`mvw/0.1`) as `yale_som_virtual`. A glowing portal on the south face of stair A goes to [Metaverse Square](https://zlisto.github.io/hub_world/). `?spawn=default` starts by Class of 1980 and `?spawn=from_square` starts in front of that portal. The manifest is `public/.well-known/metaverse.json`, `src/mvw.js` and `src/Portal.jsx` are copied unchanged from [zlisto/darul_kebab](https://github.com/zlisto/darul_kebab/tree/main/src), and the spawn points live in `SPAWNS` in `src/layout.js`.
+This world is on the [Metaverse Web](https://github.com/zlisto/metaverse_web/blob/main/PROTOCOL.md) (`mvw/0.1`) as `evans_hall_lan`. A glowing portal on the south face of stair A goes to [Metaverse Square](https://zlisto.github.io/hub_world/). `?spawn=default` starts by Class of 1980 and `?spawn=from_square` starts in front of that portal. The manifest is `public/.well-known/metaverse.json`, `src/mvw.js` and `src/Portal.jsx` are copied unchanged from [zlisto/darul_kebab](https://github.com/zlisto/darul_kebab/tree/main/src), and the spawn points live in `SPAWNS` in `src/layout.js`.
 
 ## How it's built
 

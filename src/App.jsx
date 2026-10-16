@@ -145,7 +145,7 @@ export default function App() {
           <EggsB />
         </Suspense>
         {/* Metaverse Web: back to Metaverse Square, arriving in front of this world's portal there */}
-        <Portal {...SQUARE_PORTAL} href="https://zlisto.github.io/hub_world/" spawn="by_yale_som_virtual" back="from_square" label="Metaverse Square" />
+        <Portal {...SQUARE_PORTAL} href="https://zlisto.github.io/hub_world/" spawn="by_evans_hall_lan" back="from_square" label="Metaverse Square" />
         <Player lockRef={lockRef} mapRef={mapRef} touchRef={touchRef} onLock={onLock} onWhere={onWhere} />
         <CameraFeel />
         <LoadingProbe />
